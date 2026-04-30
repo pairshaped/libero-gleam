@@ -1,0 +1,113 @@
+//// Server entry point for user-auth example.
+
+import generated/dispatch
+import generated/websocket as ws
+import gleam/bytes_tree
+import gleam/erlang/process
+import gleam/http
+import gleam/http/request.{type Request}
+import gleam/http/response
+import gleam/list
+import gleam/option.{None, Some}
+import gleam/string
+import handler_context
+import libero/push
+import libero/ssr
+import libero/ws_logger
+import mist.{type Connection}
+import page
+import shared/router
+import sqlight
+
+pub fn main() {
+  let _ = push.init()
+  let _ = dispatch.ensure_atoms()
+  let assert Ok(db) = sqlight.open("file:data.db")
+  let handler_ctx = handler_context.new(db:)
+  let logger = ws_logger.default_logger()
+
+  let assert Ok(_) =
+    fn(req: Request(Connection)) {
+      case req.method, request.path_segments(req) {
+        _, ["ws"] -> ws.upgrade(request: req, handler_ctx:, topics: [], logger:)
+        http.Post, ["rpc"] -> handle_rpc(req, handler_ctx, logger)
+        _, ["web", ..path] ->
+          serve_file(
+            "../clients/web/build/dev/javascript/" <> string.join(path, "/"),
+          )
+        _, _ ->
+          ssr.handle_request(
+            req:,
+            parse: router.parse_route,
+            load: page.load_page,
+            render: page.render_page,
+            handler_ctx:,
+          )
+      }
+    }
+    |> mist.new
+    |> mist.port(8080)
+    |> mist.start
+
+  process.sleep_forever()
+}
+
+fn handle_rpc(
+  req: Request(Connection),
+  handler_ctx: handler_context.HandlerContext,
+  logger: ws_logger.Logger,
+) -> response.Response(mist.ResponseData) {
+  case mist.read_body(req, 1_000_000) {
+    Ok(req) -> {
+      let #(response_bytes, maybe_panic, _new_handler_ctx) =
+        dispatch.handle(handler_ctx:, data: req.body)
+      case maybe_panic {
+        Some(info) ->
+          logger.error(
+            "RPC panic: "
+            <> info.fn_name
+            <> " (trace "
+            <> info.trace_id
+            <> "): "
+            <> info.reason,
+          )
+        None -> Nil
+      }
+      response.new(200)
+      |> response.set_header("content-type", "application/octet-stream")
+      |> response.set_body(
+        mist.Bytes(bytes_tree.from_bit_array(response_bytes)),
+      )
+    }
+    Error(_) ->
+      response.new(400)
+      |> response.set_body(mist.Bytes(bytes_tree.from_string("Bad request")))
+  }
+}
+
+fn serve_file(path: String) -> response.Response(mist.ResponseData) {
+  case mist.send_file(path, offset: 0, limit: None) {
+    Ok(body) ->
+      response.new(200)
+      |> response.set_header("content-type", content_type(path))
+      |> response.set_body(body)
+    Error(_) ->
+      response.new(404)
+      |> response.set_body(mist.Bytes(bytes_tree.from_string("Not found")))
+  }
+}
+
+fn content_type(path: String) -> String {
+  case string.split(path, ".") |> list.last {
+    Ok("js") | Ok("mjs") -> "application/javascript"
+    Ok("css") -> "text/css"
+    Ok("html") -> "text/html"
+    Ok("json") -> "application/json"
+    Ok("wasm") -> "application/wasm"
+    Ok("svg") -> "image/svg+xml"
+    Ok("png") -> "image/png"
+    Ok("ico") -> "image/x-icon"
+    Ok("map") -> "application/json"
+    _ -> "application/octet-stream"
+  }
+}
