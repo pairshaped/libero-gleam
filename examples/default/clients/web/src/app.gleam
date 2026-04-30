@@ -3,7 +3,7 @@ import generated/ssr.{read_flags}
 import gleam/dynamic.{type Dynamic}
 import gleam/uri.{type Uri}
 import libero/remote_data.{type RpcData, Success}
-import libero/ssr as libero_ssr
+import libero/ssr_decode as libero_ssr
 import lustre
 import lustre/effect.{type Effect}
 import lustre/element

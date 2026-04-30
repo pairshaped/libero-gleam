@@ -5,8 +5,8 @@ import gleeunit/should
 import handler
 import handler_context
 import shared/types.{
-  DatabaseError, ItemParams, NotFound, SignInResult, TitleRequired,
-  UserAlreadyExists, UserNotFound,
+  DatabaseError, ItemParams, NotFound, TitleRequired, UserAlreadyExists,
+  UserNotFound,
 }
 import sqlight
 
@@ -41,8 +41,10 @@ fn setup_db() {
 fn sign_up_user(db, username) {
   let ctx = handler_context.new(db:)
   let #(result, new_ctx) = handler.sign_up(username:, handler_ctx: ctx)
-  let assert Ok(SignInResult(user:, token: _)) = result
-  #(user, new_ctx)
+  case result {
+    Ok(user) -> #(user, new_ctx)
+    _ -> panic as "sign_up_user failed"
+  }
 }
 
 pub fn sign_up_creates_user_test() {
@@ -50,10 +52,7 @@ pub fn sign_up_creates_user_test() {
   let ctx = handler_context.new(db:)
   let #(result, _) = handler.sign_up(username: "alice", handler_ctx: ctx)
   case result {
-    Ok(SignInResult(user:, token:)) -> {
-      should.equal(user.username, "alice")
-      should.not_equal(token, "")
-    }
+    Ok(user) -> should.equal(user.username, "alice")
     _ -> should.fail()
   }
 }
@@ -75,10 +74,7 @@ pub fn sign_in_valid_user_succeeds_test() {
   let #(_, ctx2) = handler.sign_out(handler_ctx: ctx)
   let #(result, _) = handler.sign_in(username: "bob", handler_ctx: ctx2)
   case result {
-    Ok(SignInResult(user:, token:)) -> {
-      should.equal(user.username, "bob")
-      should.not_equal(token, "")
-    }
+    Ok(user) -> should.equal(user.username, "bob")
     _ -> should.fail()
   }
 }
@@ -95,7 +91,7 @@ pub fn sign_in_unknown_user_fails_test() {
 
 pub fn sign_out_clears_session_user_test() {
   let db = setup_db()
-  let #(user, ctx) = sign_up_user(db, "alice")
+  let #(_user, ctx) = sign_up_user(db, "alice")
   let assert option.Some(_) = ctx.session_user
   let #(result, ctx2) = handler.sign_out(handler_ctx: ctx)
   case result {

@@ -54,13 +54,6 @@ export function decode_shared_types_item_params(term) {
   );
 }
 
-export function decode_shared_types_sign_in_result(term) {
-  return new _m_shared_types.SignInResult(
-    decode_shared_types_user(term[1]),
-    decode_string(term[2])
-  );
-}
-
 export function decode_shared_types_user(term) {
   return new _m_shared_types.User(
     decode_int(term[1]),
@@ -74,7 +67,8 @@ export function decode_shared_views_model(term) {
     decode_option_of((t0) => decode_shared_types_user(t0), term[2]),
     decode_libero_remote_data_rpc_data(term[3]),
     decode_string(term[4]),
-    decode_string(term[5])
+    decode_string(term[5]),
+    decode_option_of((t0) => decode_string(t0), term[6])
   );
 }
 
@@ -160,9 +154,9 @@ export function decode_response_sign_out(raw) {
 }
 
 export function decode_response_sign_in(raw) {
-  return _decode_response(raw, (t) => decode_shared_types_sign_in_result(t), (t) => decode_shared_types_auth_error(t));
+  return _decode_response(raw, (t) => decode_shared_types_user(t), (t) => decode_shared_types_auth_error(t));
 }
 
 export function decode_response_sign_up(raw) {
-  return _decode_response(raw, (t) => decode_shared_types_sign_in_result(t), (t) => decode_shared_types_auth_error(t));
+  return _decode_response(raw, (t) => decode_shared_types_user(t), (t) => decode_shared_types_auth_error(t));
 }

@@ -40,7 +40,6 @@ do_ensure() ->
         <<"ok">>,
         <<"session_expired">>,
         <<"sign_in">>,
-        <<"sign_in_result">>,
         <<"sign_up">>,
         <<"some">>,
         <<"title_required">>,

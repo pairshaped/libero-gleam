@@ -10,10 +10,6 @@ pub type ItemParams {
   ItemParams(title: String)
 }
 
-pub type SignInResult {
-  SignInResult(user: User, token: String)
-}
-
 pub type AuthError {
   UserAlreadyExists
   UserNotFound

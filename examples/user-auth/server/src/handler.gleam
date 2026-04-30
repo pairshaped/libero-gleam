@@ -1,19 +1,11 @@
 import generated/sql/server_sql
-import gleam/bit_array
-import gleam/crypto
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import handler_context.{type HandlerContext}
 import shared/types.{
-  type AuthError, type Item, type ItemError, type ItemParams, type SignInResult,
-  type User, DatabaseError, Item, NotFound, SessionExpired, SignInResult,
-  TitleRequired, User, UserAlreadyExists, UserNotFound,
-}
-
-fn generate_token() -> String {
-  let bytes = crypto.strong_random_bytes(32)
-  let hash = crypto.hash(crypto.Sha256, bytes)
-  bit_array.base64_encode(hash, False)
+  type AuthError, type Item, type ItemError, type ItemParams, type User,
+  DatabaseError, Item, NotFound, SessionExpired, TitleRequired,
+  UserAlreadyExists, UserNotFound, User,
 }
 
 fn resolve_user(ctx: HandlerContext) -> Result(Int, AuthError) {
@@ -26,26 +18,16 @@ fn resolve_user(ctx: HandlerContext) -> Result(Int, AuthError) {
 pub fn sign_up(
   username username: String,
   handler_ctx handler_ctx: HandlerContext,
-) -> #(Result(SignInResult, AuthError), HandlerContext) {
+) -> #(Result(User, AuthError), HandlerContext) {
   case server_sql.find_user_by_username(db: handler_ctx.db, username:) {
     Ok([_, ..]) -> #(Error(UserAlreadyExists), handler_ctx)
     _ ->
       case server_sql.create_user(db: handler_ctx.db, username:) {
         Ok([row]) -> {
           let user = User(id: row.id, username: row.username)
-          let token = generate_token()
-          let _ =
-            server_sql.insert_session(
-              db: handler_ctx.db,
-              token: Some(token),
-              user_id: row.id,
-            )
           let new_ctx =
-            handler_context.HandlerContext(
-              ..handler_ctx,
-              session_user: Some(user),
-            )
-          #(Ok(SignInResult(user:, token:)), new_ctx)
+            handler_context.HandlerContext(..handler_ctx, session_user: Some(user))
+          #(Ok(user), new_ctx)
         }
         _ -> #(Error(UserNotFound), handler_ctx)
       }
@@ -55,20 +37,13 @@ pub fn sign_up(
 pub fn sign_in(
   username username: String,
   handler_ctx handler_ctx: HandlerContext,
-) -> #(Result(SignInResult, AuthError), HandlerContext) {
+) -> #(Result(User, AuthError), HandlerContext) {
   case server_sql.find_user_by_username(db: handler_ctx.db, username:) {
     Ok([row]) -> {
       let user = User(id: row.id, username: row.username)
-      let token = generate_token()
-      let _ =
-        server_sql.insert_session(
-          db: handler_ctx.db,
-          token: Some(token),
-          user_id: row.id,
-        )
       let new_ctx =
         handler_context.HandlerContext(..handler_ctx, session_user: Some(user))
-      #(Ok(SignInResult(user:, token:)), new_ctx)
+      #(Ok(user), new_ctx)
     }
     _ -> #(Error(UserNotFound), handler_ctx)
   }
@@ -77,8 +52,7 @@ pub fn sign_in(
 pub fn sign_out(
   handler_ctx handler_ctx: HandlerContext,
 ) -> #(Result(Nil, AuthError), HandlerContext) {
-  let new_ctx =
-    handler_context.HandlerContext(..handler_ctx, session_user: None)
+  let new_ctx = handler_context.HandlerContext(..handler_ctx, session_user: None)
   #(Ok(Nil), new_ctx)
 }
 

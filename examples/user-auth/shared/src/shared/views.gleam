@@ -15,6 +15,7 @@ pub type Model {
     items: RpcData(List(Item), ItemError),
     input: String,
     username_input: String,
+    auth_error: Option(String),
   )
 }
 
@@ -94,6 +95,7 @@ fn sign_in_view(model: Model) -> Element(Msg) {
         ]),
         html.button([attribute.type_("submit")], [html.text("Sign In")]),
       ]),
+      view_auth_error(model),
       html.p([], [
         html.text("Don't have an account? "),
         html.a([attribute.href("/sign-up")], [html.text("Sign up")]),
@@ -114,6 +116,7 @@ fn sign_up_view(model: Model) -> Element(Msg) {
         ]),
         html.button([attribute.type_("submit")], [html.text("Sign Up")]),
       ]),
+      view_auth_error(model),
       html.p([], [
         html.text("Already have an account? "),
         html.a([attribute.href("/sign-in")], [html.text("Sign in")]),
@@ -157,6 +160,14 @@ fn view_item(item: Item) -> Element(Msg) {
       html.button([event.on_click(UserDeleted(item.id))], [html.text("Delete")]),
     ],
   )
+}
+
+fn view_auth_error(model: Model) -> Element(Msg) {
+  case model.auth_error {
+    option.Some(msg) ->
+      html.p([attribute.style("color", "crimson")], [html.text(msg)])
+    option.None -> element.none()
+  }
 }
 
 fn format_item_error(err: ItemError) -> String {

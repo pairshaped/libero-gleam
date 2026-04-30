@@ -94,8 +94,7 @@ fn decode_response_sign_in(raw: Dynamic) -> Dynamic
 
 pub fn sign_in(
   username username: String,
-  on_response on_response: fn(RpcData(types.SignInResult, types.AuthError)) ->
-    msg,
+  on_response on_response: fn(RpcData(types.User, types.AuthError)) -> msg,
 ) -> Effect(msg) {
   send(SignIn(username:), fn(raw) {
     on_response(wire.coerce(decode_response_sign_in(raw)))
@@ -107,8 +106,7 @@ fn decode_response_sign_up(raw: Dynamic) -> Dynamic
 
 pub fn sign_up(
   username username: String,
-  on_response on_response: fn(RpcData(types.SignInResult, types.AuthError)) ->
-    msg,
+  on_response on_response: fn(RpcData(types.User, types.AuthError)) -> msg,
 ) -> Effect(msg) {
   send(SignUp(username:), fn(raw) {
     on_response(wire.coerce(decode_response_sign_up(raw)))

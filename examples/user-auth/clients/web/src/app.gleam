@@ -5,15 +5,16 @@ import gleam/dynamic.{type Dynamic}
 import gleam/list
 import gleam/option
 import gleam/uri.{type Uri}
-import libero/remote_data.{type RpcData, Success}
-import libero/ssr as libero_ssr
+import libero/remote_data.{type RpcData, DomainError, Failure, Loading, NotAsked, Success}
+import libero/ssr_decode as libero_ssr_decode
 import lustre
 import lustre/effect.{type Effect}
 import lustre/element
 import modem
 import shared/router
 import shared/types.{
-  type AuthError, type Item, type ItemError, type SignInResult, ItemParams,
+  type AuthError, type Item, type ItemError, type User, ItemParams,
+  UserAlreadyExists, UserNotFound,
 }
 import shared/views
 
@@ -27,16 +28,10 @@ pub type ClientMsg {
   GotCreated(RpcData(Item, ItemError))
   GotToggled(RpcData(Item, ItemError))
   GotDeleted(RpcData(Int, ItemError))
-  GotSignedUp(RpcData(SignInResult, AuthError))
-  GotSignedIn(RpcData(SignInResult, AuthError))
+  GotSignedUp(RpcData(User, AuthError))
+  GotSignedIn(RpcData(User, AuthError))
   GotSignedOut(RpcData(Nil, AuthError))
 }
-
-@external(javascript, "globalThis", "setCookie")
-pub fn set_cookie(name: String, value: String, path: String) -> Nil
-
-@external(javascript, "globalThis", "clearCookie")
-pub fn clear_cookie(name: String, path: String) -> Nil
 
 pub fn main() {
   let app = lustre.application(init, update, view_wrap)
@@ -45,7 +40,7 @@ pub fn main() {
 }
 
 fn init(flags: Dynamic) -> #(Model, Effect(ClientMsg)) {
-  let page_model: views.Model = case libero_ssr.decode_flags(flags) {
+  let page_model: views.Model = case libero_ssr_decode.decode_flags(flags) {
     Ok(m) -> m
     Error(_) ->
       panic as "failed to decode SSR flags. Was ssr.boot_script called on the server?"
@@ -149,41 +144,29 @@ fn update(model: Model, msg: ClientMsg) -> #(Model, Effect(ClientMsg)) {
       ),
       effect.none(),
     )
-    GotSignedUp(Success(result)) -> #(
+    GotSignedUp(Success(user)) -> #(
       Model(
-        ctx: client_context.update(
-          model.ctx,
-          client_context.SignIn(user: result.user, token: result.token),
-        ),
+        ctx: client_context.update(model.ctx, client_context.SignIn(user:)),
         page: views.Model(
           ..model.page,
-          session_user: option.Some(result.user),
+          session_user: option.Some(user),
           items: remote_data.Loading,
           route: router.Home,
         ),
       ),
-      effect.batch([
-        effect.from(fn(_) { set_cookie("session_token", result.token, "/") }),
-        rpc.get_items(on_response: GotItems),
-      ]),
+      rpc.get_items(on_response: GotItems),
     )
-    GotSignedIn(Success(result)) -> #(
+    GotSignedIn(Success(user)) -> #(
       Model(
-        ctx: client_context.update(
-          model.ctx,
-          client_context.SignIn(user: result.user, token: result.token),
-        ),
+        ctx: client_context.update(model.ctx, client_context.SignIn(user:)),
         page: views.Model(
           ..model.page,
-          session_user: option.Some(result.user),
+          session_user: option.Some(user),
           items: remote_data.Loading,
           route: router.Home,
         ),
       ),
-      effect.batch([
-        effect.from(fn(_) { set_cookie("session_token", result.token, "/") }),
-        rpc.get_items(on_response: GotItems),
-      ]),
+      rpc.get_items(on_response: GotItems),
     )
     GotSignedOut(Success(_)) -> #(
       Model(
@@ -195,13 +178,53 @@ fn update(model: Model, msg: ClientMsg) -> #(Model, Effect(ClientMsg)) {
           route: router.Home,
         ),
       ),
-      effect.from(fn(_) { clear_cookie("session_token", "/") }),
+      effect.none(),
     )
     GotCreated(_) -> #(model, effect.none())
     GotToggled(_) -> #(model, effect.none())
     GotDeleted(_) -> #(model, effect.none())
-    GotSignedUp(_) -> #(model, effect.none())
-    GotSignedIn(_) -> #(model, effect.none())
+    GotSignedUp(Failure(DomainError(UserAlreadyExists))) -> #(
+      Model(
+        ..model,
+        page: views.Model(
+          ..model.page,
+          auth_error: option.Some("Username already taken."),
+        ),
+      ),
+      effect.none(),
+    )
+    GotSignedUp(Failure(_)) -> #(
+      Model(
+        ..model,
+        page: views.Model(
+          ..model.page,
+          auth_error: option.Some("Something went wrong. Try again."),
+        ),
+      ),
+      effect.none(),
+    )
+    GotSignedIn(Failure(DomainError(UserNotFound))) -> #(
+      Model(
+        ..model,
+        page: views.Model(
+          ..model.page,
+          auth_error: option.Some("User not found. Sign up instead."),
+        ),
+      ),
+      effect.none(),
+    )
+    GotSignedIn(Failure(_)) -> #(
+      Model(
+        ..model,
+        page: views.Model(
+          ..model.page,
+          auth_error: option.Some("Something went wrong. Try again."),
+        ),
+      ),
+      effect.none(),
+    )
+    GotSignedUp(NotAsked) | GotSignedUp(Loading) -> #(model, effect.none())
+    GotSignedIn(NotAsked) | GotSignedIn(Loading) -> #(model, effect.none())
     GotSignedOut(_) -> #(model, effect.none())
   }
 }

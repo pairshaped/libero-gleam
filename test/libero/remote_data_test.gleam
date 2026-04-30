@@ -84,63 +84,50 @@ pub fn to_option_not_asked_test() {
 // -- map2 --
 
 pub fn map2_both_success_test() {
-  let assert Success(#(10, 20)) = remote_data.map2(
-    a: Success(10),
-    b: Success(20),
-    combine: fn(a, b) { #(a, b) },
-  )
+  let assert Success(#(10, 20)) =
+    remote_data.map2(a: Success(10), b: Success(20), combine: fn(a, b) {
+      #(a, b)
+    })
 }
 
 pub fn map2_first_failure_test() {
-  let assert Failure("a") = remote_data.map2(
-    a: Failure("a"),
-    b: Success(20),
-    combine: fn(a, b) { #(a, b) },
-  )
+  let assert Failure("a") =
+    remote_data.map2(a: Failure("a"), b: Success(20), combine: fn(a, b) {
+      #(a, b)
+    })
 }
 
 pub fn map2_second_failure_test() {
-  let assert Failure("b") = remote_data.map2(
-    a: Success(10),
-    b: Failure("b"),
-    combine: fn(a, b) { #(a, b) },
-  )
+  let assert Failure("b") =
+    remote_data.map2(a: Success(10), b: Failure("b"), combine: fn(a, b) {
+      #(a, b)
+    })
 }
 
 pub fn map2_both_failure_test() {
-  let assert Failure("a") = remote_data.map2(
-    a: Failure("a"),
-    b: Failure("b"),
-    combine: fn(a, b) { #(a, b) },
-  )
+  let assert Failure("a") =
+    remote_data.map2(a: Failure("a"), b: Failure("b"), combine: fn(a, b) {
+      #(a, b)
+    })
 }
 
 pub fn map2_first_loading_test() {
   let data: remote_data.RemoteData(Int, String) = Loading
-  let assert Loading = remote_data.map2(
-    a: data,
-    b: Success(20),
-    combine: fn(a, b) { #(a, b) },
-  )
+  let assert Loading =
+    remote_data.map2(a: data, b: Success(20), combine: fn(a, b) { #(a, b) })
 }
 
 pub fn map2_second_loading_test() {
   let data: remote_data.RemoteData(Int, String) = Loading
-  let assert Loading = remote_data.map2(
-    a: Success(10),
-    b: data,
-    combine: fn(a, b) { #(a, b) },
-  )
+  let assert Loading =
+    remote_data.map2(a: Success(10), b: data, combine: fn(a, b) { #(a, b) })
 }
 
 pub fn map2_both_not_asked_test() {
   let data_a: remote_data.RemoteData(Int, String) = NotAsked
   let data_b: remote_data.RemoteData(Int, String) = NotAsked
-  let assert NotAsked = remote_data.map2(
-    a: data_a,
-    b: data_b,
-    combine: fn(a, b) { #(a, b) },
-  )
+  let assert NotAsked =
+    remote_data.map2(a: data_a, b: data_b, combine: fn(a, b) { #(a, b) })
 }
 
 // -- try --
