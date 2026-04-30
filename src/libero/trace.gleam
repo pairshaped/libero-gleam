@@ -13,9 +13,6 @@
 //// `io.println_error` as a default logger; consumers that want
 //// structured logging can wrap the primitives in their own module.
 
-import gleam/bit_array
-import gleam/crypto
-
 /// Run the given function, catching any panic. Returns the result on
 /// success; on failure, returns the stringified exception reason.
 /// Callers typically pair this with a trace id from `new_trace_id` and
@@ -25,12 +22,17 @@ pub fn try_call(action: fn() -> a) -> Result(a, String) {
   do_try_call(action)
 }
 
-/// Generate a fresh 12-character base16 random id. 6 bytes of entropy
-/// is plenty for log correlation and keeps the id short enough to fit
-/// in a devtools view.
+/// Generate a unique trace id for log correlation. Uses
+/// `erlang:unique_integer` on Erlang and a counter + `Date.now()` on
+/// JavaScript. Unique enough for debugging; not cryptographically
+/// random.
 pub fn new_trace_id() -> String {
-  crypto.strong_random_bytes(6) |> bit_array.base16_encode
+  unique_id()
 }
+
+@external(erlang, "libero_ffi", "unique_id")
+@external(javascript, "./libero_ffi.mjs", "uniqueId")
+fn unique_id() -> String
 
 // Note: there's no catch_panic convenience wrapper here. The
 // generated dispatch code handles panics inline by calling

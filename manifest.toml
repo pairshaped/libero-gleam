@@ -42,7 +42,6 @@ packages = [
 [requirements]
 birdie = { version = ">= 1.5.5 and < 2.0.0" }
 glance = { version = "~> 6.0" }
-gleam_crypto = { version = "~> 1.5" }
 gleam_erlang = { version = "~> 1.0" }
 gleam_http = { version = "~> 4.0" }
 gleam_stdlib = { version = ">= 0.69.0 and < 2.0.0" }
