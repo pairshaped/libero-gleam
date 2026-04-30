@@ -3,3 +3,4 @@
 .env
 *.beam
 erl_crash.dump
+*.db

@@ -21,7 +21,7 @@ pub fn init_from_ssr(user: Option(User)) -> Model {
 pub fn update(model: Model, msg: Msg) -> Model {
   case msg {
     SignIn(user:, token:) ->
-      Model(session_user: option.Some(user), session_token: option.Some(token))
-    SignOut -> Model(session_user: option.None, session_token: option.None)
+      Model(..model, session_user: option.Some(user), session_token: option.Some(token))
+    SignOut -> Model(..model, session_user: option.None, session_token: option.None)
   }
 }

@@ -151,7 +151,6 @@ fn update(model: Model, msg: ClientMsg) -> #(Model, Effect(ClientMsg)) {
     )
     GotSignedUp(Success(result)) -> #(
       Model(
-        ..model,
         ctx: client_context.update(
           model.ctx,
           client_context.SignIn(user: result.user, token: result.token),
@@ -170,7 +169,6 @@ fn update(model: Model, msg: ClientMsg) -> #(Model, Effect(ClientMsg)) {
     )
     GotSignedIn(Success(result)) -> #(
       Model(
-        ..model,
         ctx: client_context.update(
           model.ctx,
           client_context.SignIn(user: result.user, token: result.token),
@@ -189,7 +187,6 @@ fn update(model: Model, msg: ClientMsg) -> #(Model, Effect(ClientMsg)) {
     )
     GotSignedOut(Success(_)) -> #(
       Model(
-        ..model,
         ctx: client_context.update(model.ctx, client_context.SignOut),
         page: views.Model(
           ..model.page,
