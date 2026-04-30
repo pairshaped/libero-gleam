@@ -1,6 +1,6 @@
 import gleam/option.{type Option}
-import sqlight
 import shared/types.{type User}
+import sqlight
 
 pub type HandlerContext {
   HandlerContext(db: sqlight.Connection, session_user: Option(User))
