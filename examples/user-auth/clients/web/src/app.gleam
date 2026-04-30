@@ -45,7 +45,7 @@ pub fn main() {
 }
 
 fn init(flags: Dynamic) -> #(Model, Effect(ClientMsg)) {
-  let page_model = case libero_ssr.decode_flags(flags) {
+  let page_model: views.Model = case libero_ssr.decode_flags(flags) {
     Ok(m) -> m
     Error(_) ->
       panic as "failed to decode SSR flags. Was ssr.boot_script called on the server?"
@@ -164,7 +164,7 @@ fn update(model: Model, msg: ClientMsg) -> #(Model, Effect(ClientMsg)) {
         ),
       ),
       effect.batch([
-        set_cookie("session_token", result.token, "/"),
+        effect.from(fn(_) { set_cookie("session_token", result.token, "/") }),
         rpc.get_items(on_response: GotItems),
       ]),
     )
@@ -183,7 +183,7 @@ fn update(model: Model, msg: ClientMsg) -> #(Model, Effect(ClientMsg)) {
         ),
       ),
       effect.batch([
-        set_cookie("session_token", result.token, "/"),
+        effect.from(fn(_) { set_cookie("session_token", result.token, "/") }),
         rpc.get_items(on_response: GotItems),
       ]),
     )
@@ -198,7 +198,7 @@ fn update(model: Model, msg: ClientMsg) -> #(Model, Effect(ClientMsg)) {
           route: router.Home,
         ),
       ),
-      clear_cookie("session_token", "/"),
+      effect.from(fn(_) { clear_cookie("session_token", "/") }),
     )
     GotCreated(_) -> #(model, effect.none())
     GotToggled(_) -> #(model, effect.none())
