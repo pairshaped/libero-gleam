@@ -7,7 +7,7 @@
 %% Erlang term shapes.
 
 -module(libero_ffi).
--export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0]).
+-export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0, unique_id/0]).
 
 identity(X) -> X.
 
@@ -56,3 +56,11 @@ try_call(F) ->
             ),
             {error, erlang:iolist_to_binary(Message)}
     end.
+
+%% Return a short unique hex string for trace IDs and temp file names.
+%% Uses erlang:unique_integer (per-VM monotonic) plus system time so
+%% IDs are unique within the VM and unlikely to collide across VMs.
+unique_id() ->
+    Int = erlang:unique_integer([positive, monotonic]),
+    Time = erlang:system_time(millisecond),
+    erlang:iolist_to_binary(io_lib:format("~.16b-~.16b", [Time, Int])).

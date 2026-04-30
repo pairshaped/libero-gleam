@@ -3,8 +3,6 @@
 //// Writes code to a temp file, runs the formatter, reads back the result.
 //// Falls back to the original string if formatting fails.
 
-import gleam/bit_array
-import gleam/crypto
 import gleam/int
 import gleam/io
 import gleam/option.{type Option}
@@ -16,11 +14,10 @@ import simplifile
 /// Returns the formatted code, or the original if formatting fails.
 /// nolint: thrown_away_error -- intentional fallback: formatting is best-effort
 pub fn format_gleam(code: String) -> String {
-  // Crypto-strong suffix so concurrent codegen calls (parallel test
-  // runs across separate VMs, multiple consumer projects driving libero
-  // at once) cannot collide. unique_integer is per-VM-monotonic, so it
-  // alone doesn't protect cross-VM; 64 random bits do.
-  let suffix = crypto.strong_random_bytes(8) |> bit_array.base16_encode
+  // Unique suffix for temp files. erlang:unique_integer (per-VM
+  // monotonic) plus system time avoids collisions even during
+  // parallel codegen across VMs.
+  let suffix = format_unique_id()
   let tmp_dir = get_tmp_dir()
   let tmp = tmp_dir <> "/libero_fmt_" <> suffix <> ".gleam"
   case simplifile.write(tmp, code) {
@@ -88,3 +85,7 @@ fn get_tmp_dir() -> String {
 // when the argument is a binary rather than a charlist.
 @external(erlang, "libero_cli_ffi", "get_env")
 fn get_env(name: String) -> Option(String)
+
+@external(erlang, "libero_ffi", "unique_id")
+@external(javascript, "./libero_ffi.mjs", "uniqueId")
+fn format_unique_id() -> String
