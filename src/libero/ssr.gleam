@@ -8,7 +8,6 @@
 import gleam/bit_array
 import gleam/bytes_tree
 import gleam/dynamic.{type Dynamic}
-import gleam/dynamic/decode
 import gleam/http
 import gleam/http/request.{type Request}
 import gleam/http/response.{type Response}
@@ -16,6 +15,7 @@ import gleam/option.{type Option}
 import gleam/result
 import gleam/uri.{type Uri, Uri}
 import libero/error.{type PanicInfo}
+import libero/ssr_decode.{decode_flags as ssr_decode_flags}
 import libero/wire
 import lustre/attribute
 import lustre/element.{type Element}
@@ -86,17 +86,12 @@ pub fn encode_flags(data: a) -> String {
 
 /// Decode flags from a Dynamic value (base64 ETF string).
 /// Use this in a Lustre init function to decode server-embedded flags.
+///
+/// Delegates to `libero/ssr_decode`, which avoids the `mist` import
+/// that pulls gramps/gleam_crypto into the browser build. Prefer
+/// importing `libero/ssr_decode` directly in client code.
 pub fn decode_flags(flags: Dynamic) -> Result(a, SsrError) {
-  case decode.run(flags, decode.string) {
-    Error(_) -> Error(BadFlags)
-    Ok(encoded) ->
-      bit_array.base64_decode(encoded)
-      |> result.replace_error(BadFlags)
-      |> result.try(fn(bytes) {
-        wire.decode_safe(bytes)
-        |> result.replace_error(BadFlags)
-      })
-  }
+  ssr_decode_flags(flags) |> result.replace_error(BadFlags)
 }
 
 /// Render a fragment of two `<script>` elements that boot the client app:
