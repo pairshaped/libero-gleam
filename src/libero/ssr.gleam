@@ -15,7 +15,7 @@ import gleam/option.{type Option}
 import gleam/result
 import gleam/uri.{type Uri, Uri}
 import libero/error.{type PanicInfo}
-import libero/ssr_decode.{decode_flags as ssr_decode_flags}
+import libero/ssr_decode
 import libero/wire
 import lustre/attribute
 import lustre/element.{type Element}
@@ -91,7 +91,7 @@ pub fn encode_flags(data: a) -> String {
 /// that pulls gramps/gleam_crypto into the browser build. Prefer
 /// importing `libero/ssr_decode` directly in client code.
 pub fn decode_flags(flags: Dynamic) -> Result(a, SsrError) {
-  ssr_decode_flags(flags) |> result.replace_error(BadFlags)
+  ssr_decode.decode_flags(flags) |> result.replace_error(BadFlags)
 }
 
 /// Render a fragment of two `<script>` elements that boot the client app:

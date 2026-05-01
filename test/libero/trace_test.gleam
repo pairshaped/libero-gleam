@@ -37,49 +37,24 @@ pub fn try_call_catches_division_by_zero_test() {
 }
 
 // ---------- new_trace_id ----------
+//
+// The ID is a short unique string built from a monotonic counter and
+// system time, formatted as "<time>-<counter>" in base-16 (Erlang) or
+// base-36 (JavaScript). Unique enough for log correlation; not
+// cryptographically random.
 
-pub fn new_trace_id_is_12_chars_test() {
+pub fn new_trace_id_is_non_empty_test() {
   let id = trace.new_trace_id()
-  let assert 12 = string.length(id)
+  let assert True = string.length(id) > 0
 }
 
-pub fn new_trace_id_is_hex_test() {
-  // 6 bytes of entropy as base16 uses only 0-9 and A-F.
+pub fn new_trace_id_has_dash_separator_test() {
   let id = trace.new_trace_id()
-  let assert True = is_base16(id)
+  let assert True = string.contains(id, "-")
 }
 
 pub fn new_trace_id_is_unique_test() {
-  // Two consecutive calls should virtually never collide. If they
-  // do, crypto.strong_random_bytes is broken.
   let id1 = trace.new_trace_id()
   let id2 = trace.new_trace_id()
   let assert False = id1 == id2
-}
-
-// ---------- helpers ----------
-
-fn is_base16(value: String) -> Bool {
-  value
-  |> string.to_graphemes
-  |> do_all_base16
-}
-
-fn do_all_base16(chars: List(String)) -> Bool {
-  case chars {
-    [] -> True
-    [c, ..rest] ->
-      case is_hex_char(c) {
-        True -> do_all_base16(rest)
-        False -> False
-      }
-  }
-}
-
-fn is_hex_char(c: String) -> Bool {
-  case c {
-    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
-    "A" | "B" | "C" | "D" | "E" | "F" -> True
-    _ -> False
-  }
 }

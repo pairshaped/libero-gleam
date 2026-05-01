@@ -4,8 +4,10 @@
 //// try/catch and returns `Ok(result)` on success or `Error(reason)`
 //// where `reason` is the stringified exception.
 ////
-//// `new_trace_id()` returns a 12-character base16-encoded random id,
-//// suitable for correlating log lines with RPC error responses.
+//// `new_trace_id()` returns a short unique string built from a
+//// monotonic counter and system time, suitable for correlating log
+//// lines with RPC error responses. Unique enough for debugging;
+//// not cryptographically random.
 ////
 //// **Logging is intentionally not part of this module.** Libero stays
 //// free of wisp/logging dependencies so it can be used in any
