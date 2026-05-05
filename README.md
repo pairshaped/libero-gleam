@@ -110,6 +110,8 @@ The return type `Result(a, e)` maps directly to `RpcData` on the client:
 - `Error(err)` becomes `Failure(DomainError(err))` (typed domain error)
 - A framework-level failure (malformed wire, unknown function, server panic) becomes `Failure(TransportError(rpc_err))` with a typed `RpcError`
 
+The generated dispatch catches panics automatically. If a handler panics, the client receives `Failure(TransportError(InternalError(trace_id, "Something went wrong")))` and the full panic reason is logged server-side under that trace ID. The caller's process stays alive.
+
 ## Shared Types
 
 Define your domain types in `shared/src/shared/`. These are the types used in handler signatures and shared between server and client:
@@ -284,6 +286,8 @@ Generation rules:
 ## How It Works
 
 The wire format is [ETF](https://www.erlang.org/doc/apps/erts/erl_ext_dist.html) (Erlang Term Format) over binary WebSocket frames. Gleam types serialize automatically without explicit codecs.
+
+For safe decoding of untrusted ETF input, use `wire.decode_safe` which returns `Result(a, error.DecodeError)`. The `DecodeError` type lives in `libero/error` alongside `RpcError` and `PanicInfo`.
 
 The client sends a typed message over the WebSocket. The server dispatch decodes it, routes by function, and calls the handler. The response flows back as `Result(Result(payload, domain), RpcError)`, which the client stub converts to `RpcData(payload, domain)`.
 
