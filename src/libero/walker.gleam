@@ -131,69 +131,30 @@ fn is_stdlib_module_path(path: String) -> Bool {
   path == "gleam" || string.starts_with(path, "gleam/")
 }
 
-/// Walk all exported custom types from a list of shared source files.
-/// Seeds from every public type in shared/, since the codegen pipeline
-/// needs decoders for any type that may appear in a handler's params or
-/// return type.
-pub fn walk_shared_types(
-  shared_src shared_src: String,
+/// Walk the type graph starting from seeds, discovering all reachable custom types.
+/// Seeds come from scanner output (param/return types of endpoints).
+/// file_paths are the .gleam files to search for type definitions.
+pub fn walk(
+  seeds seeds: List(#(String, String)),
+  file_paths file_paths: List(String),
+  src_root _src_root: String,
 ) -> Result(List(DiscoveredType), List(GenError)) {
-  // Find all .gleam files in the shared source directory.
-  // Reuses scanner.walk_directory so generated/ subdirectories and
-  // symlinks are skipped consistently with the rest of the pipeline.
-  use files <- result.try(
-    scanner.walk_directory(path: shared_src)
-    |> result.map_error(fn(err) { [err] }),
-  )
-
-  // Build module_files dict
   let module_files =
-    list.fold(files, dict.new(), fn(acc, file_path) {
+    list.fold(file_paths, dict.new(), fn(acc, file_path) {
       let module_path = scanner.derive_module_path(file_path:)
       dict.insert(acc, module_path, file_path)
     })
 
-  // Seed from all exported custom types in all shared files. Surface
-  // any read/parse errors instead of silently dropping them. A file
-  // that fails to parse here would otherwise contribute zero seed types
-  // with no warning, then later show up as TypeNotFound.
-  let #(seed_set, errors_rev) =
-    list.fold(files, #(set.new(), []), fn(acc, file_path) {
-      let #(set_acc, errs_acc) = acc
-      let module_path = scanner.derive_module_path(file_path:)
-      case read_public_type_pairs(module_path, file_path) {
-        Ok(pairs) -> #(list.fold(pairs, set_acc, set.insert), errs_acc)
-        Error(err) -> #(set_acc, [err, ..errs_acc])
-      }
-    })
-  case errors_rev {
-    [] ->
-      do_walk(
-        WalkerState(
-          queue: set.to_list(seed_set),
-          visited: set.new(),
-          discovered: [],
-          module_files: module_files,
-          parsed_cache: dict.new(),
-          errors: [],
-        ),
-      )
-    _ -> Error(list.reverse(errors_rev))
-  }
-}
-
-fn read_public_type_pairs(
-  module_path: String,
-  file_path: String,
-) -> Result(List(#(String, String)), GenError) {
-  use parsed <- result.map(scanner.parse_module(file_path:))
-  list.fold(parsed.custom_types, [], fn(acc, ct) {
-    let glance.Definition(_, t) = ct
-    case t.publicity == glance.Public {
-      True -> [#(module_path, t.name), ..acc]
-      False -> acc
-    }
-  })
+  do_walk(
+    WalkerState(
+      queue: seeds,
+      visited: set.new(),
+      discovered: [],
+      module_files: module_files,
+      parsed_cache: dict.new(),
+      errors: [],
+    ),
+  )
 }
 
 fn do_walk(state: WalkerState) -> Result(List(DiscoveredType), List(GenError)) {

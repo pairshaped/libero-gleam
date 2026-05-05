@@ -1,30 +1,19 @@
 name = "libero"
-version = "5.1.0"
-description = "Typed Gleam RPC for Lustre SPAs without REST, JSON codecs, or hand-written dispatch tables"
+version = "6.0.0"
+description = "RPC plumbing library: handler scanning, dispatch codegen, ETF wire protocol, and decoder generation for Gleam"
 licences = ["MIT"]
 repository = { type = "github", user = "pairshaped", repo = "libero" }
 
 # No target specified - cross-target package.
-# Erlang-only modules: libero/trace, libero (the generator main),
-#   libero/push, libero/format
-# JS-only modules: libero/rpc
-# Cross-target modules: libero/error, libero/wire, libero/ssr,
-#   libero/field_type, libero/remote_data, libero/ws_logger, libero/gen_error
-#
-# Per-target @external specs keep each module usable only on its intended
-# target. The package as a whole can be depended on from both Erlang and
-# JavaScript consumer packages.
+# Erlang-only modules: libero/trace, libero/format
+# JS-only modules: (none currently)
+# Cross-target modules: libero/error, libero/wire,
+#   libero/field_type, libero/remote_data, libero/gen_error
 
 [dependencies]
-# Lower bound is intentionally wide to maximize compatibility with
-# consumer projects. CI tests against the resolved version (0.71.x).
 gleam_stdlib = ">= 0.69.0 and < 2.0.0"
 glance = "~> 6.0"
 simplifile = "~> 2.0"
-lustre = "~> 5.6"
-tom = ">= 2.0.2 and < 3.0.0"
-gleam_http = "~> 4.0"
-mist = "~> 6.0"
 glexer = ">= 2.4.0 and < 3.0.0"
 
 [dev-dependencies]

@@ -42,18 +42,3 @@ pub fn module_to_mjs_deep_path_test() {
   let assert "shared/shared/admin/items.mjs" =
     codegen.module_to_mjs_path("shared/admin/items")
 }
-
-// -- extract_dir tests --
-
-pub fn extract_dir_nested_test() {
-  let assert "src/generated/libero" =
-    codegen.extract_dir("src/generated/libero/dispatch.gleam")
-}
-
-pub fn extract_dir_single_file_test() {
-  let assert "." = codegen.extract_dir("file.gleam")
-}
-
-pub fn extract_dir_one_level_test() {
-  let assert "src" = codegen.extract_dir("src/file.gleam")
-}

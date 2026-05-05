@@ -7,7 +7,8 @@
 %% Erlang term shapes.
 
 -module(libero_ffi).
--export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0, unique_id/0]).
+-export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0, unique_id/0,
+         run_executable_capturing/2, find_executable/1, get_env/1]).
 
 identity(X) -> X.
 
@@ -58,9 +59,36 @@ try_call(F) ->
     end.
 
 %% Return a short unique hex string for trace IDs and temp file names.
-%% Uses erlang:unique_integer (per-VM monotonic) plus system time so
-%% IDs are unique within the VM and unlikely to collide across VMs.
 unique_id() ->
     Int = erlang:unique_integer([positive, monotonic]),
     Time = erlang:system_time(millisecond),
     erlang:iolist_to_binary(io_lib:format("~.16b-~.16b", [Time, Int])).
+
+run_executable_capturing(Path, Args) ->
+    Port = erlang:open_port(
+        {spawn_executable, unicode:characters_to_list(Path)},
+        [{args, [unicode:characters_to_list(A) || A <- Args]},
+         exit_status, stderr_to_stdout, binary]
+    ),
+    wait_for_port_capturing(Port, []).
+
+wait_for_port_capturing(Port, Acc) ->
+    receive
+        {Port, {exit_status, Status}} ->
+            Output = iolist_to_binary(lists:reverse(Acc)),
+            {Status, Output};
+        {Port, {data, Data}} ->
+            wait_for_port_capturing(Port, [Data | Acc])
+    end.
+
+find_executable(Name) ->
+    case os:find_executable(unicode:characters_to_list(Name)) of
+        false -> none;
+        Path -> {some, unicode:characters_to_binary(Path)}
+    end.
+
+get_env(Name) ->
+    case os:getenv(unicode:characters_to_list(Name)) of
+        false -> none;
+        Value -> {some, unicode:characters_to_binary(Value)}
+    end.

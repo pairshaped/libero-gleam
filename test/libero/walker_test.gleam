@@ -1,15 +1,36 @@
-//// Direct tests for `walker.walk_shared_types`.
-////
-//// Existing coverage is incidental through wire_e2e and codegen integration
-//// tests. These tests assert directly on the DiscoveredType output so a
-//// regression in walker logic surfaces here, not three layers downstream.
+//// Direct tests for `walker.walk`.
 
+import glance
 import gleam/int
 import gleam/list
+import libero/gen_error
+import libero/scanner
 import libero/walker.{type DiscoveredType}
 import simplifile
 
 const fixture_root = "build/.test_walker"
+
+fn walk_all_public_types(
+  dir: String,
+) -> Result(List(DiscoveredType), List(gen_error.GenError)) {
+  let assert Ok(files) = scanner.walk_directory(path: dir)
+  let seeds =
+    list.flat_map(files, fn(file_path) {
+      let module_path = scanner.derive_module_path(file_path:)
+      case scanner.parse_module(file_path:) {
+        Ok(parsed) ->
+          list.filter_map(parsed.custom_types, fn(ct) {
+            let glance_def = ct.definition
+            case glance_def.publicity {
+              glance.Public -> Ok(#(module_path, glance_def.name))
+              _ -> Error(Nil)
+            }
+          })
+        Error(_) -> []
+      }
+    })
+  walker.walk(seeds:, file_paths: files, src_root: dir)
+}
 
 pub fn walks_mutually_recursive_types_test() {
   let dir = fixture_root <> "/mutual/shared/src/shared"
@@ -29,9 +50,8 @@ pub type B {
 ",
     )
 
-  let assert Ok(types) = walker.walk_shared_types(shared_src: dir)
+  let assert Ok(types) = walk_all_public_types(dir)
 
-  // Both types discovered exactly once each (no infinite loop on the cycle).
   let assert True = has_type(types, "A")
   let assert True = has_type(types, "B")
   let assert 1 = count_type(types, "A")
@@ -52,17 +72,16 @@ pub fn detects_float_field_indices_test() {
 ",
     )
 
-  let assert Ok(types) = walker.walk_shared_types(shared_src: dir)
+  let assert Ok(types) = walk_all_public_types(dir)
 
   let assert Ok(mixed) = find_type(types, "Mixed")
   let assert [variant] = mixed.variants
-  // Float fields are at indices 1 (score) and 3 (ratio).
   let assert [1, 3] = list.sort(variant.float_field_indices, by: int.compare)
 
   let assert Ok(Nil) = simplifile.delete_all([fixture_root <> "/floats"])
 }
 
-pub fn returns_empty_for_directory_with_no_public_types_test() {
+pub fn returns_empty_for_no_seeds_test() {
   let dir = fixture_root <> "/empty/shared/src/shared"
   let assert Ok(Nil) = simplifile.create_directory_all(dir)
   let assert Ok(Nil) =
@@ -75,7 +94,7 @@ type Hidden {
 ",
     )
 
-  let assert Ok(types) = walker.walk_shared_types(shared_src: dir)
+  let assert Ok(types) = walk_all_public_types(dir)
   let assert [] = types
 
   let assert Ok(Nil) = simplifile.delete_all([fixture_root <> "/empty"])

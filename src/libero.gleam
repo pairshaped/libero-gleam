@@ -1,30 +1,22 @@
-//// Libero: typed RPC framework for Gleam.
+//// Libero: RPC plumbing library for Gleam.
 ////
-//// Usage: gleam run -m libero
-////
-//// Reads `gleam.toml` from the current directory and regenerates
-//// dispatch, websocket, and client stubs based on handler signatures.
+//// Provides handler scanning, dispatch codegen, ETF wire protocol,
+//// and decoder generation. Consumed as a dependency by framework
+//// packages (e.g. lando).
 
-import gleam/io
-import libero/cli/gen as cli_gen
+import libero/codegen_decoders
+import libero/codegen_dispatch
+import libero/scanner
+import libero/walker
 
-pub fn main() -> Nil {
-  let Nil = trap_signals()
-  case cli_gen.run(project_path: ".") {
-    Ok(Nil) -> Nil
-    Error(msg) -> {
-      io.println_error(msg)
-      let _halt = halt(1)
-      Nil
-    }
-  }
-}
+pub const scan = scanner.scan
 
-/// erlang:halt/1 never returns; it terminates the VM. The Nil return
-/// type is a white lie required for type unification; code after
-/// `let _halt = halt(1)` is dead but satisfies the type checker.
-@external(erlang, "erlang", "halt")
-fn halt(code: Int) -> Nil
+pub const collect_seeds = scanner.collect_seeds
 
-@external(erlang, "libero_ffi", "trap_signals")
-fn trap_signals() -> Nil
+pub const walk = walker.walk
+
+pub const generate_dispatch = codegen_dispatch.generate
+
+pub const generate_decoders_ffi = codegen_decoders.generate_decoders_ffi
+
+pub const generate_decoders_gleam = codegen_decoders.generate_decoders_gleam

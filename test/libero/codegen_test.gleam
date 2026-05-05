@@ -5,7 +5,6 @@ import gleam/string
 import libero/codegen
 import libero/field_type
 import libero/scanner
-import simplifile
 
 // -- to_pascal_case --
 
@@ -39,23 +38,6 @@ pub fn module_to_underscored_multi_segment_test() {
 pub fn module_to_underscored_deep_path_test() {
   let assert "shared_admin_items" =
     codegen.module_to_underscored("shared/admin/items")
-}
-
-// -- last_split --
-
-pub fn last_split_finds_last_separator_test() {
-  let assert "dispatch.gleam" =
-    codegen.last_split(input: "src/generated/dispatch.gleam", separator: "/")
-}
-
-pub fn last_split_no_separator_test() {
-  let assert "dispatch.gleam" =
-    codegen.last_split(input: "dispatch.gleam", separator: "/")
-}
-
-pub fn last_split_single_char_separator_test() {
-  let assert "handler" =
-    codegen.last_split(input: "server/handler", separator: "/")
 }
 
 // -- variant_pattern --
@@ -281,42 +263,4 @@ pub fn collect_endpoint_type_imports_deduplicates_test() {
   let imports =
     codegen.collect_endpoint_type_imports([ep1, ep2], include_return: False)
   let assert ["import shared/types"] = imports
-}
-
-// -- write_file / ensure_parent_dir (writes to temp dir) --
-
-pub fn write_file_writes_gleam_content_test() {
-  let dir = "build/.test_codegen_write_file"
-  let path = dir <> "/sub/dir/output.gleam"
-  codegen.ensure_parent_dir(path:)
-  let assert Ok(Nil) =
-    codegen.write_file(path: path, content: "pub fn f() { 1 }")
-  let assert Ok(content) = simplifile.read(path)
-  let assert True = string.contains(content, "pub fn f(")
-  let assert Ok(Nil) = simplifile.delete_all([dir])
-}
-
-pub fn write_file_formats_gleam_output_test() {
-  // When gleam format is available, unformatted input comes out formatted.
-  // If gleam format is not on PATH, write_file returns the original unformatted
-  // content (best-effort fallback). Verify write succeeds either way.
-  let dir = "build/.test_codegen_format"
-  let path = dir <> "/formatted.gleam"
-  codegen.ensure_parent_dir(path:)
-  let unformatted = "pub fn   add(a:Int,b:Int)->Int{a+b}\n"
-  let assert Ok(Nil) = codegen.write_file(path: path, content: unformatted)
-  let assert Ok(_) = simplifile.read(path)
-  let assert Ok(Nil) = simplifile.delete_all([dir])
-}
-
-pub fn write_file_writes_non_gleam_verbatim_test() {
-  let dir = "build/.test_codegen_raw"
-  let path = dir <> "/atoms.erl"
-  codegen.ensure_parent_dir(path:)
-  let content = "-module(test).\n-export([f/0]).\nf() -> ok.\n"
-  let assert Ok(Nil) = codegen.write_file(path: path, content: content)
-  let assert Ok(contents) = simplifile.read(path)
-  // Non-.gleam files are written verbatim (no formatting pass).
-  let assert True = string.contains(contents, "-module(test)")
-  let assert Ok(Nil) = simplifile.delete_all([dir])
 }

@@ -1,9 +1,8 @@
 //// Scanning for handler-as-contract endpoints.
 ////
-//// Walks the server source tree to discover handler functions whose
-//// signatures define the wire contract: each public function with last
-//// parameter `HandlerContext`, return type `#(_, HandlerContext)`, and
-//// all other types from shared/.
+//// Walks a source tree to discover handler functions whose signatures
+//// define the wire contract: public functions with a `server_` prefix,
+//// a context parameter, and a Result return type.
 
 import glance
 import gleam/bool
@@ -11,7 +10,6 @@ import gleam/dict
 import gleam/list
 import gleam/option
 import gleam/result
-import gleam/set
 import gleam/string
 import libero/field_type
 import libero/gen_error.{
@@ -23,30 +21,22 @@ import simplifile
 
 /// A single handler endpoint discovered by scanning function signatures.
 /// Each represents one RPC function that clients can call.
-///
-/// Scanner enforces that every endpoint's return shape is `Result(ok, err)`,
-/// so the two halves are stored separately rather than under a broader
-/// `FieldType` that would force every consumer to re-pattern-match.
 pub type HandlerEndpoint {
   HandlerEndpoint(
-    /// Handler module path, e.g. "server/handler"
+    /// Handler module path, e.g. "pages/login"
     module_path: String,
-    /// Function name, e.g. "get_items"
+    /// Function name WITHOUT the server_ prefix, e.g. "login"
     fn_name: String,
-    /// Ok payload of the handler's `Result`, with module-qualified user
-    /// types resolved to their full path.
+    /// Ok payload of the handler's `Result`.
     return_ok: field_type.FieldType,
     /// Err payload of the handler's `Result`.
     return_err: field_type.FieldType,
-    /// Parameters excluding HandlerContext, with labels and resolved
+    /// Parameters excluding the context param, with labels and resolved
     /// types. Each entry is #(label, FieldType).
     params: List(#(String, field_type.FieldType)),
-    /// True when the handler returns `#(Result(_, _), HandlerContext)`,
-    /// signalling it may have produced a new context value (e.g. a login
-    /// handler that swaps the session). False when the handler returns a
-    /// bare `Result(_, _)`; codegen then threads the inbound context
-    /// through unchanged. The two shapes are equivalent on the wire — this
-    /// flag controls only how generated dispatch invokes the handler.
+    /// True when the handler returns `#(Result(_, _), ContextType)`,
+    /// signalling it may have produced a new context value. False when
+    /// the handler returns a bare `Result(_, _)`.
     mutates_context: Bool,
   )
 }
@@ -54,12 +44,7 @@ pub type HandlerEndpoint {
 // ---------- Source discovery ----------
 
 /// Recursively walk a directory, returning every `.gleam` file found.
-/// Skips any subdirectory named `generated`, since libero never reads its
-/// own output, and leaving this convention in place means consumers
-/// don't need to configure scan_excludes as their projects grow.
-///
-/// Results are sorted alphabetically so codegen output is deterministic
-/// across runs and across machines (filesystem order is not stable).
+/// Skips any subdirectory named `generated`.
 pub fn walk_directory(path path: String) -> Result(List(String), GenError) {
   use entries <- result.try(
     simplifile.read_directory(path)
@@ -73,11 +58,6 @@ pub fn walk_directory(path path: String) -> Result(List(String), GenError) {
   list.sort(files, by: string.compare)
 }
 
-/// Classify a single directory entry and fold it into the accumulator.
-/// Stat failures (permissions, races) fall through as "not a directory",
-/// which means the entry is evaluated as a file and filtered out unless
-/// its name happens to end in `.gleam`. Missing files can't match, so
-/// silently skipping is safe.
 fn visit_entry(
   acc acc: List(String),
   parent parent: String,
@@ -86,12 +66,6 @@ fn visit_entry(
   let child = parent <> "/" <> entry
   let is_symlink = simplifile.is_symlink(child) |> result.unwrap(False)
   let is_dir = result.unwrap(simplifile.is_directory(child), False)
-  // Skip symlinked DIRECTORIES only; following them risks infinite loops
-  // on cycles (a link back to a parent), and any directory inside the
-  // scan root is already being walked directly. Symlinked files don't
-  // loop, and a developer who symlinks a `.gleam` file into a handler
-  // tree (vendored fixtures, shared base files) reasonably expects it
-  // to participate.
   use <- bool.guard(when: is_symlink && is_dir, return: Ok(acc))
   case is_dir {
     True -> visit_subdirectory(acc: acc, entry: entry, child: child)
@@ -122,10 +96,7 @@ fn visit_file(
 
 /// Derive the Gleam module path from a file path by finding the last
 /// occurrence of `/src/` and taking everything after it, then stripping
-/// the `.gleam` extension. Splitting on the LAST `/src/` (not the first)
-/// matters for vendored paths like `vendor/x/src/lib/src/types.gleam`,
-/// where the leftmost match would yield the wrong module path.
-/// E.g. `examples/checklist/shared/src/shared/items.gleam` -> `shared/items`.
+/// the `.gleam` extension.
 pub fn derive_module_path(file_path file_path: String) -> String {
   let without_extension = case string.ends_with(file_path, ".gleam") {
     True ->
@@ -144,28 +115,21 @@ pub fn derive_module_path(file_path file_path: String) -> String {
 
 // ---------- Handler endpoint scanning ----------
 
-/// Scan server source for handler endpoint functions.
-/// A handler endpoint is any public function whose last parameter
-/// is typed as HandlerContext, return type is #(something, HandlerContext),
-/// and all types in params/return are from shared/ or builtins.
-pub fn scan_handler_endpoints(
-  server_src server_src: String,
-  shared_src shared_src: String,
+/// Scan a source directory for handler functions.
+/// Looks for: pub fn server_*(args..., context: T) -> Result(ok, err)
+/// Returns the endpoint list or structured errors.
+pub fn scan(
+  src_dir src_dir: String,
+  context_type_name context_type_name: String,
 ) -> Result(List(HandlerEndpoint), List(GenError)) {
-  // Build a set of shared type names from the shared source directory.
-  use shared_types <- result.try(scan_shared_type_names(shared_src))
   use files <- result.try(
-    walk_directory(path: server_src)
+    walk_directory(path: src_dir)
     |> result.map_error(fn(cause) { [cause] }),
   )
-  // Run parse_endpoints across every handler file, collecting both the
-  // endpoints and any read/parse errors encountered. Surface failures
-  // instead of silently dropping them, since a file that fails to parse
-  // would otherwise produce zero endpoints with no warning.
   let #(endpoints_rev, errors_rev) =
     list.fold(files, #([], []), fn(acc, file_path) {
       let #(eps_acc, errs_acc) = acc
-      case parse_endpoints(file_path:, shared_types:) {
+      case parse_endpoints(file_path:, context_type_name:) {
         Ok(eps) -> #(list.append(list.reverse(eps), eps_acc), errs_acc)
         Error(err) -> #(eps_acc, [err, ..errs_acc])
       }
@@ -182,11 +146,21 @@ pub fn scan_handler_endpoints(
   }
 }
 
-/// Detect handler functions sharing a name across modules. Each duplicate
-/// would compile into the same ClientMsg variant constructor and the same
-/// dispatch case arm, so codegen would emit two definitions of each and the
-/// generated module would fail to compile. Surface as a libero-level error
-/// before that happens.
+/// Collect type seeds from scanned endpoints for the walker.
+/// Returns #(module_path, type_name) pairs from all param and return types.
+pub fn collect_seeds(
+  endpoints: List(HandlerEndpoint),
+) -> List(#(String, String)) {
+  list.flat_map(endpoints, fn(e) {
+    let from_params =
+      list.flat_map(e.params, fn(p) { field_type.collect_user_types(p.1) })
+    let from_ok = field_type.collect_user_types(e.return_ok)
+    let from_err = field_type.collect_user_types(e.return_err)
+    list.flatten([from_params, from_ok, from_err])
+  })
+  |> list.unique()
+}
+
 fn duplicate_fn_name_errors(
   endpoints: List(HandlerEndpoint),
 ) -> List(GenError) {
@@ -211,32 +185,8 @@ fn duplicate_fn_name_errors(
   })
 }
 
-/// Scan shared source directory and collect all exported type names.
-fn scan_shared_type_names(
-  shared_src: String,
-) -> Result(set.Set(String), List(GenError)) {
-  use files <- result.try(
-    walk_directory(path: shared_src)
-    |> result.map_error(fn(cause) { [cause] }),
-  )
-  let #(names_set, errors_rev) =
-    list.fold(files, #(set.new(), []), fn(acc, file_path) {
-      let #(set_acc, errs_acc) = acc
-      case read_public_type_names(file_path) {
-        Ok(names) -> #(list.fold(names, set_acc, set.insert), errs_acc)
-        Error(err) -> #(set_acc, [err, ..errs_acc])
-      }
-    })
-  case errors_rev {
-    [] -> Ok(names_set)
-    _ -> Error(list.reverse(errors_rev))
-  }
-}
-
 /// Read a `.gleam` file and parse it via `glance`, surfacing both I/O and
 /// parser failures as `GenError` variants tagged with the file path.
-/// Shared by the handler scanner and the type walker so every codegen
-/// stage produces consistent errors for the same file.
 pub fn parse_module(
   file_path file_path: String,
 ) -> Result(glance.Module, GenError) {
@@ -248,20 +198,9 @@ pub fn parse_module(
   |> result.map_error(fn(cause) { ParseFailed(path: file_path, cause:) })
 }
 
-fn read_public_type_names(file_path: String) -> Result(List(String), GenError) {
-  use parsed <- result.map(parse_module(file_path:))
-  list.fold(parsed.custom_types, [], fn(acc, ct) {
-    let glance.Definition(_, t) = ct
-    case t.publicity == glance.Public {
-      True -> [t.name, ..acc]
-      False -> acc
-    }
-  })
-}
-
 fn parse_endpoints(
   file_path file_path: String,
-  shared_types shared_types: set.Set(String),
+  context_type_name context_type_name: String,
 ) -> Result(List(HandlerEndpoint), GenError) {
   use parsed <- result.map(parse_module(file_path:))
   let module_path = derive_module_path(file_path: file_path)
@@ -279,19 +218,13 @@ fn parse_endpoints(
           type_imports: type_imports,
           alias_map: alias_map,
           type_alias_originals: type_alias_originals,
-          shared_types: shared_types,
+          context_type_name: context_type_name,
         )
     }
   })
 }
 
-/// Build a map from unqualified type names (using the alias if present)
-/// to the FULL module path of their import.
-/// e.g. `import shared/items.{type Item}` produces {"Item": "shared/items"}.
-/// e.g. `import shared/items.{type Item as MyItem}` produces
-/// {"MyItem": "shared/items"}.
-/// Used by structured type resolution where downstream codegen needs the
-/// full path for decoder function naming.
+/// Build a map from unqualified type names to the full module path of their import.
 pub fn build_type_import_map(
   imports: List(glance.Definition(glance.Import)),
 ) -> dict.Dict(String, String) {
@@ -309,9 +242,6 @@ pub fn build_type_import_map(
 
 /// Map locally-bound type names back to their original names from the
 /// source module. Only populated when an import uses `type X as Y`.
-/// e.g. `import shared/items.{type Item as MyItem}` produces
-/// {"MyItem": "Item"}. Used by `all_types_shared` so an aliased type
-/// resolves against `shared_types` (which holds original names).
 pub fn build_type_alias_originals(
   imports: List(glance.Definition(glance.Import)),
 ) -> dict.Dict(String, String) {
@@ -327,9 +257,7 @@ pub fn build_type_alias_originals(
 }
 
 /// Build a map from import aliases (and bare module names) to the full
-/// module path. e.g. `import shared/line_items_report as wire` produces
-/// {"wire": "shared/line_items_report"}. Unaliased imports produce
-/// identity entries keyed by the last segment.
+/// module path.
 pub fn build_alias_resolution_map(
   imports: List(glance.Definition(glance.Import)),
 ) -> dict.Dict(String, String) {
@@ -350,23 +278,17 @@ fn parse_single_endpoint(
   type_imports type_imports: dict.Dict(String, String),
   alias_map alias_map: dict.Dict(String, String),
   type_alias_originals type_alias_originals: dict.Dict(String, String),
-  shared_types shared_types: set.Set(String),
+  context_type_name context_type_name: String,
 ) -> Result(HandlerEndpoint, Nil) {
-  use #(ok_type, err_type, payload_params, mutates_context) <- result.try(
-    validate_handler_signature(func),
-  )
-
-  // All non-builtin types must be from shared/
-  let all_param_types =
-    list.filter_map(payload_params, fn(p) { option.to_result(p.type_, Nil) })
-  let all_types = [ok_type, err_type, ..all_param_types]
+  // Must have server_ prefix
   use <- bool.guard(
-    when: !all_types_shared(
-      types: all_types,
-      shared_types:,
-      type_alias_originals:,
-    ),
+    when: !string.starts_with(func.name, "server_"),
     return: Error(Nil),
+  )
+  let wire_name = string.drop_start(func.name, string.length("server_"))
+
+  use #(ok_type, err_type, payload_params, mutates_context) <- result.try(
+    validate_handler_signature(func, context_type_name),
   )
 
   let to_ft = fn(t) {
@@ -387,7 +309,7 @@ fn parse_single_endpoint(
 
   Ok(HandlerEndpoint(
     module_path: module_path,
-    fn_name: func.name,
+    fn_name: wire_name,
     return_ok: to_ft(ok_type),
     return_err: to_ft(err_type),
     params: params_typed,
@@ -395,23 +317,9 @@ fn parse_single_endpoint(
   ))
 }
 
-/// Verify the function's signature matches the handler-as-contract shape.
-/// Two return shapes are accepted:
-///   - `#(Result(ok, err), HandlerContext)` — handler may emit a new
-///     context value (e.g. login swapping the session).
-///   - `Result(ok, err)` — read-only; codegen threads the inbound context
-///     through unchanged.
-/// In both cases the last parameter must be typed `HandlerContext`.
-///
-/// Returns the two halves of the `Result`, the payload parameter list
-/// (everything before the trailing HandlerContext), and a flag indicating
-/// which return shape was used.
-///
-/// The wire envelope, dispatch, and client codecs all assume Result-shaped
-/// responses; a bare value would compile but produce broken serialization
-/// at runtime. Filter at scan time so codegen never sees a non-Result.
 fn validate_handler_signature(
   func: glance.Function,
+  context_type_name: String,
 ) -> Result(
   #(glance.Type, glance.Type, List(glance.FunctionParameter), Bool),
   Nil,
@@ -419,32 +327,42 @@ fn validate_handler_signature(
   let params = func.parameters
   use <- bool.guard(when: list.is_empty(params), return: Error(Nil))
 
-  use last_param <- result.try(list.last(params))
-  use last_type <- result.try(option.to_result(last_param.type_, Nil))
-  use <- bool.guard(
-    when: !is_handler_context_type(last_type),
-    return: Error(Nil),
-  )
+  // Find the context parameter (doesn't have to be last)
+  let has_context =
+    list.any(params, fn(p) {
+      case p.type_ {
+        option.Some(t) -> is_context_type(t, context_type_name)
+        option.None -> False
+      }
+    })
+  use <- bool.guard(when: !has_context, return: Error(Nil))
 
   use return_type <- result.try(option.to_result(func.return, Nil))
   use #(response_type, mutates_context) <- result.try(extract_response_type(
     return_type,
+    context_type_name,
   ))
 
   use #(ok_type, err_type) <- result.try(extract_result_args(response_type))
 
-  let payload_params = list.take(params, list.length(params) - 1)
+  // Payload params are everything except the context param
+  let payload_params =
+    list.filter(params, fn(p) {
+      case p.type_ {
+        option.Some(t) -> !is_context_type(t, context_type_name)
+        option.None -> True
+      }
+    })
   Ok(#(ok_type, err_type, payload_params, mutates_context))
 }
 
-/// Pull the response slot out of the function's return type.
-/// `#(R, HandlerContext)` returns `(R, mutates_context: True)`.
-/// `R` (already a Result) returns `(R, mutates_context: False)`.
-/// Any other shape rejects the function as a non-handler.
-fn extract_response_type(t: glance.Type) -> Result(#(glance.Type, Bool), Nil) {
+fn extract_response_type(
+  t: glance.Type,
+  context_type_name: String,
+) -> Result(#(glance.Type, Bool), Nil) {
   case t {
     glance.TupleType(elements: [response, state], ..) ->
-      case is_handler_context_type(state) {
+      case is_context_type(state, context_type_name) {
         True -> Ok(#(response, True))
         False -> Error(Nil)
       }
@@ -453,19 +371,14 @@ fn extract_response_type(t: glance.Type) -> Result(#(glance.Type, Bool), Nil) {
   }
 }
 
-/// Check if a type annotation is the project's HandlerContext, brought
-/// into local scope by an unqualified import. We deliberately reject
-/// module-qualified `pkg.HandlerContext` references so that types named
-/// `HandlerContext` from unrelated modules aren't treated as handler
-/// endpoints.
-fn is_handler_context_type(t: glance.Type) -> Bool {
+fn is_context_type(t: glance.Type, context_type_name: String) -> Bool {
   case t {
-    glance.NamedType(name: "HandlerContext", module: option.None, ..) -> True
+    glance.NamedType(name:, module: option.None, ..) ->
+      name == context_type_name
     _ -> False
   }
 }
 
-/// Pull `ok` and `err` out of a `Result(ok, err)` type annotation.
 fn extract_result_args(
   t: glance.Type,
 ) -> Result(#(glance.Type, glance.Type), Nil) {
@@ -476,14 +389,6 @@ fn extract_result_args(
   }
 }
 
-/// Convert a glance.Type AST into a structured FieldType, resolving
-/// module-qualified types to their full paths via the supplied maps.
-///
-/// `imports` and `aliases` map unqualified names and module aliases
-/// (respectively) to FULL module paths (e.g. "shared/types"). See
-/// `build_type_import_map` and `build_alias_resolution_map`.
-/// `type_alias_originals` maps locally-bound aliased type names to the
-/// name they have in the source module, e.g. {"MyItem": "Item"}.
 fn glance_type_to_field_type(
   type_ t: glance.Type,
   imports imports: dict.Dict(String, String),
@@ -528,17 +433,6 @@ fn glance_type_to_field_type(
   }
 }
 
-/// Resolve a non-module-qualified named type. Builtins return their
-/// FieldType directly. Other names are looked up in `imports` to
-/// produce a `UserType` with the import's full module path.
-///
-/// Invariant: callers reach this function only after
-/// `all_types_shared` has accepted the name, meaning it's either a
-/// builtin or a shared-tree type. If the name is in shared but not in
-/// the file's imports, the handler is shadowing a shared type with a
-/// local definition (only seen in test fixtures); we fall back to the
-/// bare name as module_path. Production handlers always import their
-/// shared types, so this fallback never fires for compiled endpoints.
 fn builtin_or_user(
   name name: String,
   parameters parameters: List(glance.Type),
@@ -558,9 +452,6 @@ fn builtin_or_user(
     Ok(ft) -> ft
     Error(Nil) -> {
       let module_path = dict.get(imports, name) |> result.unwrap(or: name)
-      // If the local name is an aliased import (e.g. `type Item as MyItem`),
-      // the source module knows it as the original name. Use that so the
-      // generated decoder calls match what the walker discovers.
       let type_name =
         dict.get(type_alias_originals, name) |> result.unwrap(or: name)
       field_type.UserType(
@@ -569,55 +460,5 @@ fn builtin_or_user(
         args: list.map(parameters, recurse),
       )
     }
-  }
-}
-
-/// Check that all types in a list are shared types or builtins.
-/// Walks type parameters recursively (e.g. List(Todo) checks Todo).
-fn all_types_shared(
-  types types: List(glance.Type),
-  shared_types shared_types: set.Set(String),
-  type_alias_originals type_alias_originals: dict.Dict(String, String),
-) -> Bool {
-  list.all(types, fn(t) {
-    is_type_shared(t: t, shared_types:, type_alias_originals:)
-  })
-}
-
-/// Check if a single type (and all its parameters) are shared or builtins.
-/// `field_type.is_builtin` is the single source of truth for builtin
-/// names, shared with the walker.
-///
-/// Resolves locally-bound aliased type names back to their original
-/// source names before checking against `shared_types`, so
-/// `import shared/items.{type Item as MyItem}` lets the handler use
-/// `MyItem` and still pass the shared check.
-fn is_type_shared(
-  t t: glance.Type,
-  shared_types shared_types: set.Set(String),
-  type_alias_originals type_alias_originals: dict.Dict(String, String),
-) -> Bool {
-  case t {
-    glance.NamedType(name:, parameters:, ..) -> {
-      let resolved =
-        dict.get(type_alias_originals, name) |> result.unwrap(or: name)
-      {
-        field_type.is_builtin(resolved) || set.contains(shared_types, resolved)
-      }
-      && list.all(parameters, fn(p) {
-        is_type_shared(t: p, shared_types:, type_alias_originals:)
-      })
-    }
-    glance.TupleType(elements:, ..) ->
-      list.all(elements, fn(e) {
-        is_type_shared(t: e, shared_types:, type_alias_originals:)
-      })
-    glance.VariableType(..) -> True
-    glance.FunctionType(parameters:, return:, ..) ->
-      list.all(parameters, fn(p) {
-        is_type_shared(t: p, shared_types:, type_alias_originals:)
-      })
-      && is_type_shared(t: return, shared_types:, type_alias_originals:)
-    glance.HoleType(..) -> True
   }
 }

@@ -64,13 +64,13 @@ fn run_format_command(tmp: String) -> #(Int, String) {
   }
 }
 
-@external(erlang, "libero_cli_ffi", "run_executable_capturing")
+@external(erlang, "libero_ffi", "run_executable_capturing")
 fn run_executable_capturing_ffi(
   path: String,
   args: List(String),
 ) -> #(Int, String)
 
-@external(erlang, "libero_cli_ffi", "find_executable")
+@external(erlang, "libero_ffi", "find_executable")
 fn find_executable(name: String) -> Option(String)
 
 fn get_tmp_dir() -> String {
@@ -83,7 +83,7 @@ fn get_tmp_dir() -> String {
 // Wraps os:getenv/1 with charlist↔binary conversion. We can't call
 // os:getenv/1 directly with a Gleam String because OTP 27 raises badarg
 // when the argument is a binary rather than a charlist.
-@external(erlang, "libero_cli_ffi", "get_env")
+@external(erlang, "libero_ffi", "get_env")
 fn get_env(name: String) -> Option(String)
 
 @external(erlang, "libero_ffi", "unique_id")
