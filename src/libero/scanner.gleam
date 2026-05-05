@@ -126,6 +126,9 @@ pub fn scan(
     walk_directory(path: src_dir)
     |> result.map_error(fn(cause) { [cause] }),
   )
+  // All-or-nothing: if any file fails to parse, the entire scan fails.
+  // Valid endpoints from other files are discarded. This prevents codegen
+  // from producing partial dispatch tables that silently drop handlers.
   let #(endpoints_rev, errors_rev) =
     list.fold(files, #([], []), fn(acc, file_path) {
       let #(eps_acc, errs_acc) = acc

@@ -26,6 +26,7 @@
 //// return type.
 
 import gleam/dynamic.{type Dynamic}
+import libero/error.{type DecodeError}
 
 // ---------- Encoder ----------
 
@@ -94,10 +95,6 @@ fn ffi_decode_safe(data: BitArray) -> Result(a, DecodeError) {
 }
 
 // ---------- Decoder (incoming call envelope) ----------
-
-pub type DecodeError {
-  DecodeError(message: String)
-}
 
 /// Parse a `{<<"module_name">>, request_id, toserver_value}` tuple from an ETF binary.
 /// Returns the module name, request ID, and the raw Dynamic value to be coerced.

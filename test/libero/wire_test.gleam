@@ -6,6 +6,7 @@
 
 import gleam/dynamic.{type Dynamic}
 import gleam/option.{None, Some}
+import libero/error
 import libero/wire
 
 // ---------- Call envelope decoding (call envelope format: {module, request_id, value}) ----------
@@ -33,14 +34,14 @@ pub fn decode_call_with_string_value_test() {
 }
 
 pub fn decode_call_invalid_binary_test() {
-  let assert Error(wire.DecodeError(message: "invalid ETF binary")) =
+  let assert Error(error.DecodeError(message: "invalid ETF binary")) =
     wire.decode_call(<<0, 1, 2, 3>>)
 }
 
 pub fn decode_call_wrong_shape_test() {
   // Encode a plain integer instead of a {module, request_id, value} tuple
   let bad = ffi_encode(coerce(42))
-  let assert Error(wire.DecodeError(
+  let assert Error(error.DecodeError(
     message: "invalid call envelope: expected {binary, integer, value} tuple",
   )) = wire.decode_call(bad)
 }

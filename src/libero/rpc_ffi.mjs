@@ -15,7 +15,7 @@ import {
   from_list as dictFromList,
   to_list as dictToList,
 } from "../../gleam_stdlib/gleam/dict.mjs";
-import { InternalError } from "./error.mjs";
+import { InternalError, DecodeError as WireDecodeError } from "./error.mjs";
 
 // ---------- Error names ----------
 //
@@ -594,8 +594,12 @@ class ETFEncoder {
       return;
     }
 
-    // Gleam stdlib Dict (HAMT object). Convert through dict.to_list so the
-    // encoder follows the stdlib representation instead of guessing internals.
+    // Gleam stdlib Dict (HAMT object). Detected by duck-typing on the
+    // internal `root` + `size` fields of gleam_stdlib's persistent hash
+    // map implementation. This is coupled to stdlib internals: if the
+    // HAMT representation changes (different field names, different data
+    // structure), this branch silently stops matching and falls through
+    // to the unsupported-value error. Verify after gleam_stdlib upgrades.
     if (value && typeof value === "object" && "root" in value && "size" in value) {
       this.encodeMap(new Map(gleamListToArray(dictToList(value))));
       return;
@@ -854,22 +858,15 @@ export function decode_value_raw(buffer) {
   return decoder.decode();
 }
 
-// Gleam's wire.DecodeError(message) custom type.
-// Must extend CustomType so Gleam pattern matching works.
-class WireDecodeError extends CustomType {
-  /** @param {string} message */
-  constructor(message) {
-    super();
-    this.message = message;
-    this[0] = message;
-  }
-}
-
 /**
  * Safe variant of `decode_value` that returns a Result instead of
  * throwing. Used by the public `libero.wire.decode_safe` function.
+ *
+ * WireDecodeError is imported from the compiled error.mjs (generated from
+ * error.gleam's DecodeError type), keeping the JS and Gleam definitions
+ * in sync automatically.
  * @param {DecoderInput} buffer
- * @returns {any} Ok(value) or Error(WireDecodeError)
+ * @returns {any} Ok(value) or Error(DecodeError)
  */
 export function decode_safe(buffer) {
   try {

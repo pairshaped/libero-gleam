@@ -26,6 +26,12 @@ pub type PanicInfo {
   PanicInfo(trace_id: String, fn_name: String, reason: String)
 }
 
+/// Wire-level decode failure. Returned by `wire.decode_safe` when the
+/// input is not valid ETF or cannot be reconstructed.
+pub type DecodeError {
+  DecodeError(message: String)
+}
+
 /// The error envelope for every Libero RPC response.
 pub type RpcError {
   /// The server couldn't parse the incoming call envelope.

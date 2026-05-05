@@ -12,6 +12,11 @@ import gleam/string
 /// not requiring atom registration, and not from the shared/ tree. Both
 /// the scanner and the walker consult this list, so they agree on what
 /// counts as a primitive across the codegen pipeline.
+///
+/// Note: Tuples are not in this list because they are structural types
+/// (`glance.TupleType`), not named types (`glance.NamedType`). They're
+/// handled by direct pattern matching in scanner and walker rather than
+/// through `builtin_field_type`. The two paths converge on `TupleOf`.
 pub const builtin_type_names = [
   "Int", "Float", "String", "Bool", "Nil", "BitArray", "List", "Result",
   "Option", "Dict",

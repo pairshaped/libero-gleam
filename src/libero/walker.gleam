@@ -134,6 +134,8 @@ fn is_stdlib_module_path(path: String) -> Bool {
 /// Walk the type graph starting from seeds, discovering all reachable custom types.
 /// Seeds come from scanner output (param/return types of endpoints).
 /// file_paths are the .gleam files to search for type definitions.
+/// BFS traversal order affects discovery order but not correctness:
+/// all reachable types are found regardless of queue order.
 pub fn walk(
   seeds seeds: List(#(String, String)),
   file_paths file_paths: List(String),

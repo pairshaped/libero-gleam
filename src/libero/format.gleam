@@ -64,14 +64,23 @@ fn run_format_command(tmp: String) -> #(Int, String) {
   }
 }
 
+// nolint: avoid_panic, discarded_result -- Erlang-only @external; JS fallback is unreachable
 @external(erlang, "libero_ffi", "run_executable_capturing")
 fn run_executable_capturing_ffi(
   path: String,
   args: List(String),
-) -> #(Int, String)
+) -> #(Int, String) {
+  let _ = path
+  let _ = args
+  panic as "libero/format.run_executable_capturing_ffi: Erlang-only, unreachable on JavaScript target"
+}
 
+// nolint: avoid_panic, discarded_result -- Erlang-only @external; JS fallback is unreachable
 @external(erlang, "libero_ffi", "find_executable")
-fn find_executable(name: String) -> Option(String)
+fn find_executable(name: String) -> Option(String) {
+  let _ = name
+  panic as "libero/format.find_executable: Erlang-only, unreachable on JavaScript target"
+}
 
 fn get_tmp_dir() -> String {
   get_env("TMPDIR")
@@ -83,8 +92,12 @@ fn get_tmp_dir() -> String {
 // Wraps os:getenv/1 with charlist↔binary conversion. We can't call
 // os:getenv/1 directly with a Gleam String because OTP 27 raises badarg
 // when the argument is a binary rather than a charlist.
+// nolint: avoid_panic, discarded_result -- Erlang-only @external; JS fallback is unreachable
 @external(erlang, "libero_ffi", "get_env")
-fn get_env(name: String) -> Option(String)
+fn get_env(name: String) -> Option(String) {
+  let _ = name
+  panic as "libero/format.get_env: Erlang-only, unreachable on JavaScript target"
+}
 
 @external(erlang, "libero_ffi", "unique_id")
 @external(javascript, "./libero_ffi.mjs", "uniqueId")
