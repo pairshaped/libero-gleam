@@ -38,6 +38,10 @@ pub type HandlerEndpoint {
     /// signalling it may have produced a new context value. False when
     /// the handler returns a bare `Result(_, _)`.
     mutates_context: Bool,
+    /// When set, the handler takes a single message type param instead of
+    /// individual params. Dispatch passes the whole coerced message.
+    /// The params list still contains the type's fields (for wire contract).
+    msg_type_name: option.Option(String),
   )
 }
 
@@ -222,6 +226,7 @@ fn parse_endpoints(
           alias_map: alias_map,
           type_alias_originals: type_alias_originals,
           context_type_name: context_type_name,
+          custom_types: parsed.custom_types,
         )
     }
   })
@@ -282,6 +287,7 @@ fn parse_single_endpoint(
   alias_map alias_map: dict.Dict(String, String),
   type_alias_originals type_alias_originals: dict.Dict(String, String),
   context_type_name context_type_name: String,
+  custom_types custom_types: List(glance.Definition(glance.CustomType)),
 ) -> Result(HandlerEndpoint, Nil) {
   // Must have server_ prefix
   use <- bool.guard(
@@ -302,13 +308,9 @@ fn parse_single_endpoint(
       type_alias_originals: type_alias_originals,
     )
   }
-  let params_typed =
-    list.filter_map(payload_params, fn(p) {
-      case p.label, p.type_ {
-        option.Some(label), option.Some(type_) -> Ok(#(label, to_ft(type_)))
-        _, _ -> Error(Nil)
-      }
-    })
+
+  let #(params_typed, msg_type_name) =
+    try_resolve_msg_type(payload_params, custom_types, to_ft)
 
   Ok(HandlerEndpoint(
     module_path: module_path,
@@ -317,7 +319,72 @@ fn parse_single_endpoint(
     return_err: to_ft(err_type),
     params: params_typed,
     mutates_context: mutates_context,
+    msg_type_name: msg_type_name,
   ))
+}
+
+fn try_resolve_msg_type(
+  payload_params: List(glance.FunctionParameter),
+  custom_types: List(glance.Definition(glance.CustomType)),
+  to_ft: fn(glance.Type) -> field_type.FieldType,
+) -> #(List(#(String, field_type.FieldType)), option.Option(String)) {
+  let fallback = #(resolve_individual_params(payload_params, to_ft), option.None)
+  case payload_params {
+    [param] -> {
+      use type_name <- try_msg_type_name(param, fallback)
+      use fields <- try_msg_type_fields(type_name, custom_types, fallback)
+      let resolved =
+        list.filter_map(fields, fn(field) {
+          case field {
+            glance.LabelledVariantField(label:, item:) ->
+              Ok(#(label, to_ft(item)))
+            _ -> Error(Nil)
+          }
+        })
+      #(resolved, option.Some(type_name))
+    }
+    _ -> fallback
+  }
+}
+
+fn try_msg_type_name(
+  param: glance.FunctionParameter,
+  fallback: a,
+  next: fn(String) -> a,
+) -> a {
+  case param.type_ {
+    option.Some(glance.NamedType(name: type_name, module: option.None, ..)) ->
+      next(type_name)
+    _ -> fallback
+  }
+}
+
+fn try_msg_type_fields(
+  type_name: String,
+  custom_types: List(glance.Definition(glance.CustomType)),
+  fallback: a,
+  next: fn(List(glance.VariantField)) -> a,
+) -> a {
+  case list.find(custom_types, fn(def) { def.definition.name == type_name }) {
+    Ok(def) ->
+      case def.definition.variants {
+        [single_variant] -> next(single_variant.fields)
+        _ -> fallback
+      }
+    Error(Nil) -> fallback
+  }
+}
+
+fn resolve_individual_params(
+  params: List(glance.FunctionParameter),
+  to_ft: fn(glance.Type) -> field_type.FieldType,
+) -> List(#(String, field_type.FieldType)) {
+  list.filter_map(params, fn(p) {
+    case p.label, p.type_ {
+      option.Some(label), option.Some(type_) -> Ok(#(label, to_ft(type_)))
+      _, _ -> Error(Nil)
+    }
+  })
 }
 
 fn validate_handler_signature(

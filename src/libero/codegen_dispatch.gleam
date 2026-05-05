@@ -9,6 +9,7 @@
 //// correlation) instead of crashing the caller's process.
 
 import gleam/list
+import gleam/option
 import gleam/string
 import libero/codegen
 import libero/scanner
@@ -54,9 +55,13 @@ pub fn generate(
       let alias = handler_alias(e.module_path)
       let param_destructure =
         codegen.variant_pattern(variant_name:, params: e.params)
-      let labeled = list.map(e.params, fn(p) { p.0 <> ":" })
-      let handler_args =
-        string.join(list.append(labeled, ["server_context:"]), ", ")
+      let handler_args = case e.msg_type_name {
+        option.Some(_) -> "msg: wire.coerce(typed_msg), server_context:"
+        option.None -> {
+          let labeled = list.map(e.params, fn(p) { p.0 <> ":" })
+          string.join(list.append(labeled, ["server_context:"]), ", ")
+        }
+      }
       let raw_call =
         alias <> "." <> "server_" <> e.fn_name <> "(" <> handler_args <> ")"
       let ok_destructure = case e.mutates_context {

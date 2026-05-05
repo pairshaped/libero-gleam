@@ -1,6 +1,7 @@
 import birdie
 import libero/codegen_dispatch
 import libero/field_type
+import gleam/option
 import libero/scanner
 
 pub fn endpoint_dispatch_generates_client_msg_test() {
@@ -12,7 +13,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       return_ok: field_type.IntField,
       return_err: field_type.NilField,
       params: [],
-      mutates_context: True,
+      mutates_context: True, msg_type_name: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -20,7 +21,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       return_ok: field_type.IntField,
       return_err: field_type.NilField,
       params: [#("params", item_params)],
-      mutates_context: True,
+      mutates_context: True, msg_type_name: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -28,7 +29,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       return_ok: field_type.IntField,
       return_err: field_type.NilField,
       params: [#("id", field_type.IntField)],
-      mutates_context: True,
+      mutates_context: True, msg_type_name: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -36,7 +37,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       return_ok: field_type.IntField,
       return_err: field_type.NilField,
       params: [#("id", field_type.IntField)],
-      mutates_context: True,
+      mutates_context: True, msg_type_name: option.None,
     ),
   ]
   let content =
@@ -57,7 +58,7 @@ pub fn endpoint_dispatch_wraps_read_only_handler_test() {
       return_ok: field_type.IntField,
       return_err: field_type.NilField,
       params: [],
-      mutates_context: False,
+      mutates_context: False, msg_type_name: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -65,7 +66,7 @@ pub fn endpoint_dispatch_wraps_read_only_handler_test() {
       return_ok: field_type.IntField,
       return_err: field_type.NilField,
       params: [#("id", field_type.IntField)],
-      mutates_context: True,
+      mutates_context: True, msg_type_name: option.None,
     ),
   ]
   let content =
@@ -88,7 +89,7 @@ pub fn endpoint_dispatch_imports_qualified_param_types_test() {
       params: [
         #("filters", field_type.UserType("shared/widgets", "WidgetFilters", [])),
       ],
-      mutates_context: True,
+      mutates_context: True, msg_type_name: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/notifier",
@@ -98,7 +99,7 @@ pub fn endpoint_dispatch_imports_qualified_param_types_test() {
       params: [
         #("params", field_type.UserType("shared/alerts", "AlertParams", [])),
       ],
-      mutates_context: True,
+      mutates_context: True, msg_type_name: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/store",
@@ -106,7 +107,7 @@ pub fn endpoint_dispatch_imports_qualified_param_types_test() {
       return_ok: field_type.IntField,
       return_err: field_type.NilField,
       params: [#("id", field_type.IntField)],
-      mutates_context: True,
+      mutates_context: True, msg_type_name: option.None,
     ),
   ]
   let content =
@@ -132,7 +133,7 @@ pub fn endpoint_dispatch_imports_stdlib_param_types_test() {
           field_type.DictOf(field_type.StringField, field_type.IntField),
         ),
       ],
-      mutates_context: True,
+      mutates_context: True, msg_type_name: option.None,
     ),
   ]
   let content =
