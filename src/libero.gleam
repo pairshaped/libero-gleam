@@ -2,13 +2,64 @@
 ////
 //// Provides handler scanning, dispatch codegen, ETF wire protocol,
 //// and decoder generation.
+////
+//// Run `gleam run -m libero` to generate the RPC pipeline into
+//// `src/generated/libero/`. Or call the library functions directly
+//// for programmatic use (e.g. from a framework like lando).
 
+import gleam/io
+import gleam/list
 import gleam/result
 import libero/codegen_decoders
 import libero/codegen_dispatch
+import libero/format
 import libero/gen_error.{type GenError}
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType}
+import simplifile
+
+const out_dir = "src/generated/libero"
+
+/// Run the full generation pipeline, writing files to `src/generated/libero/`.
+pub fn main() {
+  let endpoints = case scan() {
+    Ok(eps) -> eps
+    Error(errors) -> {
+      list.each(errors, gen_error.print_error)
+      panic as "scan failed"
+    }
+  }
+  let seeds = collect_seeds(endpoints)
+  let discovered = case walk(seeds) {
+    Ok(types) -> types
+    Error(errors) -> {
+      list.each(errors, gen_error.print_error)
+      panic as "walk failed"
+    }
+  }
+  let dispatch_src = generate_dispatch(endpoints)
+  let decoders_js = generate_decoders_ffi(discovered, endpoints)
+  let decoders_gleam = generate_decoders_gleam()
+
+  let _ = simplifile.create_directory_all(out_dir)
+  let _ =
+    simplifile.write(
+      out_dir <> "/dispatch.gleam",
+      format.format_gleam(dispatch_src),
+    )
+  let _ = simplifile.write(out_dir <> "/rpc_decoders_ffi.mjs", decoders_js)
+  let _ =
+    simplifile.write(
+      out_dir <> "/rpc_decoders.gleam",
+      format.format_gleam(decoders_gleam),
+    )
+
+  io.println(
+    "wrote "
+    <> out_dir
+    <> "/dispatch.gleam, rpc_decoders_ffi.mjs, rpc_decoders.gleam",
+  )
+}
 
 /// Scan `src/` for handler endpoints.
 /// Context type is always `ServerContext`. Skips `src/generated/`.

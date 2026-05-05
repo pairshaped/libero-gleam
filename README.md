@@ -32,13 +32,13 @@ let assert Ok(endpoints) = libero.scan()
 let seeds = libero.collect_seeds(endpoints)
 
 // Walk the type graph to discover all custom types
-let assert Ok(discovered) = libero.walk(seeds:)
+let assert Ok(discovered) = libero.walk(seeds)
 
 // Generate server dispatch module
-let dispatch_src = libero.generate_dispatch(endpoints:)
+let dispatch_src = libero.generate_dispatch(endpoints)
 
 // Generate JS typed decoders
-let decoders_js = libero.generate_decoders_ffi(discovered:, endpoints:)
+let decoders_js = libero.generate_decoders_ffi(discovered, endpoints)
 let decoders_gleam = libero.generate_decoders_gleam()
 ```
 

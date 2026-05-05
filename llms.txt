@@ -32,13 +32,13 @@ let assert Ok(endpoints) = libero.scan()
 let seeds = libero.collect_seeds(endpoints)
 
 // 3. Walk the type graph
-let assert Ok(discovered) = libero.walk(seeds:)
+let assert Ok(discovered) = libero.walk(seeds)
 
 // 4. Generate dispatch
-let dispatch_source = libero.generate_dispatch(endpoints:)
+let dispatch_source = libero.generate_dispatch(endpoints)
 
 // 5. Generate decoders
-let decoders_js = libero.generate_decoders_ffi(discovered:, endpoints:)
+let decoders_js = libero.generate_decoders_ffi(discovered, endpoints)
 let decoders_gleam = libero.generate_decoders_gleam()
 ```
 
