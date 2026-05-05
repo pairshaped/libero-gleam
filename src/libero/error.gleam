@@ -18,14 +18,6 @@
 ////    contains a client-safe string suitable for display to end
 ////    users without exposing internal details.
 
-/// Information about a server-side panic. Available as a utility
-/// for consumers that wrap dispatch calls with their own panic
-/// catching (via `libero/trace.try_call`). Libero itself has no
-/// logging dependency; consumers decide how to log or escalate.
-pub type PanicInfo {
-  PanicInfo(trace_id: String, fn_name: String, reason: String)
-}
-
 /// Wire-level decode failure. Returned by `wire.decode_safe` when the
 /// input is not valid ETF or cannot be reconstructed.
 pub type DecodeError {

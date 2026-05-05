@@ -143,14 +143,6 @@ pub fn tag_response(
   <<0, request_id:32, data:bits>>
 }
 
-/// Tag a push frame so the JS client routes it to the push handler.
-/// The value is an ETF-encoded `{module_name, msg}` tuple so the
-/// client knows which handler to invoke.
-pub fn tag_push(module module: String, msg msg: a) -> BitArray {
-  let data = encode(#(module, msg))
-  <<1, data:bits>>
-}
-
 // ---------- Variant tag ----------
 
 /// Extract the constructor tag (snake_case atom name) from a Gleam variant
@@ -191,7 +183,7 @@ fn ffi_variant_tag(value: dynamic.Dynamic) -> Result(String, Nil) {
 /// which live in consumer packages and need pub access.
 @external(erlang, "libero_ffi", "identity")
 @external(javascript, "./rpc_ffi.mjs", "identity")
-pub fn coerce(value: dynamic.Dynamic) -> a {
+pub fn coerce(value: a) -> b {
   let _ = value
   panic as "libero/wire.coerce: external is missing for this target. This indicates a libero packaging bug; the function should be resolved by the @external attributes."
 }

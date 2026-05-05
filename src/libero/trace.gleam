@@ -36,13 +36,6 @@ pub fn new_trace_id() -> String {
 @external(javascript, "./libero_ffi.mjs", "uniqueId")
 fn unique_id() -> String
 
-// Note: there's no catch_panic convenience wrapper here. The
-// generated dispatch code handles panics inline by calling
-// `try_call` + `new_trace_id` and bubbling a `PanicInfo` value up
-// through its return type. This keeps libero free of any logging
-// dependency. Consumers decide what to do with panic info in their
-// WebSocket handler, not in library code.
-
 // nolint: stringly_typed_error
 @external(erlang, "libero_ffi", "try_call")
 fn do_try_call(action: fn() -> a) -> Result(a, String)

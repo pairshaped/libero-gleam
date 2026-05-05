@@ -7,7 +7,7 @@
 %% Erlang term shapes.
 
 -module(libero_ffi).
--export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, trap_signals/0, unique_id/0,
+-export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, unique_id/0,
          run_executable_capturing/2, find_executable/1, get_env/1]).
 
 identity(X) -> X.
@@ -27,23 +27,6 @@ decode_safe(Bin) ->
                 io_lib:format("~p", [Reason])
             ),
             {error, {decode_error, Msg}}
-    end.
-
-%% Install signal handlers so libero exits cleanly when its parent
-%% build script is killed (Ctrl-C, SIGTERM from sandbox, etc.).
-%% Without this, a stuck or in-progress libero process can survive
-%% its parent and spin at 99% CPU.
-trap_signals() ->
-    os:set_signal(sigterm, handle),
-    os:set_signal(sighup, handle),
-    spawn(fun signal_loop/0),
-    nil.
-
-signal_loop() ->
-    receive
-        {signal, sigterm} -> erlang:halt(1);
-        {signal, sighup}  -> erlang:halt(1);
-        _Other            -> signal_loop()
     end.
 
 try_call(F) ->

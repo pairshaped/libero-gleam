@@ -105,7 +105,7 @@ For safe decoding of untrusted ETF input, use `wire.decode_safe` which returns `
 | `libero/codegen_dispatch` | erlang | Server dispatch generator |
 | `libero/codegen_decoders` | erlang | JS typed decoder generator |
 | `libero/wire` | both | ETF codec (encode, decode, call envelope) |
-| `libero/error` | both | RpcError, DecodeError, PanicInfo |
+| `libero/error` | both | RpcError, DecodeError |
 | `libero/remote_data` | both | RemoteData/RpcData state machine for clients |
 | `libero/field_type` | both | Structured type representation |
 | `libero/trace` | erlang | Panic catching + trace ID generation |
