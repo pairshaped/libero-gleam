@@ -1,6 +1,6 @@
 # Libero Context
 
-Libero is an RPC plumbing library for Gleam (6.0.0). It scans Gleam source for handler function signatures and generates typed dispatch, decoder, and wire protocol code. Most users run `gleam run -m libero` to generate into `src/generated/libero/`. Frameworks (like lando) call the library API programmatically.
+Libero is an RPC plumbing library for Gleam (6.0.0). It scans Gleam source for handler function signatures and generates typed dispatch, decoder, and wire protocol code. Most users run `gleam run -m libero` to generate into `src/generated/libero/`. Frameworks call the library API programmatically.
 
 ## Conventions
 

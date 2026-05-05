@@ -5,7 +5,7 @@
 ////
 //// Run `gleam run -m libero` to generate the RPC pipeline into
 //// `src/generated/libero/`. Or call the library functions directly
-//// for programmatic use (e.g. from a framework like lando).
+//// for programmatic use (e.g. from a framework).
 
 import gleam/io
 import gleam/list

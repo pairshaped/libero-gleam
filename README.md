@@ -70,7 +70,7 @@ let decoders_js = libero.generate_decoders_ffi(discovered, endpoints)
 let decoders_gleam = libero.generate_decoders_gleam()
 ```
 
-All functions return strings — you decide where to write them. Each step is exposed separately so frameworks (like lando) can inject custom logic between scan, walk, and codegen.
+All functions return strings — you decide where to write them. Each step is exposed separately so frameworks can inject custom logic between scan, walk, and codegen.
 
 ## Wire protocol
 
