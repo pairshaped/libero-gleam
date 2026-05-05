@@ -20,7 +20,7 @@ glexer = ">= 2.4.0 and < 3.0.0"
 glinter = "~> 2.16"
 gleeunit = "~> 1.0"
 gleam_erlang = "~> 1.0"
-birdie = ">= 1.5.5 and < 2.0.0"
+birdie = ">= 2.0.0 and < 3.0.0"
 
 [tools.glinter]
 stats = true

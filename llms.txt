@@ -1,10 +1,43 @@
 # Libero Context
 
-Libero is an RPC plumbing library for Gleam (6.0.0). It provides handler scanning, dispatch codegen, ETF wire protocol, and typed decoder generation. It is not used directly by application developers.
+Libero is an RPC plumbing library for Gleam (6.0.0). It scans Gleam source for handler function signatures and generates typed dispatch, decoder, and wire protocol code. Most users run `gleam run -m libero` to generate into `src/generated/libero/`. Frameworks (like lando) call the library API programmatically.
+
+## Conventions
+
+Libero is opinionated: context type is `ServerContext` in the `server_context` module, wire tag is `"rpc"`, source is always `src/`, output is always `src/generated/libero/`, and `src/generated/` is skipped during scanning.
+
+## CLI
+
+```sh
+gleam run -m libero
+```
+
+Writes three files to `src/generated/libero/`:
+
+| File | Purpose |
+|------|---------|
+| `dispatch.gleam` | `ClientMsg` type and `handle` function with panic catching |
+| `rpc_decoders_ffi.mjs` | Typed JS decoders for every discovered type |
+| `rpc_decoders.gleam` | Gleam wrapper that registers the JS decoders |
+
+## Library API
+
+```gleam
+import libero
+
+let assert Ok(endpoints) = libero.scan()                               // 1. Discover endpoints
+let seeds = libero.collect_seeds(endpoints)                            // 2. Extract type seeds
+let assert Ok(discovered) = libero.walk(seeds)                        // 3. Walk type graph
+let dispatch_source = libero.generate_dispatch(endpoints)             // 4. Generate dispatch
+let decoders_js = libero.generate_decoders_ffi(discovered, endpoints) // 5. Generate JS decoders
+let decoders_gleam = libero.generate_decoders_gleam()                 // 6. Generate Gleam wrapper
+```
+
+Each function returns a string — the caller owns file I/O. Internal modules (`libero/scanner`, `libero/codegen_dispatch`, etc.) keep flexible parameterized signatures for framework consumers that need programmatic control.
 
 ## What it provides
 
-1. **Scanner** (`libero/scanner`): Discovers handler endpoints by parsing Gleam source files. Looks for public functions with a `server_` prefix, a context parameter, and a Result return type.
+1. **Scanner** (`libero/scanner`): Discovers handler endpoints by parsing Gleam source files. Looks for public functions with a `server_` prefix, a `ServerContext` parameter, and a `Result` return type.
 
 2. **Walker** (`libero/walker`): BFS traversal of the type graph starting from scanner output. Discovers all custom types reachable from handler params and return types.
 
@@ -20,37 +53,15 @@ Libero is an RPC plumbing library for Gleam (6.0.0). It provides handler scannin
 
 8. **Trace** (`libero/trace`): Panic catching via Erlang try/catch, trace ID generation for log correlation.
 
-## Public API
-
-```gleam
-import libero
-
-// 1. Discover endpoints
-let assert Ok(endpoints) = libero.scan()
-
-// 2. Collect type seeds
-let seeds = libero.collect_seeds(endpoints)
-
-// 3. Walk the type graph
-let assert Ok(discovered) = libero.walk(seeds)
-
-// 4. Generate dispatch
-let dispatch_source = libero.generate_dispatch(endpoints)
-
-// 5. Generate decoders
-let decoders_js = libero.generate_decoders_ffi(discovered, endpoints)
-let decoders_gleam = libero.generate_decoders_gleam()
-```
-
 ## Handler-as-Contract
 
 Libero's scanner detects RPC endpoints by checking:
 
 1. Public function with `server_` prefix
-2. A context parameter typed as `ServerContext`
+2. A `ServerContext` parameter
 3. Return type is either:
    - `Result(value, error)` for read-only handlers
-   - `#(Result(value, error), ContextType)` for mutating handlers
+   - `#(Result(value, error), ServerContext)` for mutating handlers
 4. All types in the signature are builtins or resolvable from the source tree
 
 ```gleam
@@ -148,7 +159,7 @@ pub type RpcData(value, domain) = RemoteData(value, RpcOutcome(domain))
 
 | Module | Target | Purpose |
 |--------|--------|---------|
-| `libero` | both | Public API facade |
+| `libero` | both | Public API facade and CLI entry point |
 | `libero/scanner` | erlang | Handler discovery |
 | `libero/walker` | erlang | Type graph traversal |
 | `libero/codegen_dispatch` | erlang | Server dispatch generator |
@@ -166,5 +177,5 @@ pub type RpcData(value, domain) = RemoteData(value, RpcOutcome(domain))
 
 - `gleam_stdlib` (>= 0.69.0)
 - `glance` (~> 6.0): Gleam parser for scanning handler signatures
-- `simplifile` (~> 2.0): file I/O for source tree walking
+- `simplifile` (~> 2.0): file I/O for source tree walking and CLI output
 - `glexer` (>= 2.4.0): lexer for error formatting
