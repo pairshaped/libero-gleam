@@ -25,30 +25,21 @@ libero = ">= 6.0.0 and < 7.0.0"
 ```gleam
 import libero
 
-// Discover handler endpoints from a source tree
-libero.scan(src_dir: "src", context_type_name: "ServerContext")
+// Discover handler endpoints in src/
+let assert Ok(endpoints) = libero.scan()
 
 // Collect type seeds for the walker
-libero.collect_seeds(endpoints)
+let seeds = libero.collect_seeds(endpoints)
 
 // Walk the type graph to discover all custom types
-libero.walk(seeds: seeds, file_paths: file_paths)
+let assert Ok(discovered) = libero.walk(seeds:)
 
 // Generate server dispatch module
-libero.generate_dispatch(
-  endpoints: endpoints,
-  context_module: "server_context",
-  context_type_name: "ServerContext",
-  wire_module_tag: "rpc",
-)
+let dispatch_src = libero.generate_dispatch(endpoints:)
 
 // Generate JS typed decoders
-libero.generate_decoders_ffi(
-  discovered: discovered_types,
-  endpoints: endpoints,
-  relpath_prefix: "../../",
-)
-libero.generate_decoders_gleam(ffi_module_path: "./rpc_decoders_ffi.mjs")
+let decoders_js = libero.generate_decoders_ffi(discovered:, endpoints:)
+let decoders_gleam = libero.generate_decoders_gleam()
 ```
 
 ## Handler-as-Contract

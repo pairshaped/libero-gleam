@@ -26,29 +26,20 @@ Libero is an RPC plumbing library for Gleam (6.0.0). It provides handler scannin
 import libero
 
 // 1. Discover endpoints
-let assert Ok(endpoints) = libero.scan(src_dir: "src", context_type_name: "ServerContext")
+let assert Ok(endpoints) = libero.scan()
 
 // 2. Collect type seeds
 let seeds = libero.collect_seeds(endpoints)
 
 // 3. Walk the type graph
-let assert Ok(discovered) = libero.walk(seeds: seeds, file_paths: file_paths)
+let assert Ok(discovered) = libero.walk(seeds:)
 
 // 4. Generate dispatch
-let dispatch_source = libero.generate_dispatch(
-  endpoints: endpoints,
-  context_module: "server_context",
-  context_type_name: "ServerContext",
-  wire_module_tag: "rpc",
-)
+let dispatch_source = libero.generate_dispatch(endpoints:)
 
 // 5. Generate decoders
-let decoders_js = libero.generate_decoders_ffi(
-  discovered: discovered,
-  endpoints: endpoints,
-  relpath_prefix: "../../",
-)
-let decoders_gleam = libero.generate_decoders_gleam(ffi_module_path: "./rpc_decoders_ffi.mjs")
+let decoders_js = libero.generate_decoders_ffi(discovered:, endpoints:)
+let decoders_gleam = libero.generate_decoders_gleam()
 ```
 
 ## Handler-as-Contract
@@ -56,7 +47,7 @@ let decoders_gleam = libero.generate_decoders_gleam(ffi_module_path: "./rpc_deco
 Libero's scanner detects RPC endpoints by checking:
 
 1. Public function with `server_` prefix
-2. A context parameter (named type matching the configured context type name)
+2. A context parameter typed as `ServerContext`
 3. Return type is either:
    - `Result(value, error)` for read-only handlers
    - `#(Result(value, error), ContextType)` for mutating handlers
