@@ -1,6 +1,6 @@
 # Libero
 
-RPC plumbing library for Gleam. Provides handler scanning, dispatch codegen, ETF wire protocol, and typed decoder generation. Consumed as a dependency by framework packages (e.g. lando).
+RPC plumbing library for Gleam. Provides handler scanning, dispatch codegen, ETF wire protocol, and typed decoder generation.
 
 ## What it does
 
@@ -26,7 +26,7 @@ libero = ">= 6.0.0 and < 7.0.0"
 import libero
 
 // Discover handler endpoints from a source tree
-libero.scan(src_dir: "src", context_type_name: "HandlerContext")
+libero.scan(src_dir: "src", context_type_name: "ServerContext")
 
 // Collect type seeds for the walker
 libero.collect_seeds(endpoints)
@@ -37,8 +37,8 @@ libero.walk(seeds: seeds, file_paths: file_paths)
 // Generate server dispatch module
 libero.generate_dispatch(
   endpoints: endpoints,
-  context_module: "handler_context",
-  context_type_name: "HandlerContext",
+  context_module: "server_context",
+  context_type_name: "ServerContext",
   wire_module_tag: "rpc",
 )
 
@@ -46,7 +46,6 @@ libero.generate_dispatch(
 libero.generate_decoders_ffi(
   discovered: discovered_types,
   endpoints: endpoints,
-  prelude_import_path: "../../libero/libero/decoders_prelude.mjs",
   relpath_prefix: "../../",
 )
 libero.generate_decoders_gleam(ffi_module_path: "./rpc_decoders_ffi.mjs")
@@ -65,15 +64,15 @@ Libero's scanner detects RPC endpoints by checking:
 
 ```gleam
 pub fn server_get_items(
-  handler_ctx handler_ctx: HandlerContext,
+  server_ctx server_ctx: ServerContext,
 ) -> Result(List(Item), ItemError) {
-  Ok(handler_ctx.items)
+  Ok(server_ctx.items)
 }
 
 pub fn server_create_item(
   params params: ItemParams,
-  handler_ctx handler_ctx: HandlerContext,
-) -> #(Result(Item, ItemError), HandlerContext) {
+  server_ctx server_ctx: ServerContext,
+) -> #(Result(Item, ItemError), ServerContext) {
   // ...
 }
 ```

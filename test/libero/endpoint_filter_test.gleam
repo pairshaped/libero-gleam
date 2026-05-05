@@ -46,7 +46,7 @@ pub fn bare_result_handler_marked_read_only_test() {
   let assert True = get_items.mutates_context
 }
 
-/// HandlerContext in wrong position in return tuple
+/// ServerContext in wrong position in return tuple
 pub fn excludes_wrong_return_order_test() {
   let names = scan_fixture_names()
   let assert False = list.contains(names, "wrong_order")
@@ -83,7 +83,7 @@ fn scan_fixture_endpoints() -> List(scanner.HandlerEndpoint) {
   let assert Ok(endpoints) =
     scanner.scan(
       src_dir: "test/fixtures/endpoint_scan/server",
-      context_type_name: "HandlerContext",
+      context_type_name: "ServerContext",
     )
   endpoints
 }

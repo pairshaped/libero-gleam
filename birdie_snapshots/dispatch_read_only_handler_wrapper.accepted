@@ -8,7 +8,7 @@ import gleam/io
 import libero/error.{InternalError, MalformedRequest, UnknownFunction}
 import libero/trace
 import libero/wire
-import handler_context.{type ServerContext}
+import server_context.{type ServerContext}
 import server/handler as server_handler_handler
 
 

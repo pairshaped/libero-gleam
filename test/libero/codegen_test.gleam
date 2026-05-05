@@ -1,10 +1,10 @@
 //// Direct tests for libero/codegen helper functions.
 
 import gleam/list
+import gleam/option
 import gleam/string
 import libero/codegen
 import libero/field_type
-import gleam/option
 import libero/scanner
 
 // -- to_pascal_case --
@@ -91,7 +91,8 @@ fn single_endpoint(return_ok: field_type.FieldType) -> scanner.HandlerEndpoint {
     return_ok: return_ok,
     return_err: field_type.NilField,
     params: [],
-    mutates_context: True, msg_type_name: option.None,
+    mutates_context: True,
+    msg_type_name: option.None,
   )
 }
 
@@ -115,7 +116,8 @@ pub fn endpoints_contain_finds_option_in_params_test() {
       return_ok: field_type.IntField,
       return_err: field_type.NilField,
       params: [#("opt", field_type.OptionOf(field_type.StringField))],
-      mutates_context: True, msg_type_name: option.None,
+      mutates_context: True,
+      msg_type_name: option.None,
     )
   let assert True =
     codegen.endpoints_contain(endpoints: [ep], predicate: codegen.is_option)
@@ -129,7 +131,8 @@ pub fn endpoints_contain_finds_option_in_return_err_test() {
       return_ok: field_type.IntField,
       return_err: field_type.OptionOf(field_type.StringField),
       params: [],
-      mutates_context: True, msg_type_name: option.None,
+      mutates_context: True,
+      msg_type_name: option.None,
     )
   let assert True =
     codegen.endpoints_contain(endpoints: [ep], predicate: codegen.is_option)
@@ -145,7 +148,8 @@ pub fn import_if_emits_import_when_predicate_true_test() {
       return_ok: field_type.OptionOf(field_type.IntField),
       return_err: field_type.NilField,
       params: [],
-      mutates_context: True, msg_type_name: option.None,
+      mutates_context: True,
+      msg_type_name: option.None,
     )
   let result =
     codegen.import_if(
@@ -177,7 +181,8 @@ pub fn emit_client_msg_variants_zero_param_test() {
       return_ok: field_type.IntField,
       return_err: field_type.NilField,
       params: [],
-      mutates_context: True, msg_type_name: option.None,
+      mutates_context: True,
+      msg_type_name: option.None,
     )
   let lines = codegen.emit_client_msg_variants([ep])
   let assert ["  GetItems"] = lines
@@ -194,7 +199,8 @@ pub fn emit_client_msg_variants_with_params_test() {
         #("params", field_type.UserType("shared/types", "ItemParams", [])),
         #("id", field_type.IntField),
       ],
-      mutates_context: True, msg_type_name: option.None,
+      mutates_context: True,
+      msg_type_name: option.None,
     )
   let lines = codegen.emit_client_msg_variants([ep])
   let assert ["  CreateItem(params: types.ItemParams, id: Int)"] = lines
@@ -212,7 +218,8 @@ pub fn collect_endpoint_type_imports_params_only_test() {
       params: [
         #("item", field_type.UserType("shared/types", "Item", [])),
       ],
-      mutates_context: True, msg_type_name: option.None,
+      mutates_context: True,
+      msg_type_name: option.None,
     )
   let imports =
     codegen.collect_endpoint_type_imports([ep], include_return: False)
@@ -229,7 +236,8 @@ pub fn collect_endpoint_type_imports_includes_return_test() {
       params: [
         #("item", field_type.UserType("shared/types", "Item", [])),
       ],
-      mutates_context: True, msg_type_name: option.None,
+      mutates_context: True,
+      msg_type_name: option.None,
     )
   let imports =
     codegen.collect_endpoint_type_imports([ep], include_return: True)
@@ -248,7 +256,8 @@ pub fn collect_endpoint_type_imports_deduplicates_test() {
       params: [
         #("item", field_type.UserType("shared/types", "Item", [])),
       ],
-      mutates_context: True, msg_type_name: option.None,
+      mutates_context: True,
+      msg_type_name: option.None,
     )
   let ep2 =
     scanner.HandlerEndpoint(
@@ -259,7 +268,8 @@ pub fn collect_endpoint_type_imports_deduplicates_test() {
       params: [
         #("item", field_type.UserType("shared/types", "Item", [])),
       ],
-      mutates_context: True, msg_type_name: option.None,
+      mutates_context: True,
+      msg_type_name: option.None,
     )
   let imports =
     codegen.collect_endpoint_type_imports([ep1, ep2], include_return: False)

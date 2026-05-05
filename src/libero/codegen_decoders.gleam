@@ -33,16 +33,9 @@ pub fn ensure_decoders() -> Bool
 pub fn generate_decoders_ffi(
   discovered discovered: List(DiscoveredType),
   endpoints endpoints: List(scanner.HandlerEndpoint),
-  prelude_import_path prelude_import_path: String,
   relpath_prefix relpath_prefix: String,
 ) -> String {
-  let imports =
-    emit_decoder_imports(
-      discovered:,
-      endpoints:,
-      prelude_import_path:,
-      relpath_prefix:,
-    )
+  let imports = emit_decoder_imports(discovered:, endpoints:, relpath_prefix:)
   let body = emit_typed_decoders(discovered)
   let response_decoders = emit_response_decoders(endpoints)
   let float_field_registrations = emit_float_field_registrations(discovered)
@@ -72,7 +65,6 @@ pub fn emit_typed_decoders(discovered: List(DiscoveredType)) -> String {
 fn emit_decoder_imports(
   discovered discovered: List(DiscoveredType),
   endpoints endpoints: List(scanner.HandlerEndpoint),
-  prelude_import_path prelude_import_path: String,
   relpath_prefix relpath_prefix: String,
 ) -> String {
   let module_paths =
@@ -93,7 +85,8 @@ fn emit_decoder_imports(
     <> "decode_result_of, decode_dict_of, decode_tuple_of, DecodeError, "
     <> "setResultCtors, setOptionCtors, setListCtors, "
     <> "setDictFromList } from \""
-    <> prelude_import_path
+    <> relpath_prefix
+    <> "libero/libero/decoders_prelude.mjs"
     <> "\";"
   let stdlib_imports =
     "import { Ok, Error as ResultError, Empty, NonEmpty } from \""

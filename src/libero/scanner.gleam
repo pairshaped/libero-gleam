@@ -328,7 +328,10 @@ fn try_resolve_msg_type(
   custom_types: List(glance.Definition(glance.CustomType)),
   to_ft: fn(glance.Type) -> field_type.FieldType,
 ) -> #(List(#(String, field_type.FieldType)), option.Option(String)) {
-  let fallback = #(resolve_individual_params(payload_params, to_ft), option.None)
+  let fallback = #(
+    resolve_individual_params(payload_params, to_ft),
+    option.None,
+  )
   case payload_params {
     [param] -> {
       use type_name <- try_msg_type_name(param, fallback)
