@@ -26,7 +26,7 @@ pub fn main() {
     Ok(eps) -> eps
     Error(errors) -> {
       list.each(errors, gen_error.print_error)
-      panic as "scan failed"
+      halt(1)
     }
   }
   let seeds = collect_seeds(endpoints)
@@ -34,7 +34,7 @@ pub fn main() {
     Ok(types) -> types
     Error(errors) -> {
       list.each(errors, gen_error.print_error)
-      panic as "walk failed"
+      halt(1)
     }
   }
   let dispatch_src = generate_dispatch(endpoints)
@@ -64,7 +64,7 @@ pub fn main() {
 /// Scan `src/` for handler endpoints.
 /// Context type is always `ServerContext`. Skips `src/generated/`.
 pub fn scan() -> Result(List(HandlerEndpoint), List(GenError)) {
-  scanner.scan("src", "ServerContext")
+  scanner.scan("./src", "ServerContext")
 }
 
 /// Extract type seeds from endpoints for the walker.
@@ -79,7 +79,7 @@ pub fn walk(
   seeds: List(#(String, String)),
 ) -> Result(List(DiscoveredType), List(GenError)) {
   use file_paths <- result.try(
-    scanner.walk_directory("src")
+    scanner.walk_directory("./src")
     |> result.map_error(fn(e) { [e] }),
   )
   walker.walk(seeds, file_paths)
@@ -101,4 +101,10 @@ pub fn generate_decoders_ffi(
 /// Generate the Gleam wrapper for the typed decoder FFI.
 pub fn generate_decoders_gleam() -> String {
   codegen_decoders.generate_decoders_gleam("rpc_decoders_ffi.mjs")
+}
+
+@external(erlang, "libero_ffi", "halt")
+fn halt(code: Int) -> a {
+  let _ = code
+  panic as "halt: Erlang-only, unreachable on JavaScript target"
 }

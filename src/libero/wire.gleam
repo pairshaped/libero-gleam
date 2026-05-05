@@ -143,6 +143,12 @@ pub fn tag_response(
   <<0, request_id:32, data:bits>>
 }
 
+/// Tag a push frame. Server-initiated messages use tag byte 1 with no
+/// request ID, since there is no originating call to correlate.
+pub fn tag_push(data: BitArray) -> BitArray {
+  <<1, data:bits>>
+}
+
 // ---------- Variant tag ----------
 
 /// Extract the constructor tag (snake_case atom name) from a Gleam variant

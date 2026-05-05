@@ -306,6 +306,7 @@ fn parse_single_endpoint(
       imports: type_imports,
       aliases: alias_map,
       type_alias_originals: type_alias_originals,
+      current_module: module_path,
     )
   }
 
@@ -467,6 +468,7 @@ fn glance_type_to_field_type(
   imports imports: dict.Dict(String, String),
   aliases aliases: dict.Dict(String, String),
   type_alias_originals type_alias_originals: dict.Dict(String, String),
+  current_module current_module: String,
 ) -> field_type.FieldType {
   let recurse_named = fn(name, params) {
     builtin_or_user(
@@ -475,6 +477,7 @@ fn glance_type_to_field_type(
       imports:,
       aliases:,
       type_alias_originals:,
+      current_module:,
     )
   }
   let recurse = fn(t) {
@@ -483,6 +486,7 @@ fn glance_type_to_field_type(
       imports:,
       aliases:,
       type_alias_originals:,
+      current_module:,
     )
   }
   case t {
@@ -512,6 +516,7 @@ fn builtin_or_user(
   imports imports: dict.Dict(String, String),
   aliases aliases: dict.Dict(String, String),
   type_alias_originals type_alias_originals: dict.Dict(String, String),
+  current_module current_module: String,
 ) -> field_type.FieldType {
   let recurse = fn(t) {
     glance_type_to_field_type(
@@ -519,12 +524,13 @@ fn builtin_or_user(
       imports:,
       aliases:,
       type_alias_originals:,
+      current_module:,
     )
   }
   case field_type.builtin_field_type(name:, parameters:, recurse:) {
     Ok(ft) -> ft
     Error(Nil) -> {
-      let module_path = dict.get(imports, name) |> result.unwrap(or: name)
+      let module_path = dict.get(imports, name) |> result.unwrap(or: current_module)
       let type_name =
         dict.get(type_alias_originals, name) |> result.unwrap(or: name)
       field_type.UserType(

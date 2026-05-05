@@ -2,7 +2,9 @@
 ////
 //// `try_call(action)` runs a zero-arg function inside an Erlang
 //// try/catch and returns `Ok(result)` on success or `Error(reason)`
-//// where `reason` is the stringified exception.
+//// where `reason` is the stringified exception. Throws and errors
+//// are caught; exit signals propagate normally so process lifecycle
+//// is not suppressed.
 ////
 //// `new_trace_id()` returns a short unique string built from a
 //// monotonic counter and system time, suitable for correlating log
@@ -15,10 +17,10 @@
 //// `io.println_error` as a default logger; consumers that want
 //// structured logging can wrap the primitives in their own module.
 
-/// Run the given function, catching any panic. Returns the result on
-/// success; on failure, returns the stringified exception reason.
-/// Callers typically pair this with a trace id from `new_trace_id` and
-/// log both under a single correlation id.
+/// Run the given function, catching throws and errors (not exits).
+/// Returns the result on success; on failure, returns the stringified
+/// exception reason. Callers typically pair this with a trace id from
+/// `new_trace_id` and log both under a single correlation id.
 /// nolint: stringly_typed_error -- wraps OTP catch; exception reason is inherently a string
 pub fn try_call(action: fn() -> a) -> Result(a, String) {
   do_try_call(action)

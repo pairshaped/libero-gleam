@@ -1,14 +1,15 @@
 %% Libero RPC panic-catching FFI.
 %%
 %% try_call(F) runs the zero-arg function F and returns {ok, Result}
-%% on success, or {error, ReasonBinary} if the function panics or
-%% throws. The reason is stringified so the caller can log it
-%% alongside a trace_id without pattern-matching on arbitrary
-%% Erlang term shapes.
+%% on success, or {error, ReasonBinary} if the function throws or
+%% raises an error. Exit signals are not caught and propagate normally
+%% so process lifecycle (exit/1, shutdown) is not suppressed.
+%% The reason is stringified so the caller can log it alongside a
+%% trace_id without pattern-matching on arbitrary Erlang term shapes.
 
 -module(libero_ffi).
 -export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, unique_id/0,
-         run_executable_capturing/2, find_executable/1, get_env/1]).
+         run_executable_capturing/2, find_executable/1, get_env/1, halt/1]).
 
 identity(X) -> X.
 
@@ -33,10 +34,16 @@ try_call(F) ->
     try F() of
         Result -> {ok, Result}
     catch
-        Class:Reason:Stacktrace ->
+        throw:Reason ->
             Message = io_lib:format(
-                "~p: ~p~nstacktrace: ~p",
-                [Class, Reason, Stacktrace]
+                "throw: ~p",
+                [Reason]
+            ),
+            {error, erlang:iolist_to_binary(Message)};
+        error:Reason:Stacktrace ->
+            Message = io_lib:format(
+                "~p~nstacktrace: ~p",
+                [Reason, Stacktrace]
             ),
             {error, erlang:iolist_to_binary(Message)}
     end.
@@ -75,3 +82,6 @@ get_env(Name) ->
         false -> none;
         Value -> {some, unicode:characters_to_binary(Value)}
     end.
+
+halt(Code) ->
+    erlang:halt(Code).
