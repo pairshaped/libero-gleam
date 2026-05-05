@@ -56,14 +56,16 @@ No changes needed, this already works generically.
 ```gleam
 // Generate dispatch.gleam source from scanned endpoints.
 // The dispatch function signature:
-//   pub fn handle(server_context: a, data: BitArray) -> #(BitArray, HandlerContext)
+//   pub fn handle(server_context: a, data: BitArray) -> BitArray
+// Returns an ETF-encoded Result: Ok(response) or Error(RpcError).
+// Panics in handler code are caught and returned as InternalError with trace ID.
 pub fn generate(endpoints: List(HandlerEndpoint), context_module: String) -> String
 ```
 
 Changes from v5:
-- Simpler output: no panic catching wrapper (let lando decide error handling)
 - Context type/module is configurable (not hardcoded to HandlerContext)
 - No ws_logger integration
+- Keeps panic catching (trace.try_call wraps each handler invocation). A panicked handler returns a structured InternalError response, not a crash. This is dispatch's responsibility because it's the boundary between wire data and user code.
 
 ### Decoder codegen
 
