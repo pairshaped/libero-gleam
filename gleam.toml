@@ -22,12 +22,6 @@ gleeunit = "~> 1.0"
 gleam_erlang = "~> 1.0"
 birdie = ">= 1.5.5 and < 2.0.0"
 
-[documentation]
-pages = [
-  { title = "Getting Started", path = "guides/getting-started-step-1.html", source = "./docs/getting_started/step_1.md" },
-  { title = "Getting Started, Step 2: SQLite", path = "guides/getting-started-step-2.html", source = "./docs/getting_started/step_2.md" },
-]
-
 [tools.glinter]
 stats = true
 warnings_as_errors = true

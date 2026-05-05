@@ -1,346 +1,141 @@
 # Libero
 
-A full-stack Gleam framework with typed RPC. Define your handler functions, Libero generates dispatch, client stubs, and server bootstrap from the signatures. No message types to write, no dispatch to maintain.
+RPC plumbing library for Gleam. Provides handler scanning, dispatch codegen, ETF wire protocol, and typed decoder generation. Consumed as a dependency by framework packages (e.g. lando).
 
-Like server components, but your client is a real SPA with typed RPC, and the same server logic works for any client out of the box.
+## What it does
 
-> If you are an LLM, see [llms.txt](https://raw.githubusercontent.com/pairshaped/libero/refs/heads/master/llms.txt) for a condensed context document.
+Libero turns handler function signatures into a typed RPC pipeline:
 
-## Getting started
+1. **Scanner** discovers handler endpoints by inspecting function signatures (public, `server_` prefix, context parameter, Result return type).
+2. **Walker** traverses the type graph from those signatures, finding all custom types reachable from params and return types.
+3. **Dispatch codegen** produces a Gleam module with a `ClientMsg` type and a `handle` function that routes incoming wire envelopes to the correct handler, with automatic panic catching.
+4. **Decoder codegen** produces JavaScript typed decoders for every discovered type, so the JS client can reconstruct Gleam values from ETF without manual codec work.
 
-Read the [Getting Started guide](https://github.com/pairshaped/libero/blob/master/docs/getting_started/step_1.md). It walks from an empty directory to a working checklist app, with every command and file shown. When you want persistent storage, follow [Step 2: SQLite](https://github.com/pairshaped/libero/blob/master/docs/getting_started/step_2.md).
+The wire format is [ETF](https://www.erlang.org/doc/apps/erts/erl_ext_dist.html) (Erlang Term Format). Gleam types serialize automatically without explicit codecs. On the BEAM side, `term_to_binary`/`binary_to_term` handle everything natively. On JavaScript, libero ships its own ETF encoder/decoder with a typed decoder layer on top.
 
-The rest of this README explains what libero is and how it works.
+## Installation
 
-## Project Structure
-
-```
-my_app/
-├── bin/
-│   ├── gen                          # libero codegen (dispatch + client stubs)
-│   ├── build                        # build the JS client
-│   ├── server                       # start the server
-│   ├── dev                          # gen + build + server, in order
-│   └── test                         # run server tests
-├── server/
-│   ├── gleam.toml                   # target=erlang, [tools.libero] config
-│   └── src/
-│       ├── my_app.gleam             # server entry (auto-generated, customizable)
-│       ├── handler.gleam            # your RPC endpoints
-│       ├── handler_context.gleam    # server context type
-│       ├── page.gleam               # SSR load_page + render_page
-│       └── generated/               # dispatch, websocket (auto-generated)
-├── shared/
-│   ├── gleam.toml                   # cross-target shared types + views
-│   └── src/shared/
-│       ├── router.gleam             # Route, parse_route, route_to_path
-│       ├── types.gleam              # domain types used in handlers
-│       └── views.gleam              # Model, Msg, view function (cross-target)
-└── clients/
-    └── web/
-        ├── gleam.toml               # target=javascript
-        └── src/
-            ├── app.gleam            # Lustre client (hydrates SSR HTML)
-            └── generated/           # client RPC stubs (auto-generated)
+```toml
+[dependencies]
+libero = ">= 6.0.0 and < 7.0.0"
 ```
 
-Three peer Gleam packages (`server/`, `shared/`, `clients/web/`), each with its own `gleam.toml`. Matches Lustre's recommended fullstack shape with one extension: `clients/` is plural because most real apps grow more than one client. See [Multiple Clients](#multiple-clients) for the typical shapes.
+## Public API
 
-`shared/` is target-agnostic: it compiles to both Erlang (used by the server) and JavaScript (used by the client). All types crossing the wire and all view functions live here.
+```gleam
+import libero
 
-`server/` runs `gleam run -m libero` to regenerate dispatch and client stubs. The `bin/dev` script wraps that plus `gleam build` and `gleam run` so you don't have to think about it.
+// Discover handler endpoints from a source tree
+libero.scan(src_dir: "src", context_type_name: "HandlerContext")
+
+// Collect type seeds for the walker
+libero.collect_seeds(endpoints)
+
+// Walk the type graph to discover all custom types
+libero.walk(seeds: seeds, file_paths: file_paths)
+
+// Generate server dispatch module
+libero.generate_dispatch(
+  endpoints: endpoints,
+  context_module: "handler_context",
+  context_type_name: "HandlerContext",
+  wire_module_tag: "rpc",
+)
+
+// Generate JS typed decoders
+libero.generate_decoders_ffi(
+  discovered: discovered_types,
+  endpoints: endpoints,
+  prelude_import_path: "../../libero/libero/decoders_prelude.mjs",
+  relpath_prefix: "../../",
+)
+libero.generate_decoders_gleam(ffi_module_path: "./rpc_decoders_ffi.mjs")
+```
 
 ## Handler-as-Contract
 
-Your handler function signatures ARE the API definition. Libero's scanner detects RPC endpoints by checking four criteria:
+Libero's scanner detects RPC endpoints by checking:
 
-1. **Public function** (not private)
-2. **Last parameter is `HandlerContext`**
-3. **Return type** is one of:
-   - `Result(value, error)` for read-only handlers (the common case)
-   - `#(Result(value, error), HandlerContext)` for handlers that emit a new context
-4. **All types in the signature come from `shared/` or are builtins**
-
-Read-only handlers return `Result(_, _)` directly; libero's generated dispatch threads the inbound context through unchanged. Use the tuple form only when the handler produces a new `HandlerContext` (login flows, session swaps, anything that mutates server state).
+1. **Public function** with a `server_` prefix
+2. **Context parameter** (a named type matching the configured context type name)
+3. **Return type** is either:
+   - `Result(value, error)` for read-only handlers
+   - `#(Result(value, error), ContextType)` for mutating handlers
+4. **All types** in the signature are builtins or resolvable from the scanned source tree
 
 ```gleam
-// server/src/handler.gleam
-
-import gleam/list
-import handler_context.{type HandlerContext, HandlerContext}
-import shared/types.{
-  type Item, type ItemError, type ItemParams, Item, TitleRequired,
-}
-
-// Read-only handler: bare Result.
-pub fn get_items(
+pub fn server_get_items(
   handler_ctx handler_ctx: HandlerContext,
 ) -> Result(List(Item), ItemError) {
   Ok(handler_ctx.items)
 }
 
-// Mutating handler: tuple form. The new HandlerContext flows back into
-// the session.
-pub fn create_item(
+pub fn server_create_item(
   params params: ItemParams,
   handler_ctx handler_ctx: HandlerContext,
 ) -> #(Result(Item, ItemError), HandlerContext) {
-  case params.title {
-    "" -> #(Error(TitleRequired), handler_ctx)
-    title -> {
-      let item = Item(id: handler_ctx.next_id, title:, completed: False)
-      let new_state =
-        HandlerContext(
-          items: list.append(handler_ctx.items, [item]),
-          next_id: handler_ctx.next_id + 1,
-        )
-      #(Ok(item), new_state)
-    }
-  }
-}
-```
-
-From these signatures, Libero generates:
-- A `ClientMsg` type with variants: `GetItems`, `CreateItem(params: ItemParams)`
-- A dispatch module that routes each variant to its handler function
-- Typed client stubs: `rpc.get_items(on_response: GotItems)`
-
-The return type `Result(a, e)` maps directly to `RpcData` on the client:
-- `Ok(value)` becomes `Success(value)`
-- `Error(err)` becomes `Failure(DomainError(err))` (typed domain error)
-- A framework-level failure (malformed wire, unknown function, server panic) becomes `Failure(TransportError(rpc_err))` with a typed `RpcError`
-
-The generated dispatch catches panics automatically. If a handler panics, the client receives `Failure(TransportError(InternalError(trace_id, "Something went wrong")))` and the full panic reason is logged server-side under that trace ID. The caller's process stays alive.
-
-## Shared Types
-
-Define your domain types in `shared/src/shared/`. These are the types used in handler signatures and shared between server and client:
-
-```gleam
-// shared/src/shared/types.gleam
-
-pub type Item {
-  Item(id: Int, title: String, completed: Bool)
-}
-
-pub type ItemParams {
-  ItemParams(title: String)
-}
-
-pub type ItemError {
-  NotFound
-  TitleRequired
-}
-```
-
-## Client Usage
-
-The generated stubs let clients send typed messages. Use `RpcData` to track loading state. Domain errors stay typed; transport errors carry a typed `RpcError`:
-
-```gleam
-import generated/messages as rpc
-import libero/remote_data.{type RpcData, Failure, Loading, Success}
-import shared/types.{type Item, type ItemError}
-
-pub type Model {
-  Model(items: RpcData(List(Item), ItemError), input: String)
-}
-
-pub type Msg {
-  GotItems(RpcData(List(Item), ItemError))
-  GotCreated(RpcData(Item, ItemError))
-  UserToggled(id: Int)
   // ...
 }
-
-fn init(_flags) -> #(Model, Effect(Msg)) {
-  #(Model(items: Loading, input: ""), rpc.get_items(on_response: GotItems))
-}
 ```
 
-In the update function, store load responses directly and use `remote_data.map` to update loaded data:
+From these, `generate_dispatch` produces:
+- A `ClientMsg` type: `GetItems`, `CreateItem(params: ItemParams)`
+- A `handle` function that decodes the wire envelope, routes to the handler, and encodes the response
+
+## Panic catching
+
+The generated dispatch wraps every handler call in `trace.try_call`. If a handler panics:
+- The client receives `Error(InternalError(trace_id, "Something went wrong"))`
+- The full panic reason is logged to stderr with the trace ID for correlation
+- The caller's process stays alive with its original context intact
+
+## Wire protocol
+
+The call envelope is a 3-tuple: `{module_name_binary, request_id, client_msg_value}`, serialized as ETF. The response is a tagged frame: `<<0, request_id:32-big, etf_response_bytes>>` for responses, `<<1, etf_push_bytes>>` for server pushes.
+
+For safe decoding of untrusted ETF input, use `wire.decode_safe` which returns `Result(a, error.DecodeError)`.
+
+## Modules
+
+| Module | Target | Purpose |
+|--------|--------|---------|
+| `libero` | both | Public API facade |
+| `libero/scanner` | erlang | Handler discovery from source |
+| `libero/walker` | erlang | Type graph traversal |
+| `libero/codegen_dispatch` | erlang | Server dispatch generator |
+| `libero/codegen_decoders` | erlang | JS typed decoder generator |
+| `libero/wire` | both | ETF codec (encode, decode, call envelope) |
+| `libero/error` | both | RpcError, DecodeError, PanicInfo |
+| `libero/remote_data` | both | RemoteData/RpcData state machine for clients |
+| `libero/field_type` | both | Structured type representation |
+| `libero/trace` | erlang | Panic catching + trace ID generation |
+| `libero/format` | erlang | Gleam code formatter integration |
+| `libero/gen_error` | both | Structured codegen error types |
+| `libero/codegen` | both | Cross-cutting codegen helpers |
+
+## RemoteData
+
+Libero ships `RemoteData` and `RpcData` types for client-side state management:
 
 ```gleam
-GotItems(rd) -> #(Model(..model, items: rd), effect.none())
-GotCreated(Success(item)) -> #(
-  Model(..model, items: remote_data.map(data: model.items, transform: fn(items) {
-    list.append(items, [item])
-  })),
-  effect.none(),
-)
-```
-
-In the view, pattern match on the four states. Use `format_failure` to render either error tier with one helper, supplying your own formatter for the domain side:
-
-```gleam
-case model.items {
-  NotAsked -> element.none()
-  Loading -> html.text("Loading...")
-  Failure(outcome) ->
-    html.text(remote_data.format_failure(
-      outcome:,
-      format_domain: format_error,
-    ))
-  Success(items) -> view_item_list(items)
-}
-```
-
-If transport and domain errors need different UX, drill into the outcome:
-
-```gleam
-import libero/remote_data.{DomainError, TransportError}
-
-Failure(DomainError(err)) -> format_error(err)
-Failure(TransportError(rpc_err)) ->
-  html.text("Connection error: " <> remote_data.format_transport_error(rpc_err))
-```
-
-## Connection Management
-
-The WebSocket auto-reconnects with exponential backoff (500ms to 30s with jitter) on unexpected disconnects. Pending requests reject with a connection-lost error when the socket drops. Push handlers persist across reconnects.
-
-Hook into the connection lifecycle:
-
-```gleam
-import libero/rpc
-
-pub type Msg {
-  Connected
-  Disconnected(reason: String)
-  // ...
+pub type RemoteData(value, error) {
+  NotAsked
+  Loading
+  Failure(error)
+  Success(value)
 }
 
-fn init(_flags) -> #(Model, Effect(Msg)) {
-  #(
-    Model(..),
-    effect.batch([
-      rpc.on_connect(handler: fn() { Connected }),
-      rpc.on_disconnect(handler: Disconnected),
-    ]),
-  )
+pub type RpcOutcome(domain) {
+  TransportError(RpcError)
+  DomainError(domain)
 }
+
+pub type RpcData(value, domain) = RemoteData(value, RpcOutcome(domain))
 ```
 
-`on_connect` fires on the initial connection and every successful reconnect, so loading (or reloading) state uses a single code path. `on_disconnect` provides a human-readable reason string suitable for display.
+Framework packages use these to wrap decoded responses so client views can pattern-match exhaustively on all states.
 
-## Configuration
-
-All config lives in `server/gleam.toml` under the `[tools.libero]` section:
-
-```toml
-name = "my_app"
-version = "0.1.0"
-target = "erlang"
-
-[dependencies]
-gleam_stdlib = ">= 0.69.0 and < 2.0.0"
-gleam_erlang = "~> 1.0"
-gleam_http = "~> 4.0"
-mist = "~> 6.0"
-lustre = "~> 5.6"
-shared = { path = "../shared" }
-libero = "~> 5.0"
-
-[tools.libero]
-port = 8080
-
-[tools.libero.clients.web]
-target = "javascript"
-```
-
-## Commands
-
-From the project root:
-
-- `bin/gen`: regenerates dispatch, websocket, and client stubs (`gleam run -m libero` from `server/`).
-- `bin/build`: builds the JS client (`gleam build --target javascript` from `clients/web/`).
-- `bin/server`: starts the mist server on port 8080 (`gleam run` from `server/`).
-- `bin/dev`: convenience wrapper that runs `gen`, `build`, then `server`.
-- `bin/test`: runs `gleam test` in the server package.
-
-Use `bin/dev` after changing handler signatures or shared types. Use `bin/server` alone when only handler bodies have changed.
-
-## What Gets Generated
-
-**Server-side (`server/src/generated/`):**
-- `dispatch.gleam` -- `ClientMsg` type + per-function routing to handlers
-- `websocket.gleam` -- Mist WebSocket handler with push support
-
-**Server entry point (`server/src/<app_name>.gleam`):**
-- Boots Mist with WebSocket, HTTP RPC, and static file serving
-- Serves HTML shell at `/` that loads the first JS client
-
-**Atom registration (`server/src/<app_name>@generated@rpc_atoms.erl`):**
-- Pre-registers every constructor atom so ETF decoding is safe before the first message arrives
-
-**Per client (`clients/<name>/src/generated/`):**
-- `messages.gleam` -- typed stubs per handler function (e.g. `rpc.get_items`, `rpc.create_item`)
-- `rpc_config.gleam` (+ `rpc_config_ffi.mjs` for path-only mode) -- WebSocket URL resolution
-- `rpc_decoders.gleam` (+ `rpc_decoders_ffi.mjs`) -- typed decoder registration
-- `ssr.gleam` (+ `ssr_ffi.mjs`) -- SSR flag reader for hydration
-
-Generation rules:
-- Starter apps and client `gleam.toml`: generated once, never overwritten
-- Everything in `generated/`: regenerated on every `gleam run -m libero` run
-
-## How It Works
-
-The wire format is [ETF](https://www.erlang.org/doc/apps/erts/erl_ext_dist.html) (Erlang Term Format) over binary WebSocket frames. Gleam types serialize automatically without explicit codecs.
-
-For safe decoding of untrusted ETF input, use `wire.decode_safe` which returns `Result(a, error.DecodeError)`. The `DecodeError` type lives in `libero/error` alongside `RpcError` and `PanicInfo`.
-
-The client sends a typed message over the WebSocket. The server dispatch decodes it, routes by function, and calls the handler. The response flows back as `Result(Result(payload, domain), RpcError)`, which the client stub converts to `RpcData(payload, domain)`.
-
-## Multiple Clients
-
-`clients/` is plural because most real apps end up with more than one. Common shapes:
-
-- **`clients/web/` + `clients/admin/`**: a public-facing SPA and a separate admin SPA, both compiled to JavaScript. Different routes, different views, often different bundle sizes (you don't ship the admin code to every visitor).
-- **`clients/web/` + `clients/cli/`**: a web SPA plus a BEAM-target CLI that talks to the same server. Useful for ops tools, scripted workflows, or letting power users hit the same RPC endpoints from a terminal.
-- **`clients/web/` + `clients/native/`**: a web client plus a Lustre-driven native client (e.g. iOS or Android via embedded JS), or any other JavaScript target with different dependencies.
-
-The handlers don't change. Each client gets typed stubs generated from the same `handler.gleam` signatures, so the contract stays consistent across surfaces. You can't accidentally drift the admin client's idea of `Item` from the web client's, because both decode the same `shared/types.Item`.
-
-To add a client: create `clients/<name>/gleam.toml`, add `[tools.libero.clients.<name>]` to `server/gleam.toml`, then run `bin/gen` to generate its stubs.
-
-### Two SSR-hydrated SPAs (admin + public)
-
-This is the question every two-app team hits: how does adding a second SPA affect the rest of the code? Here's what changes per peer.
-
-**`server/` stays mostly intact.** `handler.gleam` is still one set of RPC endpoints; both SPAs call whichever they need. `handler_context.gleam` doesn't change. `page.gleam` splits per role into `admin_page.gleam` and `public_page.gleam`, each with its own `load_page` and `render_page` pair. The server entry routes `/admin/*` to the admin pair and `/*` to the public pair, and serves both client bundles via static-file routes (`/web/admin/app.mjs`, `/web/public/app.mjs`).
-
-**`shared/` splits along the UI seam.** Domain types in `shared/types.gleam` stay unified: both SPAs decode the same `Item`, so wire compatibility is automatic and free. View modules and routers split per role into `shared/admin/{router,views}.gleam` and `shared/public/{router,views}.gleam`. Each gets its own `Route`, `Model`, `Msg`, `view`. Reusable widgets (a date picker, a table component) extract into `shared/ui/` and get imported by both.
-
-**Why split the views?** Bundle-bleed protection. Cram both UIs into one `shared/views.gleam` and every public visitor downloads your admin code. Splitting keeps `clients/admin/`'s output to admin code and `clients/public/`'s output to public code, with shared types and shared widgets as the bridge.
-
-The wire contract is shared. The UI surface stays per-client.
-
-## HTTP Clients
-
-Any BEAM process can call the server over HTTP POST without WebSocket or a Libero dependency:
-
-```gleam
-// Envelope: #(module_path, request_id, ClientMsg). The request_id is
-// echoed back in the 4-byte response header so concurrent calls match.
-let payload = term_to_binary(#("rpc", 1, GetItems))
-let assert Ok(response) = httpc.request(Post, "http://localhost:8080/rpc", payload)
-let result = binary_to_term(response.body)
-```
-
-## When to Use Libero
-
-Libero is a good fit when:
-- You want a real SPA (offline support, low-latency UI, mobile)
-- You want multiple client types from one server
-- You want typed end-to-end communication without JSON codecs
-- You want clear client/server state boundaries
-
-## Examples
-
-- [`examples/checklist`](examples/checklist) -- SSR-hydrated Lustre SPA with CRUD over WebSocket. Output of the [Getting Started guide](docs/getting_started/step_1.md).
-- [`examples/default`](examples/default) -- Bare SSR scaffold with one ping handler. The starting point `bin/new` clones.
-
-## Prior Art & Credits
+## Prior Art
 
 Libero's JS-side ETF codec is independently implemented but aligns with [arnu515/erlang-etf.js](https://github.com/arnu515/erlang-etf.js) (MIT) on `BIT_BINARY_EXT` handling and atom-length validation. Credit to that project for clear spec references. Libero's codec adds encoding, a BEAM-native path, the float field registry, and offset-based parsing.
 
