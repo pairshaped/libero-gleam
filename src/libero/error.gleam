@@ -18,12 +18,10 @@
 ////    contains a client-safe string suitable for display to end
 ////    users without exposing internal details.
 
-/// Information about a server-side panic caught by the dispatch
-/// layer. The generated `handle()` function returns this alongside
-/// the encoded response envelope, letting the WebSocket handler
-/// (or any other caller) log, report, or escalate however the
-/// project prefers. Libero itself has no logging dependency; it
-/// just tells you what happened and under what trace id.
+/// Information about a server-side panic. Available as a utility
+/// for consumers that wrap dispatch calls with their own panic
+/// catching (via `libero/trace.try_call`). Libero itself has no
+/// logging dependency; consumers decide how to log or escalate.
 pub type PanicInfo {
   PanicInfo(trace_id: String, fn_name: String, reason: String)
 }

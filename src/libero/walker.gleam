@@ -137,7 +137,6 @@ fn is_stdlib_module_path(path: String) -> Bool {
 pub fn walk(
   seeds seeds: List(#(String, String)),
   file_paths file_paths: List(String),
-  src_root _src_root: String,
 ) -> Result(List(DiscoveredType), List(GenError)) {
   let module_files =
     list.fold(file_paths, dict.new(), fn(acc, file_path) {

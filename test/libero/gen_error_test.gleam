@@ -4,8 +4,7 @@ import glance
 import gleam/option.{None, Some}
 import gleam/string
 import libero/gen_error.{
-  CannotCreateDir, CannotReadDir, CannotReadFile, CannotWriteFile,
-  DuplicateEndpoint, NoEndpointsFound, ParseFailed, TypeNotFound,
+  CannotReadDir, CannotReadFile, DuplicateEndpoint, ParseFailed, TypeNotFound,
   UnresolvedTypeModule,
 }
 import simplifile
@@ -67,16 +66,6 @@ pub fn print_error_cannot_read_file_test() {
   gen_error.print_error(err)
 }
 
-pub fn print_error_cannot_write_file_test() {
-  let err = CannotWriteFile(path: "src/out.gleam", cause: simplifile.Eacces)
-  gen_error.print_error(err)
-}
-
-pub fn print_error_cannot_create_dir_test() {
-  let err = CannotCreateDir(path: "src/gen", cause: simplifile.Eacces)
-  gen_error.print_error(err)
-}
-
 pub fn print_error_parse_failed_test() {
   let err =
     ParseFailed(path: "src/broken.gleam", cause: glance.UnexpectedEndOfInput)
@@ -91,11 +80,6 @@ pub fn print_error_unresolved_type_module_test() {
 
 pub fn print_error_type_not_found_test() {
   let err = TypeNotFound(module_path: "shared/types", type_name: "Bar")
-  gen_error.print_error(err)
-}
-
-pub fn print_error_no_endpoints_found_test() {
-  let err = NoEndpointsFound(server_src: "src/server")
   gen_error.print_error(err)
 }
 
@@ -137,11 +121,4 @@ pub fn error_box_with_empty_body_test() {
       hint: None,
     )
   let assert True = string.contains(result, "error: No details")
-}
-
-// -- print_error with NoEndpointsFound and a long path --
-
-pub fn print_error_no_endpoints_long_path_test() {
-  let err = NoEndpointsFound(server_src: "some/deeply/nested/server/src")
-  gen_error.print_error(err)
 }

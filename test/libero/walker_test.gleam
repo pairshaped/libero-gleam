@@ -29,7 +29,7 @@ fn walk_all_public_types(
         Error(_) -> []
       }
     })
-  walker.walk(seeds:, file_paths: files, src_root: dir)
+  walker.walk(seeds:, file_paths: files)
 }
 
 pub fn walks_mutually_recursive_types_test() {

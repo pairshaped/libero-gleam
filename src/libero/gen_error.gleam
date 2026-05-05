@@ -11,12 +11,9 @@ import simplifile
 pub type GenError {
   CannotReadDir(path: String, cause: simplifile.FileError)
   CannotReadFile(path: String, cause: simplifile.FileError)
-  CannotWriteFile(path: String, cause: simplifile.FileError)
-  CannotCreateDir(path: String, cause: simplifile.FileError)
   ParseFailed(path: String, cause: glance.Error)
   UnresolvedTypeModule(module_path: String, type_name: String)
   TypeNotFound(module_path: String, type_name: String)
-  NoEndpointsFound(server_src: String)
   DuplicateEndpoint(fn_name: String, modules: List(String))
 }
 
@@ -74,26 +71,6 @@ fn to_string(err: GenError) -> String {
         hint: None,
       )
 
-    CannotWriteFile(path, cause) ->
-      error_box(
-        title: "Cannot write file",
-        path:,
-        body_lines: [format_file_error(cause)],
-        hint: Some(
-          "Check that the directory exists and you have write permission",
-        ),
-      )
-
-    CannotCreateDir(path, cause) ->
-      error_box(
-        title: "Cannot create directory",
-        path:,
-        body_lines: [format_file_error(cause)],
-        hint: Some(
-          "Check parent directory exists and you have write permission",
-        ),
-      )
-
     ParseFailed(path, cause) ->
       error_box(
         title: "Failed to parse Gleam source",
@@ -110,9 +87,9 @@ fn to_string(err: GenError) -> String {
           "Type `" <> type_name <> "` could not be resolved to a file path",
         ],
         hint: Some(
-          "Ensure the module is a path dependency of the client package.\n        Check that `"
+          "Ensure the module exists in the scanned source tree.\n        Check that `"
           <> module_path
-          <> "` appears in the shared/ directory\n        or is listed as a dependency in gleam.toml",
+          <> "` is reachable from the file_paths\n        passed to walker.walk",
         ),
       )
 
@@ -123,20 +100,6 @@ fn to_string(err: GenError) -> String {
         body_lines: ["Type `" <> type_name <> "` was not found in this module"],
         hint: Some(
           "The type may be private (add `pub`) or the module path may be\n        incorrect. Libero scans for custom types, not type aliases.",
-        ),
-      )
-
-    NoEndpointsFound(server_src) ->
-      error_box(
-        title: "No handler endpoints found",
-        path: server_src,
-        body_lines: [
-          "The server source tree contains no public function whose last",
-          "parameter is HandlerContext and whose return type is",
-          "#(Result(_, _), HandlerContext).",
-        ],
-        hint: Some(
-          "Add at least one handler function before running `libero gen`.",
         ),
       )
 
