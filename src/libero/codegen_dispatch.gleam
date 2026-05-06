@@ -47,12 +47,12 @@ pub fn generate(
 
   let known_tag_pattern =
     endpoints
-    |> list.map(fn(e) { "Ok(\"" <> e.fn_name <> "\")" })
+    |> list.map(fn(e) { "Ok(\"server_" <> e.fn_name <> "\")" })
     |> string.join("\n        | ")
 
   let case_arms =
     list.map(endpoints, fn(e) {
-      let variant_name = codegen.to_pascal_case(e.fn_name)
+      let variant_name = codegen.to_pascal_case("server_" <> e.fn_name)
       let alias = handler_alias(e.module_path)
       let param_destructure =
         codegen.variant_pattern(variant_name:, params: e.params)
@@ -172,7 +172,8 @@ pub fn generate_atoms_erl(
     "ok", "error", "some", "none", "nil", "true", "false", "malformed_request",
     "unknown_function", "internal_error", "decode_error",
   ]
-  let handler_atoms = list.map(endpoints, fn(e) { e.fn_name })
+  let handler_atoms =
+    list.flat_map(endpoints, fn(e) { [e.fn_name, "server_" <> e.fn_name] })
   let all_atoms =
     list.append(framework_atoms, handler_atoms)
     |> list.unique()

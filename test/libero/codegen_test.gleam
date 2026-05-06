@@ -185,7 +185,7 @@ pub fn emit_client_msg_variants_zero_param_test() {
       msg_type_name: option.None,
     )
   let lines = codegen.emit_client_msg_variants([ep])
-  let assert ["  GetItems"] = lines
+  let assert ["  ServerGetItems"] = lines
 }
 
 pub fn emit_client_msg_variants_with_params_test() {
@@ -203,7 +203,7 @@ pub fn emit_client_msg_variants_with_params_test() {
       msg_type_name: option.None,
     )
   let lines = codegen.emit_client_msg_variants([ep])
-  let assert ["  CreateItem(params: types.ItemParams, id: Int)"] = lines
+  let assert ["  ServerCreateItem(params: types.ItemParams, id: Int)"] = lines
 }
 
 // -- collect_endpoint_type_imports --

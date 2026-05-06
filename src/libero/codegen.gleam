@@ -72,7 +72,7 @@ pub fn emit_client_msg_variants(
   endpoints endpoints: List(scanner.HandlerEndpoint),
 ) -> List(String) {
   list.map(endpoints, fn(e) {
-    let variant_name = to_pascal_case(e.fn_name)
+    let variant_name = to_pascal_case("server_" <> e.fn_name)
     case e.params {
       [] -> "  " <> variant_name
       params -> {

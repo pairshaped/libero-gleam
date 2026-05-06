@@ -381,7 +381,11 @@ class ETFDecoder {
     if (name === "true") return true;
     if (name === "false") return false;
     if (name === "nil" || name === "undefined") return undefined;
-    // Return atom as string - typed decoder resolves constructors.
+    // Framework constructor atoms: when not in raw mode, return proper
+    // instances so Gleam pattern matching works on bare atoms too.
+    if (!this.raw && name === "none") return new None();
+    // Return atom as string - custom type constructors are resolved
+    // by the generated typed decoders in a second pass.
     return name;
   }
 
@@ -408,8 +412,35 @@ class ETFDecoder {
         return elements;
       }
 
-      // Atom-tagged tuple: return as array with atom string as first element.
-      // Typed decoder (rpc_decoders_ffi.mjs) resolves the correct constructor.
+      // Framework constructor reconstruction: when not in raw mode,
+      // rebuild Ok, Error, Some, None directly so Gleam callbacks
+      // receive proper constructor instances for pattern matching.
+      if (!this.raw) {
+        switch (atomName) {
+          case "ok": {
+            const inner = arity >= 2 ? this.decodeTerm() : undefined;
+            for (let i = 2; i < arity; i++) this.decodeTerm();
+            return new Ok(inner);
+          }
+          case "error": {
+            const inner = arity >= 2 ? this.decodeTerm() : undefined;
+            for (let i = 2; i < arity; i++) this.decodeTerm();
+            return new ResultError(inner);
+          }
+          case "some": {
+            const inner = arity >= 2 ? this.decodeTerm() : undefined;
+            for (let i = 2; i < arity; i++) this.decodeTerm();
+            return new Some(inner);
+          }
+          case "none":
+            for (let i = 1; i < arity; i++) this.decodeTerm();
+            return new None();
+        }
+      }
+
+      // Custom type atom-tagged tuple: return as array with atom string
+      // as first element. The generated typed decoders (codec_ffi.mjs)
+      // resolve these in a second pass.
       const elements = [atomName];
       for (let i = 1; i < arity; i++) {
         elements.push(this.decodeTerm());
