@@ -50,6 +50,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       context_module: "server_context",
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
+      atoms_module: option.None,
     )
   birdie.snap(content, title: "dispatch: four mutating endpoints")
 }
@@ -81,6 +82,7 @@ pub fn endpoint_dispatch_wraps_read_only_handler_test() {
       context_module: "server_context",
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
+      atoms_module: option.None,
     )
   birdie.snap(content, title: "dispatch: read-only handler wrapper")
 }
@@ -125,6 +127,7 @@ pub fn endpoint_dispatch_imports_qualified_param_types_test() {
       context_module: "server_context",
       context_type_name: "ServerContext",
       wire_module_tag: "shared/types",
+      atoms_module: option.None,
     )
   birdie.snap(content, title: "dispatch: qualified param type imports")
 }
@@ -152,6 +155,7 @@ pub fn endpoint_dispatch_imports_stdlib_param_types_test() {
       context_module: "server_context",
       context_type_name: "ServerContext",
       wire_module_tag: "shared/types",
+      atoms_module: option.None,
     )
   birdie.snap(content, title: "dispatch: stdlib param type imports")
 }

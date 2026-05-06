@@ -9,6 +9,7 @@
 
 import gleam/io
 import gleam/list
+import gleam/option
 import gleam/result
 import libero/codegen_decoders
 import libero/codegen_dispatch
@@ -19,6 +20,8 @@ import libero/walker.{type DiscoveredType}
 import simplifile
 
 const out_dir = "src/generated/libero"
+
+const default_atoms_module = "generated@rpc_atoms"
 
 /// Run the full generation pipeline, writing files to `src/generated/libero/`.
 pub fn main() {
@@ -37,7 +40,9 @@ pub fn main() {
       halt(1)
     }
   }
-  let dispatch_src = generate_dispatch(endpoints)
+  let atoms_module = default_atoms_module
+  let dispatch_src = generate_dispatch(endpoints, option.Some(atoms_module))
+  let atoms_erl = generate_atoms(endpoints, atoms_module)
   let decoders_js = generate_decoders_ffi(discovered, endpoints)
   let decoders_gleam = generate_decoders_gleam()
 
@@ -53,11 +58,14 @@ pub fn main() {
       out_dir <> "/rpc_decoders.gleam",
       format.format_gleam(decoders_gleam),
     )
+  let atoms_path = "src/" <> atoms_module <> ".erl"
+  let _ = simplifile.write(atoms_path, atoms_erl)
 
   io.println(
     "wrote "
     <> out_dir
-    <> "/dispatch.gleam, rpc_decoders_ffi.mjs, rpc_decoders.gleam",
+    <> "/dispatch.gleam, rpc_decoders_ffi.mjs, rpc_decoders.gleam, "
+    <> atoms_path,
   )
 }
 
@@ -86,8 +94,26 @@ pub fn walk(
 }
 
 /// Generate the server dispatch module source.
-pub fn generate_dispatch(endpoints: List(HandlerEndpoint)) -> String {
-  codegen_dispatch.generate(endpoints, "server_context", "ServerContext", "rpc")
+pub fn generate_dispatch(
+  endpoints: List(HandlerEndpoint),
+  atoms_module: option.Option(String),
+) -> String {
+  codegen_dispatch.generate(
+    endpoints,
+    "server_context",
+    "ServerContext",
+    "rpc",
+    atoms_module,
+  )
+}
+
+/// Generate the Erlang atoms pre-registration file content.
+/// Module name uses Gleam's @-separated convention (e.g. "generated@rpc_atoms").
+pub fn generate_atoms(
+  endpoints: List(HandlerEndpoint),
+  atoms_module: String,
+) -> String {
+  codegen_dispatch.generate_atoms_erl(endpoints, atoms_module)
 }
 
 /// Generate the JS typed decoder FFI source.

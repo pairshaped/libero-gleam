@@ -530,7 +530,8 @@ fn builtin_or_user(
   case field_type.builtin_field_type(name:, parameters:, recurse:) {
     Ok(ft) -> ft
     Error(Nil) -> {
-      let module_path = dict.get(imports, name) |> result.unwrap(or: current_module)
+      let module_path =
+        dict.get(imports, name) |> result.unwrap(or: current_module)
       let type_name =
         dict.get(type_alias_originals, name) |> result.unwrap(or: name)
       field_type.UserType(
