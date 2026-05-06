@@ -117,9 +117,12 @@ class ETFEncoder {
   }
 }
 
+// ---------- Constructor registry (matches rpc_ffi.mjs) ----------
+const constructorRegistry = new Map();
+
 // ---------- Minimal ETFDecoder with constructor reconstruction ----------
 // Inlined from rpc_ffi.mjs - just enough to test the decodeTuple and
-// decodeAtom paths for Ok, Error, Some, None.
+// decodeAtom paths for Ok, Error, Some, None, and custom types.
 
 const utf8Decoder = new TextDecoder();
 
@@ -196,7 +199,11 @@ class MiniETFDecoder {
     if (name === "true") return true;
     if (name === "false") return false;
     if (name === "nil" || name === "undefined") return undefined;
-    if (!this.raw && name === "none") return new None();
+    if (!this.raw) {
+      if (name === "none") return new None();
+      const reg = constructorRegistry.get(name);
+      if (reg && reg.fieldCount === 0) return new reg.ctor();
+    }
     return name;
   }
 
@@ -238,6 +245,18 @@ class MiniETFDecoder {
           case "none":
             for (let i = 1; i < arity; i++) this.decodeTerm();
             return new None();
+        }
+      }
+
+      // Custom type reconstruction via registry
+      if (!this.raw) {
+        const reg = constructorRegistry.get(atomName);
+        if (reg) {
+          const fields = [];
+          for (let i = 1; i < arity; i++) fields.push(this.decodeTerm());
+          while (fields.length < reg.fieldCount) fields.push(undefined);
+          fields.length = reg.fieldCount;
+          return new reg.ctor(...fields);
         }
       }
 
@@ -409,6 +428,105 @@ function roundtrip(value) {
   console.log("PASS: regression - Ok(Some(42)) pattern-matchable");
 }
 
+// ================================================================
+// Custom type constructor registry roundtrip
+// Tests the full registerConstructor -> decode_value flow.
+// ================================================================
+
+function makeAtomBytes(name) {
+  const enc = new TextEncoder().encode(name);
+  return [119, enc.length, ...enc];
+}
+
+function makeStringBytes(str) {
+  const enc = new TextEncoder().encode(str);
+  return [109, (enc.length >> 24) & 0xFF, (enc.length >> 16) & 0xFF,
+    (enc.length >> 8) & 0xFF, enc.length & 0xFF, ...enc];
+}
+
+{
+  // Simulate what the generated codec_ffi.mjs does at init time:
+  // define a custom type class and register it, then decode
+  // an ETF payload containing that custom type.
+
+  class Sponsor extends CustomType {
+    constructor(id, name) {
+      super();
+      this.id = id; this[0] = id;
+      this.name = name; this[1] = name;
+    }
+  }
+
+  // Register: codec_ffi.mjs calls registerConstructor at init
+  constructorRegistry.set("sponsor", { ctor: Sponsor, fieldCount: 2 });
+
+  // Manually encode: {ok, {sponsor, 1, <<"Acme">>}}
+  // ETF: <<131, 104,2, 119,2,111,107, 104,3, 119,7,115,112,111,110,115,111,114, 97,1, 109,0,0,0,4,65,99,109,101>>
+  const okAtom = [119, 2, 111, 107]; // "ok"
+  const sponsorAtom = [119, 7, 115, 112, 111, 110, 115, 111, 114]; // "sponsor"
+  const acme = makeStringBytes("Acme");
+  const int1 = [97, 1]; // small int 1
+
+  const sponsorTuple = [104, 3, ...sponsorAtom, ...int1, ...acme]; // {sponsor, 1, "Acme"}
+  const okTuple = [104, 2, ...okAtom, ...sponsorTuple]; // {ok, {sponsor, 1, "Acme"}}
+  const bytes = new Uint8Array([131, ...okTuple]);
+
+  const decoded = new MiniETFDecoder(bytes).decode();
+
+  // Verify: full reconstruction through the registry
+  assert.ok(decoded instanceof Ok, "custom: outer is Ok instance");
+  const inner = decoded[0];
+  assert.ok(inner instanceof Sponsor, "custom: inner is Sponsor instance (via registry)");
+  assert.equal(inner.id, 1);
+  assert.equal(inner.name, "Acme");
+  assert.equal(inner[0], 1);
+  assert.equal(inner[1], "Acme");
+
+  console.log("PASS: registerConstructor -> decode_value (Sponsor)");
+}
+
+{
+  // Enum-style custom type (zero-arg variants)
+  class Connected extends CustomType { constructor() { super(); } }
+  class Disconnected extends CustomType { constructor() { super(); } }
+  class Reconnecting extends CustomType { constructor() { super(); } }
+
+  constructorRegistry.set("connected", { ctor: Connected, fieldCount: 0 });
+  constructorRegistry.set("disconnected", { ctor: Disconnected, fieldCount: 0 });
+  constructorRegistry.set("reconnecting", { ctor: Reconnecting, fieldCount: 0 });
+
+  // Encode Connected (a bare atom)
+  const bytes = new Uint8Array([131, 119, 9,
+    99, 111, 110, 110, 101, 99, 116, 101, 100]); // "connected"
+  const decoded = new MiniETFDecoder(bytes).decode();
+
+  assert.ok(decoded instanceof Connected, "custom: zero-arg variant via atom");
+  console.log("PASS: registerConstructor -> decode_value (enum variant)");
+}
+
+{
+  // Unknown type falls through to raw (graceful degradation)
+  // Encode {unknown_type, "data"} — not registered
+  const utEnc = new TextEncoder().encode("unknown_type");
+  const data = makeStringBytes("data");
+  const bytes = new Uint8Array([131, 104, 2, 119, 12, ...utEnc, ...data]);
+  const decoded = new MiniETFDecoder(bytes).decode();
+  assert.ok(Array.isArray(decoded), "custom: unregistered type returns raw array");
+  assert.equal(decoded[0], "unknown_type");
+  assert.equal(decoded[1], "data");
+  console.log("PASS: unregistered custom type falls through to raw array");
+}
+
+{
+  // Clean up: remove test registrations so they don't leak
+  constructorRegistry.delete("sponsor");
+  constructorRegistry.delete("connected");
+  constructorRegistry.delete("disconnected");
+  constructorRegistry.delete("reconnecting");
+  console.log("PASS: constructorRegistry cleanup");
+}
+
 console.log("\nAll ETF constructor decode tests passed.");
 console.log("decode_value (raw=false) -> Ok/Error/Some/None instances.");
 console.log("decode_value_raw (raw=true) -> raw arrays with string atoms.");
+console.log("Custom types via constructorRegistry -> proper CustomType instances.");

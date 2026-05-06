@@ -402,8 +402,12 @@ class ETFDecoder {
     if (name === "nil" || name === "undefined") return undefined;
     // Framework constructor atoms: when not in raw mode, return proper
     // instances so Gleam pattern matching works on bare atoms too.
-    if (!this.raw && name === "none") return new None();
-    // Return atom as string - custom type constructors are resolved
+    if (!this.raw) {
+      if (name === "none") return new None();
+      const reg = constructorRegistry.get(name);
+      if (reg && reg.fieldCount === 0) return new reg.ctor();
+    }
+    // Return atom as string - unknown constructors are resolved
     // by the generated typed decoders in a second pass.
     return name;
   }
