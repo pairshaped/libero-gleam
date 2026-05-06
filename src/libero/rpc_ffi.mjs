@@ -17,6 +17,25 @@ import {
 } from "../../gleam_stdlib/gleam/dict.mjs";
 import { DecodeError as WireDecodeError } from "./error.mjs";
 
+// ---------- Custom type constructor registry ----------
+// Generated codec_ffi.mjs registers per-type constructors here at init
+// time. The ETF decoder (decodeTuple) looks up this registry when it
+// encounters an atom-tagged tuple for a custom type like {sponsor, ...}
+// and reconstructs the proper Gleam constructor instance.
+
+const constructorRegistry = new Map();
+
+/**
+ * Register a custom type constructor for ETF decoding.
+ * Called by the generated codec_ffi.mjs at module init time.
+ * @param {string} atomName snake_case constructor name (e.g. "sponsor")
+ * @param {typeof import("../../gleam_stdlib/gleam.mjs").CustomType} ctor
+ * @param {number} fieldCount number of positional fields
+ */
+export function registerConstructor(atomName, ctor, fieldCount) {
+  constructorRegistry.set(atomName, { ctor, fieldCount });
+}
+
 // ---------- Error names ----------
 //
 // Error.name values set on exceptions thrown by the codec. Consumers
@@ -438,8 +457,23 @@ class ETFDecoder {
         }
       }
 
-      // Custom type atom-tagged tuple: return as array with atom string
-      // as first element. The generated typed decoders (codec_ffi.mjs)
+      // Custom type reconstruction: check the constructor registry
+      // populated by codec_ffi.mjs at init time.
+      if (!this.raw) {
+        const reg = constructorRegistry.get(atomName);
+        if (reg) {
+          const fields = [];
+          for (let i = 1; i < arity; i++) {
+            fields.push(this.decodeTerm());
+          }
+          while (fields.length < reg.fieldCount) fields.push(undefined);
+          fields.length = reg.fieldCount;
+          return new reg.ctor(...fields);
+        }
+      }
+
+      // Unknown custom type: return as raw array with atom string as
+      // first element. The generated typed decoders (codec_ffi.mjs)
       // resolve these in a second pass.
       const elements = [atomName];
       for (let i = 1; i < arity; i++) {
