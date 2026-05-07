@@ -1,6 +1,8 @@
 ---
 version: 2.0.0
 title: option field typed decoder
+file: ./test/libero/typed_decoder_codegen_test.gleam
+test_name: option_field_snapshot_test
 ---
 export function decode_shared_opt_type_opt_wrapper(term) {
   if (!Array.isArray(term) || term[0] !== "opt_wrapper") throw new DecodeError("expected opt_wrapper");

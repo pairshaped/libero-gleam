@@ -23,6 +23,8 @@ const out_dir = "src/generated/libero"
 
 const default_atoms_module = "generated@rpc_atoms"
 
+const default_context_module = "server/server_context"
+
 /// Run the full generation pipeline, writing files to `src/generated/libero/`.
 pub fn main() -> Nil {
   let endpoints = case scan() {
@@ -41,7 +43,8 @@ pub fn main() -> Nil {
     }
   }
   let atoms_module = default_atoms_module
-  let dispatch_src = generate_dispatch(endpoints:, atoms_module: option.Some(atoms_module))
+  let dispatch_src =
+    generate_dispatch(endpoints:, atoms_module: option.Some(atoms_module))
   let atoms_erl = generate_atoms(endpoints:, discovered:, atoms_module:)
   let decoders_js = generate_decoders_ffi(discovered:, endpoints:)
   let decoders_gleam = generate_decoders_gleam()
@@ -52,7 +55,8 @@ pub fn main() -> Nil {
       out_dir <> "/dispatch.gleam",
       format.format_gleam(dispatch_src),
     )
-  let assert Ok(_) = simplifile.write(out_dir <> "/rpc_decoders_ffi.mjs", decoders_js)
+  let assert Ok(_) =
+    simplifile.write(out_dir <> "/rpc_decoders_ffi.mjs", decoders_js)
   let assert Ok(_) =
     simplifile.write(
       out_dir <> "/rpc_decoders.gleam",
@@ -60,6 +64,18 @@ pub fn main() -> Nil {
     )
   let atoms_path = "src/" <> atoms_module <> ".erl"
   let assert Ok(_) = simplifile.write(atoms_path, atoms_erl)
+
+  // Write client-side files into the web client's generated dir when present.
+  let client_out = "../clients/web/src/generated/libero"
+  case simplifile.is_directory("../clients/web/src") {
+    Ok(True) ->
+      write_client_files(
+        client_out: client_out,
+        js: decoders_js,
+        gleam: decoders_gleam,
+      )
+    _ -> Nil
+  }
 
   io.println(
     "wrote "
@@ -82,15 +98,23 @@ pub fn collect_seeds(
   scanner.collect_seeds(endpoints)
 }
 
-/// Walk the type graph from seeds. File paths are derived from `src/`.
+/// Walk the type graph from seeds. File paths are derived from `src/` and
+/// `../shared/src/` (if present) to support Gleam monorepo layouts where custom
+/// types live in a shared package.
 pub fn walk(
   seeds: List(#(String, String)),
 ) -> Result(List(DiscoveredType), List(GenError)) {
-  use file_paths <- result.try(
+  use server_files <- result.try(
     scanner.walk_directory("./src")
     |> result.map_error(fn(e) { [e] }),
   )
-  walker.walk(seeds, file_paths)
+  let shared_files = case simplifile.is_directory("../shared/src") {
+    Ok(True) ->
+      scanner.walk_directory("../shared/src")
+      |> result.unwrap(or: [])
+    _ -> []
+  }
+  walker.walk(seeds, list.append(server_files, shared_files))
 }
 
 /// Generate the server dispatch module source.
@@ -100,7 +124,7 @@ pub fn generate_dispatch(
 ) -> String {
   codegen_dispatch.generate(
     endpoints,
-    "server_context",
+    default_context_module,
     "ServerContext",
     "rpc",
     atoms_module,
@@ -122,12 +146,25 @@ pub fn generate_decoders_ffi(
   discovered discovered: List(DiscoveredType),
   endpoints endpoints: List(HandlerEndpoint),
 ) -> String {
-  codegen_decoders.generate_decoders_ffi(discovered, endpoints, "../../")
+  codegen_decoders.generate_decoders_ffi(discovered, endpoints, "../../../")
 }
 
 /// Generate the Gleam wrapper for the typed decoder FFI.
 pub fn generate_decoders_gleam() -> String {
   codegen_decoders.generate_decoders_gleam("rpc_decoders_ffi.mjs")
+}
+
+// nolint: discarded_result -- client writes are best-effort
+fn write_client_files(
+  client_out out: String,
+  js js: String,
+  gleam gleam: String,
+) -> Nil {
+  let _ = simplifile.create_directory_all(out)
+  let _ = simplifile.write(out <> "/rpc_decoders_ffi.mjs", js)
+  let _ =
+    simplifile.write(out <> "/rpc_decoders.gleam", format.format_gleam(gleam))
+  Nil
 }
 
 // nolint: avoid_panic -- erlang:halt/1 FFI; JS body is unreachable

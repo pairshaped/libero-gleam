@@ -13,7 +13,7 @@ const rpcFfi = await import(
   pathToFileURL(join(webRoot, "libero/libero/rpc_ffi.mjs")).href
 );
 const decoders = await import(
-  pathToFileURL(join(webRoot, "web/generated/rpc_decoders_ffi.mjs")).href
+  pathToFileURL(join(webRoot, "web/generated/libero/rpc_decoders_ffi.mjs")).href
 );
 const remoteData = await import(
   pathToFileURL(join(webRoot, "libero/libero/remote_data.mjs")).href

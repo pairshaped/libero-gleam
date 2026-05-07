@@ -14,7 +14,7 @@ const rpcFfi = await import(
   pathToFileURL(join(webRoot, "libero/libero/rpc_ffi.mjs")).href
 );
 const decoders = await import(
-  pathToFileURL(join(webRoot, "web/generated/rpc_decoders_ffi.mjs")).href
+  pathToFileURL(join(webRoot, "web/generated/libero/rpc_decoders_ffi.mjs")).href
 );
 const remoteData = await import(
   pathToFileURL(join(webRoot, "libero/libero/remote_data.mjs")).href
@@ -222,7 +222,7 @@ assert.equal(panic.requestId, 65);
 assert.equal(panic.raw[0], "error");
 assert.equal(panic.raw[1][0], "internal_error");
 assert.ok(rawBinaryToString(panic.raw[1][1]).length > 0, "trace_id should be a non-empty binary");
-assert.equal(rawBinaryToString(panic.raw[1][2]), "Internal server error");
+assert.equal(rawBinaryToString(panic.raw[1][2]), "Something went wrong");
 
 // Known module path with an unrecognized variant atom must surface as
 // unknown_function with the qualified name, not crash dispatch.

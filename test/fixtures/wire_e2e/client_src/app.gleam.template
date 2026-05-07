@@ -1,6 +1,6 @@
-import generated/messages
+import libero/error
 
 pub fn main() {
-  let _ = messages.echo_int
+  let _ = error.UnknownFunction(name: "ignored")
   Nil
 }

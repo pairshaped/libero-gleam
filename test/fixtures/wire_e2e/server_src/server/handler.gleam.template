@@ -6,162 +6,162 @@ import shared/types.{
   type WithFloats, ValidationFailed,
 }
 
-pub fn echo_int(
+pub fn server_echo_int(
   value value: Int,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Int, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_float(
+pub fn server_echo_float(
   value value: Float,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Float, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_string(
+pub fn server_echo_string(
   value value: String,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(String, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_bool(
+pub fn server_echo_bool(
   value value: Bool,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Bool, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_bit_array(
+pub fn server_echo_bit_array(
   value value: BitArray,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(BitArray, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_unit(
-  server_ctx server_ctx: ServerContext,
+pub fn server_echo_unit(
+  server_context server_context: ServerContext,
 ) -> #(Result(Nil, Nil), ServerContext) {
-  #(Ok(Nil), server_ctx)
+  #(Ok(Nil), server_context)
 }
 
-pub fn echo_list_int(
+pub fn server_echo_list_int(
   value value: List(Int),
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(List(Int), Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_option_string(
+pub fn server_echo_option_string(
   value value: Option(String),
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Option(String), Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_result_int_string(
+pub fn server_echo_result_int_string(
   value value: Result(Int, String),
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Result(Int, String), Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_dict_string_int(
+pub fn server_echo_dict_string_int(
   value value: Dict(String, Int),
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Dict(String, Int), Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_tuple_int_string(
+pub fn server_echo_tuple_int_string(
   value value: #(Int, String),
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(#(Int, String), Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_status(
+pub fn server_echo_status(
   value value: Status,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Status, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_item(
+pub fn server_echo_item(
   value value: Item,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Item, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_tree(
+pub fn server_echo_tree(
   value value: Tree,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Tree, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_item_error(
+pub fn server_echo_item_error(
   value value: ItemError,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(ItemError, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_with_floats(
+pub fn server_echo_with_floats(
   value value: WithFloats,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(WithFloats, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_list_of_items(
+pub fn server_echo_list_of_items(
   value value: List(Item),
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(List(Item), Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_option_item(
+pub fn server_echo_option_item(
   value value: Option(Item),
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Option(Item), Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_dict_string_item(
+pub fn server_echo_dict_string_item(
   value value: Dict(String, Item),
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Dict(String, Item), Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_nested_record(
+pub fn server_echo_nested_record(
   value value: NestedRecord,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(NestedRecord, Nil), ServerContext) {
-  #(Ok(value), server_ctx)
+  #(Ok(value), server_context)
 }
 
-pub fn echo_typed_err(
+pub fn server_echo_typed_err(
   value _value: Item,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Item, ItemError), ServerContext) {
-  #(Error(ValidationFailed(field: "name", reason: "required")), server_ctx)
+  #(Error(ValidationFailed(field: "name", reason: "required")), server_context)
 }
 
-pub fn echo_int_negated(
+pub fn server_echo_int_negated(
   value value: Int,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Int, Nil), ServerContext) {
-  #(Ok(0 - value), server_ctx)
+  #(Ok(0 - value), server_context)
 }
 
-pub fn echo_panic(
+pub fn server_echo_panic(
   value _value: Int,
-  server_ctx server_ctx: ServerContext,
+  server_context server_context: ServerContext,
 ) -> #(Result(Int, Nil), ServerContext) {
   // Deliberate runtime panic caught by trace.try_call in the generated
   // dispatch. The dispatch returns Error(InternalError(...)), and the

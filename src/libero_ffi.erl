@@ -9,7 +9,8 @@
 
 -module(libero_ffi).
 -export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, unique_id/0,
-         run_executable_capturing/2, find_executable/1, get_env/1, halt/1]).
+         run_executable_capturing/2, find_executable/1, get_env/1, halt/1,
+         ensure_decoders/0]).
 
 identity(X) -> X.
 
@@ -85,3 +86,6 @@ get_env(Name) ->
 
 halt(Code) ->
     erlang:halt(Code).
+
+ensure_decoders() ->
+    true.

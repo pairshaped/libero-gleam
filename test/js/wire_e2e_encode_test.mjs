@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 const buildRoot = readFileSync("test/js/.wire_e2e_build_root", "utf8").trim();
 const webRoot = join(buildRoot, "clients/web/build/dev/javascript");
 
-await import(pathToFileURL(join(webRoot, "web/generated/rpc_decoders_ffi.mjs")).href);
+await import(pathToFileURL(join(webRoot, "web/generated/libero/rpc_decoders_ffi.mjs")).href);
 const wire = await import(pathToFileURL(join(webRoot, "libero/libero/wire.mjs")).href);
 const messages = await import(pathToFileURL(join(webRoot, "web/generated/messages.mjs")).href);
 const types = await import(pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href);

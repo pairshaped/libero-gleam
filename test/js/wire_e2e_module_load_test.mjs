@@ -20,9 +20,8 @@ async function importBuilt(relativePath) {
   return import(url);
 }
 
-await importBuilt("generated/rpc_decoders_ffi.mjs");
-await importBuilt("generated/rpc_decoders.mjs");
-await importBuilt("generated/messages.mjs");
+await importBuilt("generated/libero/rpc_decoders_ffi.mjs");
+await importBuilt("generated/libero/rpc_decoders.mjs");
 await importBuilt("app.mjs");
 
 console.log("wire e2e module-load test passed");

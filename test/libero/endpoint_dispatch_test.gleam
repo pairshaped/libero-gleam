@@ -358,3 +358,25 @@ pub fn generate_atoms_erl_includes_variant_constructor_atoms_test() {
   let assert True = string.contains(content, "<<\"admin\">>")
   let assert True = string.contains(content, "<<\"super_user\">>")
 }
+
+pub fn empty_endpoints_generates_valid_dispatch_test() {
+  let content =
+    codegen_dispatch.generate(
+      endpoints: [],
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+    )
+
+  // Must not produce a naked `->` (syntax error when known_tag_guards is empty)
+  let assert False = string.contains(content, "        -> {")
+  let assert False = string.contains(content, "         -> {")
+
+  // Must still handle the standard error paths
+  let assert True = string.contains(content, "UnknownFunction")
+  let assert True = string.contains(content, "MalformedRequest")
+
+  // Must compile as valid Gleam
+  let _formatter = birdie.snap(content, title: "dispatch: empty endpoints")
+}

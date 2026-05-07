@@ -1,6 +1,8 @@
 ---
 version: 2.0.0
 title: result field typed decoder
+file: ./test/libero/typed_decoder_codegen_test.gleam
+test_name: result_field_snapshot_test
 ---
 export function decode_shared_result_type_wrapper(term) {
   if (!Array.isArray(term) || term[0] !== "wrapper") throw new DecodeError("expected wrapper");

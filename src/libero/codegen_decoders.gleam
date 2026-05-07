@@ -25,6 +25,7 @@ pub fn generate_decoders_gleam(
 //// triggers constructor and decoder registration on the JavaScript target.
 
 @external(javascript, \"./" <> ffi_module_path <> "\", \"ensure_decoders\")
+@external(erlang, \"libero_ffi\", \"ensure_decoders\")
 pub fn ensure_decoders() -> Bool
 "
 }
