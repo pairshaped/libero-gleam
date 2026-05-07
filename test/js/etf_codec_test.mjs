@@ -54,7 +54,13 @@ class ETFDecoder {
     if (version !== 131) {
       throw new Error(`ETF decode: expected version byte 131, got ${version}`);
     }
-    return this.decodeTerm();
+    const result = this.decodeTerm();
+    if (this.offset !== this.bytes.byteLength) {
+      throw new Error(
+        `ETF decode: trailing bytes at offset ${this.offset}, total length ${this.bytes.byteLength}`,
+      );
+    }
+    return result;
   }
 
   readUint8() {
@@ -1453,6 +1459,53 @@ test("Decode", "atom with multibyte codepoints over 255 throws", () => {
 
   const decoder = new ETFDecoder(buf);
   assert.throws(() => decoder.decode(), /atom name exceeds 255 codepoints/);
+});
+
+// --- Trailing byte rejection ---
+
+test("Trailing bytes", "rejects junk after valid term", () => {
+  const buf = new ArrayBuffer(4);
+  const view = new DataView(buf);
+  view.setUint8(0, 131); // version
+  view.setUint8(1, 97);  // SMALL_INTEGER_EXT
+  view.setUint8(2, 5);   // value = 5
+  view.setUint8(3, 42);  // trailing junk
+
+  const decoder = new ETFDecoder(buf);
+  assert.throws(
+    () => decoder.decode(),
+    /trailing bytes/,
+  );
+});
+
+test("Trailing bytes", "rejects a second valid term as trailing", () => {
+  const encoded = new TextEncoder().encode("hi");
+  const buf = new ArrayBuffer(1 + 1 + 2 + encoded.length + 1 + 1);
+  const view = new DataView(buf);
+  let off = 0;
+  view.setUint8(off++, 131);                     // version
+  view.setUint8(off++, 107);                     // STRING_EXT
+  view.setUint16(off, encoded.length); off += 2; // length
+  new Uint8Array(buf).set(encoded, off); off += encoded.length;
+  view.setUint8(off++, 97); // SMALL_INTEGER_EXT (trailing)
+  view.setUint8(off++, 7);  // value 7 (trailing)
+
+  const decoder = new ETFDecoder(buf);
+  assert.throws(
+    () => decoder.decode(),
+    /trailing bytes/,
+  );
+});
+
+test("Trailing bytes", "accepts exact-fit single term (regression)", () => {
+  const buf = new ArrayBuffer(3);
+  const view = new DataView(buf);
+  view.setUint8(0, 131);
+  view.setUint8(1, 97);  // SMALL_INTEGER_EXT
+  view.setUint8(2, 42);  // value = 42
+
+  const decoder = new ETFDecoder(buf);
+  assert.strictEqual(decoder.decode(), 42);
 });
 
 // ============================================================

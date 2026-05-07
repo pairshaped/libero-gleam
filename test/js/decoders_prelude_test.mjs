@@ -86,6 +86,10 @@ assert.strictEqual(decode_int(0), 0, "decode_int zero");
 assert.strictEqual(decode_int(-3), -3, "decode_int negative");
 assertThrows(() => decode_int("x"), "decode_int throws on string");
 assertThrows(() => decode_int(null), "decode_int throws on null");
+assertThrows(() => decode_int(1.5), "decode_int throws on float");
+assertThrows(() => decode_int(NaN), "decode_int throws on NaN");
+assertThrows(() => decode_int(Infinity), "decode_int throws on Infinity");
+assertThrows(() => decode_int(-Infinity), "decode_int throws on -Infinity");
 
 // decode_float
 assert.strictEqual(decode_float(3.14), 3.14, "decode_float ok");
@@ -204,5 +208,56 @@ assertThrows(
 // DecodeError is instanceof Error
 assert.ok(new DecodeError("test") instanceof Error, "DecodeError extends Error");
 assert.strictEqual(new DecodeError("test").name, "DecodeError", "DecodeError name");
+
+// --- Record decoder rejection paths ---
+// These tests verify the runtime behavior of the generated record decoder
+// shape (emit_record_decoder in codegen_decoders.gleam). A single-constructor
+// record decoder must reject non-array input, wrong tag, and wrong arity.
+
+class Widget {
+  constructor(id, label) {
+    this.id = id;
+    this.label = label;
+  }
+}
+
+function decode_widget(term) {
+  if (!Array.isArray(term) || term[0] !== "widget") {
+    throw new DecodeError("expected widget");
+  }
+  return new Widget(
+    decode_int(term[1]),
+    decode_string(term[2]),
+  );
+}
+
+// Happy path
+const w = decode_widget(["widget", 7, "wrench"]);
+assert.ok(w instanceof Widget, "record decoder returns Widget");
+assert.strictEqual(w.id, 7, "record decoder widget.id");
+assert.strictEqual(w.label, "wrench", "record decoder widget.label");
+
+// Wrong tag
+assertThrows(
+  () => decode_widget(["gadget", 7, "wrench"]),
+  "record decoder rejects wrong tag",
+);
+
+// Non-array
+assertThrows(
+  () => decode_widget("widget"),
+  "record decoder rejects non-array",
+);
+
+assertThrows(
+  () => decode_widget(null),
+  "record decoder rejects null",
+);
+
+// Wrong arity (too few elements so term[2] is undefined → decode_string fails)
+assertThrows(
+  () => decode_widget(["widget", 7]),
+  "record decoder rejects wrong arity (too few fields)",
+);
 
 console.log("prelude tests passed");
