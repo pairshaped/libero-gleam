@@ -106,6 +106,9 @@ export function identity(x) {
 /** @type {Map<string, Set<number>>} */
 const floatFieldRegistry = new Map();
 
+/** @type {Map<string, any[]>} */
+const fieldTypeRegistry = new Map();
+
 /**
  * Register which field indices of a custom-type atom should be encoded
  * as floats regardless of whether the JS value is a whole number.
@@ -114,6 +117,17 @@ const floatFieldRegistry = new Map();
  */
 export function registerFloatFields(atomName, fieldIndices) {
   floatFieldRegistry.set(atomName, new Set(fieldIndices));
+}
+
+/**
+ * Register field type hints for a custom-type atom. Hints are generated
+ * from Gleam signatures so container elements typed as Float can still be
+ * encoded as ETF floats after JavaScript erases `2.0` to `2`.
+ * @param {string} atomName snake_case constructor name
+ * @param {any[]} fieldTypes 0-based field type hints
+ */
+export function registerFieldTypes(atomName, fieldTypes) {
+  fieldTypeRegistry.set(atomName, fieldTypes);
 }
 
 /**
@@ -625,8 +639,11 @@ class ETFEncoder {
     return this.buffer.slice(0, this.offset);
   }
 
-  /** @param {any} value */
-  encodeTerm(value) {
+  /**
+   * @param {any} value
+   * @param {any} typeHint
+   */
+  encodeTerm(value, typeHint = undefined) {
     if (value === undefined || value === null) {
       // Gleam Nil → atom "nil"
       this.writeAtom("nil");
@@ -644,7 +661,11 @@ class ETFEncoder {
     }
 
     if (typeof value === "number") {
-      this.encodeNumber(value);
+      if (typeHint === "float") {
+        this.encodeFloat(value);
+      } else {
+        this.encodeNumber(value);
+      }
       return;
     }
 
@@ -655,20 +676,27 @@ class ETFEncoder {
 
     // JS array = Gleam tuple
     if (Array.isArray(value)) {
-      this.encodeTuple(value);
+      const elementHints =
+        typeHint?.kind === "tuple" ? typeHint.elements : undefined;
+      this.encodeTuple(value, elementHints);
       return;
     }
 
     // Gleam linked list
     if (value instanceof Empty || value instanceof NonEmpty) {
       const arr = gleamListToArray(value);
-      this.encodeList(arr);
+      const elementHint = typeHint?.kind === "list" ? typeHint.element : undefined;
+      this.encodeList(arr, elementHint);
       return;
     }
 
     // Plain JS Map, useful for tests and low-level interop.
     if (value instanceof Map) {
-      this.encodeMap(value);
+      this.encodeMap(
+        value,
+        typeHint?.kind === "dict" ? typeHint.key : undefined,
+        typeHint?.kind === "dict" ? typeHint.value : undefined,
+      );
       return;
     }
 
@@ -679,7 +707,11 @@ class ETFEncoder {
     // structure), this branch silently stops matching and falls through
     // to the unsupported-value error. Verify after gleam_stdlib upgrades.
     if (value && typeof value === "object" && "root" in value && "size" in value) {
-      this.encodeMap(new Map(gleamListToArray(dictToList(value))));
+      this.encodeMap(
+        new Map(gleamListToArray(dictToList(value))),
+        typeHint?.kind === "dict" ? typeHint.key : undefined,
+        typeHint?.kind === "dict" ? typeHint.value : undefined,
+      );
       return;
     }
 
@@ -729,15 +761,13 @@ class ETFEncoder {
         // Check float field registry - fields at registered indices
         // must be encoded as floats even if Number.isInteger is true.
         const floatIndices = floatFieldRegistry.get(ctorName);
+        const fieldTypes = fieldTypeRegistry.get(ctorName);
         keys.forEach((k, i) => {
           const fieldValue = value[k];
-          if (floatIndices && floatIndices.has(i)
-              && typeof fieldValue === "number") {
-            this.writeUint8(70); // NEW_FLOAT_EXT
-            this.writeFloat64(fieldValue);
-          } else {
-            this.encodeTerm(fieldValue);
-          }
+          const hintedField = hintForConstructorField(ctorName, i, typeHint)
+            ?? fieldTypes?.[i]
+            ?? (floatIndices && floatIndices.has(i) ? "float" : undefined);
+          this.encodeTerm(fieldValue, hintedField);
         });
       }
       return;
@@ -789,6 +819,12 @@ class ETFEncoder {
     }
   }
 
+  /** @param {number} n */
+  encodeFloat(n) {
+    this.writeUint8(70); // NEW_FLOAT_EXT
+    this.writeFloat64(n);
+  }
+
   encodeBigInt(value) {
     const sign = value < 0n ? 1 : 0;
     let abs = value < 0n ? -value : value;
@@ -814,7 +850,7 @@ class ETFEncoder {
     this.writeBytes(new Uint8Array(digits));
   }
 
-  encodeTuple(elements) {
+  encodeTuple(elements, elementHints = undefined) {
     if (elements.length <= 255) {
       this.writeUint8(104); // SMALL_TUPLE_EXT
       this.writeUint8(elements.length);
@@ -822,12 +858,12 @@ class ETFEncoder {
       this.writeUint8(105); // LARGE_TUPLE_EXT
       this.writeUint32(elements.length);
     }
-    for (const el of elements) {
-      this.encodeTerm(el);
+    for (let i = 0; i < elements.length; i++) {
+      this.encodeTerm(elements[i], elementHints?.[i]);
     }
   }
 
-  encodeList(arr) {
+  encodeList(arr, elementHint = undefined) {
     if (arr.length === 0) {
       this.writeUint8(106); // NIL_EXT
       return;
@@ -835,19 +871,27 @@ class ETFEncoder {
     this.writeUint8(108); // LIST_EXT
     this.writeUint32(arr.length);
     for (const el of arr) {
-      this.encodeTerm(el);
+      this.encodeTerm(el, elementHint);
     }
     this.writeUint8(106); // NIL_EXT tail
   }
 
-  encodeMap(map) {
+  encodeMap(map, keyHint = undefined, valueHint = undefined) {
     this.writeUint8(116); // MAP_EXT
     this.writeUint32(map.size);
     map.forEach((val, key) => {
-      this.encodeTerm(key);
-      this.encodeTerm(val);
+      this.encodeTerm(key, keyHint);
+      this.encodeTerm(val, valueHint);
     });
   }
+}
+
+function hintForConstructorField(ctorName, index, typeHint) {
+  if (index !== 0 || !typeHint || typeof typeHint !== "object") return undefined;
+  if (typeHint.kind === "option" && ctorName === "some") return typeHint.inner;
+  if (typeHint.kind === "result" && ctorName === "ok") return typeHint.ok;
+  if (typeHint.kind === "result" && ctorName === "error") return typeHint.err;
+  return undefined;
 }
 
 // ---------- Helper ----------

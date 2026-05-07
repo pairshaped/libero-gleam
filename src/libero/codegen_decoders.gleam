@@ -39,7 +39,8 @@ pub fn generate_decoders_ffi(
   let imports = emit_decoder_imports(discovered:, endpoints:, relpath_prefix:)
   let body = emit_typed_decoders(discovered)
   let response_decoders = emit_response_decoders(endpoints)
-  let float_field_registrations = emit_float_field_registrations(discovered)
+  let float_type_registrations =
+    emit_float_type_registrations(discovered:, endpoints:)
   // nolint: unnecessary_string_concatenation -- codegen template
   let ctor_setters =
     "setResultCtors(Ok, ResultError);\n"
@@ -50,7 +51,7 @@ pub fn generate_decoders_ffi(
 //
 // Per-type decoder functions derived from the DiscoveredType graph.
 
-" <> imports <> "\n\n" <> ctor_setters <> float_field_registrations <> "\n" <> body <> "\n" <> response_decoders
+" <> imports <> "\n\n" <> ctor_setters <> float_type_registrations <> "\n" <> body <> "\n" <> response_decoders
 }
 
 /// Emit a JS string with one decoder function per discovered type and an
@@ -99,9 +100,9 @@ fn emit_decoder_imports(
     <> "import { from_list as dictFromList } from \""
     <> relpath_prefix
     <> "gleam_stdlib/gleam/dict.mjs\";"
-  let float_import = case discovered_has_float_fields(discovered) {
+  let float_import = case needs_float_type_hints(discovered:, endpoints:) {
     True ->
-      "\nimport { registerFloatFields } from \""
+      "\nimport { registerFieldTypes } from \""
       <> relpath_prefix
       <> "libero/libero/rpc_ffi.mjs\";"
     False -> ""
@@ -142,37 +143,124 @@ fn emit_decoder_imports(
   )
 }
 
-fn discovered_has_float_fields(discovered: List(DiscoveredType)) -> Bool {
-  list.any(discovered, fn(t) {
-    list.any(t.variants, fn(v) { !list.is_empty(v.float_field_indices) })
+fn needs_float_type_hints(
+  discovered discovered: List(DiscoveredType),
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+) -> Bool {
+  discovered_has_float_fields(discovered)
+  || list.any(endpoints, fn(e) {
+    list.any(e.params, fn(p) { contains_float(p.1) })
   })
 }
 
-fn emit_float_field_registrations(discovered: List(DiscoveredType)) -> String {
+fn discovered_has_float_fields(discovered: List(DiscoveredType)) -> Bool {
+  list.any(discovered, fn(t) {
+    list.any(t.variants, fn(v) { list.any(v.fields, contains_float) })
+  })
+}
+
+fn contains_float(ft: FieldType) -> Bool {
+  field_type.contains(ft, fn(inner) {
+    case inner {
+      FloatField -> True
+      _ -> False
+    }
+  })
+}
+
+fn emit_float_type_registrations(
+  discovered discovered: List(DiscoveredType),
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+) -> String {
   let lines =
-    list.flat_map(discovered, fn(t) {
-      list.filter_map(t.variants, fn(v) {
-        case v.float_field_indices {
-          [] -> Error(Nil)
-          indices -> {
-            let index_list =
-              indices
-              |> list.map(int.to_string)
-              |> string.join(", ")
-            Ok(
-              "registerFloatFields(\""
-              <> v.atom_name
-              <> "\", ["
-              <> index_list
-              <> "]);",
-            )
-          }
-        }
-      })
-    })
+    list.append(
+      emit_discovered_float_type_registrations(discovered),
+      emit_endpoint_float_type_registrations(endpoints),
+    )
   case lines {
     [] -> ""
     _ -> string.join(lines, "\n") <> "\n"
+  }
+}
+
+fn emit_discovered_float_type_registrations(
+  discovered: List(DiscoveredType),
+) -> List(String) {
+  list.flat_map(discovered, fn(t) {
+    list.filter_map(t.variants, fn(v) {
+      case list.any(v.fields, contains_float) {
+        False -> Error(Nil)
+        True -> {
+          let hints =
+            v.fields
+            |> list.map(emit_float_type_hint)
+            |> string.join(", ")
+          Ok(
+            "registerFieldTypes(\"" <> v.atom_name <> "\", [" <> hints <> "]);",
+          )
+        }
+      }
+    })
+  })
+}
+
+fn emit_endpoint_float_type_registrations(
+  endpoints: List(scanner.HandlerEndpoint),
+) -> List(String) {
+  list.filter_map(endpoints, fn(e) {
+    let field_types = list.map(e.params, fn(p) { p.1 })
+    case list.any(field_types, contains_float) {
+      False -> Error(Nil)
+      True -> {
+        let hints =
+          field_types
+          |> list.map(emit_float_type_hint)
+          |> string.join(", ")
+        Ok(
+          "registerFieldTypes(\"server_"
+          <> e.fn_name
+          <> "\", ["
+          <> hints
+          <> "]);",
+        )
+      }
+    }
+  })
+}
+
+fn emit_float_type_hint(ft: FieldType) -> String {
+  case ft {
+    FloatField -> "\"float\""
+    ListOf(element:) ->
+      "{ kind: \"list\", element: " <> emit_float_type_hint(element) <> " }"
+    OptionOf(inner:) ->
+      "{ kind: \"option\", inner: " <> emit_float_type_hint(inner) <> " }"
+    ResultOf(ok:, err:) ->
+      "{ kind: \"result\", ok: "
+      <> emit_float_type_hint(ok)
+      <> ", err: "
+      <> emit_float_type_hint(err)
+      <> " }"
+    DictOf(key:, value:) ->
+      "{ kind: \"dict\", key: "
+      <> emit_float_type_hint(key)
+      <> ", value: "
+      <> emit_float_type_hint(value)
+      <> " }"
+    TupleOf(elements:) -> {
+      let hints =
+        elements
+        |> list.map(emit_float_type_hint)
+        |> string.join(", ")
+      "{ kind: \"tuple\", elements: [" <> hints <> "] }"
+    }
+    IntField
+    | StringField
+    | BoolField
+    | BitArrayField
+    | NilField
+    | TypeVar(_)
+    | UserType(_, _, _) -> "null"
   }
 }
 

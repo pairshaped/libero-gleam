@@ -1,6 +1,9 @@
 import birdie
+import gleam/option
+import gleam/string
 import libero/codegen_decoders
 import libero/field_type
+import libero/scanner
 import libero/walker
 
 fn sample_status_enum() -> List(walker.DiscoveredType) {
@@ -187,4 +190,58 @@ pub fn dict_and_tuple_field_snapshot_test() {
   ]
   let js = codegen_decoders.emit_typed_decoders(types)
   birdie.snap(js, title: "dict tuple field typed decoder")
+}
+
+pub fn float_type_hint_registration_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/measurements",
+      type_name: "Measurements",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/measurements",
+          variant_name: "Measurements",
+          atom_name: "measurements",
+          float_field_indices: [],
+          fields: [
+            field_type.ListOf(field_type.FloatField),
+            field_type.OptionOf(field_type.FloatField),
+          ],
+        ),
+      ],
+    ),
+  ]
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "record_measurements",
+      return_ok: field_type.NilField,
+      return_err: field_type.NilField,
+      params: [
+        #("values", field_type.ListOf(field_type.FloatField)),
+        #(
+          "pair",
+          field_type.TupleOf([field_type.IntField, field_type.FloatField]),
+        ),
+      ],
+      mutates_context: True,
+      msg_type_name: option.None,
+    ),
+  ]
+
+  let js =
+    codegen_decoders.generate_decoders_ffi(
+      discovered: types,
+      endpoints: endpoints,
+      relpath_prefix: "../../../",
+    )
+
+  let assert True = string.contains(js, "registerFieldTypes(\"measurements\"")
+  let assert True =
+    string.contains(js, "{ kind: \"list\", element: \"float\" }")
+  let assert True =
+    string.contains(js, "registerFieldTypes(\"server_record_measurements\"")
+  let assert True =
+    string.contains(js, "{ kind: \"tuple\", elements: [null, \"float\"] }")
 }

@@ -39,7 +39,7 @@ perl -0pi -e "s#libero = \\{ path = \"[^\"]+\" \\}#libero = { path = \"$ROOT_DIR
 
 (
   cd "$STAGED_FIXTURE/server"
-  gleam run -m libero -- gen
+  LIBERO_CLIENT_OUT_DIR="../clients/web/src/generated/libero" gleam run -m libero -- gen
   gleam build --target erlang
 )
 

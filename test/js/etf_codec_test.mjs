@@ -18,10 +18,17 @@ import { strict as assert } from "assert";
 // ============================================================
 
 const floatFieldRegistry = new Map();
+const fieldTypeRegistry = new Map();
 
 function registerFloatFields(atomName, fieldIndices) {
   floatFieldRegistry.set(atomName, new Set(fieldIndices));
 }
+
+function registerFieldTypes(atomName, fieldTypes) {
+  fieldTypeRegistry.set(atomName, fieldTypes);
+}
+
+class CustomType {}
 
 // Standalone mode - no Gleam prelude. Lists are plain JS arrays.
 function arrayToGleamList(arr) {
@@ -305,7 +312,7 @@ class ETFEncoder {
     return this.buffer.slice(0, this.offset);
   }
 
-  encodeTerm(value) {
+  encodeTerm(value, typeHint = undefined) {
     if (value === undefined || value === null) {
       this.writeAtom("nil");
       return;
@@ -319,7 +326,11 @@ class ETFEncoder {
       return;
     }
     if (typeof value === "number") {
-      this.encodeNumber(value);
+      if (typeHint === "float") {
+        this.encodeFloat(value);
+      } else {
+        this.encodeNumber(value);
+      }
       return;
     }
     if (typeof value === "bigint") {
@@ -327,11 +338,42 @@ class ETFEncoder {
       return;
     }
     if (Array.isArray(value)) {
-      this.encodeTuple(value);
+      if (typeHint?.kind === "list") {
+        this.encodeList(value, typeHint.element);
+      } else {
+        this.encodeTuple(
+          value,
+          typeHint?.kind === "tuple" ? typeHint.elements : undefined,
+        );
+      }
       return;
     }
     if (value instanceof Map) {
-      this.encodeMap(value);
+      this.encodeMap(
+        value,
+        typeHint?.kind === "dict" ? typeHint.key : undefined,
+        typeHint?.kind === "dict" ? typeHint.value : undefined,
+      );
+      return;
+    }
+    if (value instanceof CustomType) {
+      const ctorName = snakeCase(value.constructor.name);
+      const keys = Object.keys(value);
+      if (keys.length === 0) {
+        this.writeAtom(ctorName);
+      } else {
+        this.writeUint8(104);
+        this.writeUint8(keys.length + 1);
+        this.writeAtom(ctorName);
+        const floatIndices = floatFieldRegistry.get(ctorName);
+        const fieldTypes = fieldTypeRegistry.get(ctorName);
+        keys.forEach((k, i) => {
+          const hintedField = hintForConstructorField(ctorName, i, typeHint)
+            ?? fieldTypes?.[i]
+            ?? (floatIndices && floatIndices.has(i) ? "float" : undefined);
+          this.encodeTerm(value[k], hintedField);
+        });
+      }
       return;
     }
     this.encodeBinary(String(value));
@@ -373,6 +415,11 @@ class ETFEncoder {
     }
   }
 
+  encodeFloat(n) {
+    this.writeUint8(70);
+    this.writeFloat64(n);
+  }
+
   encodeBigInt(value) {
     const sign = value < 0n ? 1 : 0;
     let abs = value < 0n ? -value : value;
@@ -397,7 +444,7 @@ class ETFEncoder {
     this.writeBytes(new Uint8Array(digits));
   }
 
-  encodeTuple(elements) {
+  encodeTuple(elements, elementHints = undefined) {
     if (elements.length <= 255) {
       this.writeUint8(104);
       this.writeUint8(elements.length);
@@ -405,12 +452,12 @@ class ETFEncoder {
       this.writeUint8(105);
       this.writeUint32(elements.length);
     }
-    for (const el of elements) {
-      this.encodeTerm(el);
+    for (let i = 0; i < elements.length; i++) {
+      this.encodeTerm(elements[i], elementHints?.[i]);
     }
   }
 
-  encodeList(arr) {
+  encodeList(arr, elementHint = undefined) {
     if (arr.length === 0) {
       this.writeUint8(106);
       return;
@@ -418,19 +465,27 @@ class ETFEncoder {
     this.writeUint8(108);
     this.writeUint32(arr.length);
     for (const el of arr) {
-      this.encodeTerm(el);
+      this.encodeTerm(el, elementHint);
     }
     this.writeUint8(106);
   }
 
-  encodeMap(map) {
+  encodeMap(map, keyHint = undefined, valueHint = undefined) {
     this.writeUint8(116);
     this.writeUint32(map.size);
     map.forEach((val, key) => {
-      this.encodeTerm(key);
-      this.encodeTerm(val);
+      this.encodeTerm(key, keyHint);
+      this.encodeTerm(val, valueHint);
     });
   }
+}
+
+function hintForConstructorField(ctorName, index, typeHint) {
+  if (index !== 0 || !typeHint || typeof typeHint !== "object") return undefined;
+  if (typeHint.kind === "option" && ctorName === "some") return typeHint.inner;
+  if (typeHint.kind === "result" && ctorName === "ok") return typeHint.ok;
+  if (typeHint.kind === "result" && ctorName === "error") return typeHint.err;
+  return undefined;
 }
 
 // ============================================================
@@ -890,6 +945,27 @@ test("FloatRegistry", "encoder uses registry for custom type float fields", () =
   assert.equal(erlResult2, "{point,2,3}");
 
   floatFieldRegistry.delete("point");
+});
+
+test("FloatRegistry", "encoder uses nested float hints inside lists", () => {
+  registerFieldTypes("float_list", [{ kind: "list", element: "float" }]);
+
+  class FloatList extends CustomType {
+    constructor(values) {
+      super();
+      this.values = values;
+    }
+  }
+
+  const enc = new ETFEncoder();
+  enc.writeUint8(131);
+  enc.encodeTerm(new FloatList([2.0, 3.5]));
+
+  const b64 = bufferToBase64(enc.result());
+  const erlResult = etfDecodeInErlang(b64);
+  assert.equal(erlResult, "{float_list,[2.0,3.5]}");
+
+  fieldTypeRegistry.delete("float_list");
 });
 
 // ============================================================

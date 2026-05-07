@@ -56,6 +56,7 @@ pub fn map(
 /// `Success` only when both inputs are `Success`. Short-circuits on the
 /// first `Failure` found (in either position), or `Loading` if either is
 /// `Loading` and neither has failed.
+/// When both inputs are `Failure`, the left-hand error is returned.
 ///
 /// Useful in `init` to batch parallel RPC calls into a single state
 /// transition:

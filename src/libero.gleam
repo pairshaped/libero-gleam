@@ -11,6 +11,7 @@ import gleam/io
 import gleam/list
 import gleam/option
 import gleam/result
+import gleam/string
 import libero/codegen_decoders
 import libero/codegen_dispatch
 import libero/format
@@ -71,16 +72,15 @@ pub fn main() -> Nil {
     }
   }
 
-  // Write client-side files into the web client's generated dir when present.
-  let client_out = "../clients/web/src/generated/libero"
-  case simplifile.is_directory("../clients/web/src") {
-    Ok(True) ->
+  // Write client-side files only when the caller opts in.
+  case client_output_dir_from_env(get_env("LIBERO_CLIENT_OUT_DIR")) {
+    option.Some(client_out) ->
       write_client_files(
         client_out: client_out,
         js: decoders_js,
         gleam: decoders_gleam,
       )
-    _ -> Nil
+    option.None -> Nil
   }
 
   io.println(
@@ -160,6 +160,22 @@ pub fn generate_decoders_gleam() -> String {
   codegen_decoders.generate_decoders_gleam("rpc_decoders_ffi.mjs")
 }
 
+/// Resolve the optional client output directory from environment config.
+/// Set `LIBERO_CLIENT_OUT_DIR` to opt in to client-side decoder writes.
+pub fn client_output_dir_from_env(
+  env_value: option.Option(String),
+) -> option.Option(String) {
+  case env_value {
+    option.Some(path) -> {
+      case string.trim(path) {
+        "" -> option.None
+        _ -> option.Some(path)
+      }
+    }
+    _ -> option.None
+  }
+}
+
 fn write_generated_files(
   dispatch_src dispatch_src: String,
   decoders_js decoders_js: String,
@@ -223,6 +239,13 @@ fn write_client_files(
   let _ =
     simplifile.write(out <> "/rpc_decoders.gleam", format.format_gleam(gleam))
   Nil
+}
+
+// nolint: avoid_panic, discarded_result -- Erlang-only @external; JS fallback is unreachable
+@external(erlang, "libero_ffi", "get_env")
+fn get_env(name: String) -> option.Option(String) {
+  let _ = name
+  panic as "libero.get_env: Erlang-only, unreachable on JavaScript target"
 }
 
 // nolint: avoid_panic -- erlang:halt/1 FFI; JS body is unreachable

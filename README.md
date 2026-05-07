@@ -18,6 +18,12 @@ This scans `src/` for handler functions, discovers all reachable types, and writ
 
 Import the generated modules from your server and client code like any other Gleam module. If you are building a codegen tool that needs the intermediate data (discovered types, handler endpoints), use the library API instead.
 
+To also write the JavaScript decoder files into a client package, set `LIBERO_CLIENT_OUT_DIR`:
+
+```sh
+LIBERO_CLIENT_OUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
+```
+
 ## Conventions
 
 Libero is opinionated:
@@ -26,6 +32,7 @@ Libero is opinionated:
 - **Context type** is always `ServerContext`, defined in the `server_context` module.
 - **Wire tag** is always `"rpc"` — the first element of the call envelope 3-tuple.
 - **Output directory** is always `src/generated/libero/`.
+- **Client output directory** is opt-in via `LIBERO_CLIENT_OUT_DIR`.
 
 ## Handler-as-Contract
 
