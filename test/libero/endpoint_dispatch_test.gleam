@@ -1,10 +1,13 @@
 import birdie
+import gleam/int
 import gleam/option
+import gleam/result
 import gleam/string
 import libero/codegen_dispatch
 import libero/field_type
 import libero/scanner
 import libero/walker.{DiscoveredType, DiscoveredVariant}
+import simplifile
 
 pub fn endpoint_dispatch_generates_client_msg_test() {
   let item_params = field_type.UserType("shared/items", "ItemParams", [])
@@ -377,6 +380,86 @@ pub fn empty_endpoints_generates_valid_dispatch_test() {
   let assert True = string.contains(content, "UnknownFunction")
   let assert True = string.contains(content, "MalformedRequest")
 
-  // Must compile as valid Gleam
-  let _formatter = birdie.snap(content, title: "dispatch: empty endpoints")
+  let assert Ok(Nil) =
+    compile_generated_dispatch(
+      fixture_name: "empty_endpoints",
+      dispatch_source: content,
+    )
+  birdie.snap(content, title: "dispatch: empty endpoints")
 }
+
+fn compile_generated_dispatch(
+  fixture_name fixture_name: String,
+  dispatch_source dispatch_source: String,
+) -> Result(Nil, String) {
+  let root = "build/.test_dispatch/" <> fixture_name
+  let src = root <> "/src"
+  let generated = src <> "/generated/libero"
+  let _ = simplifile.delete_all([root])
+  use _ <- result.try(
+    simplifile.create_directory_all(generated)
+    |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+  )
+  use _ <- result.try(
+    simplifile.write(root <> "/gleam.toml", fixture_toml())
+    |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+  )
+  use _ <- result.try(
+    simplifile.write(src <> "/server_context.gleam", server_context_source())
+    |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+  )
+  use _ <- result.try(
+    simplifile.write(generated <> "/dispatch.gleam", dispatch_source)
+    |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+  )
+  let #(status, output) = run_gleam(root, ["build"])
+  let _ = simplifile.delete_all([root])
+  case status {
+    0 -> Ok(Nil)
+    _ ->
+      Error(
+        "gleam build failed with exit code "
+        <> int.to_string(status)
+        <> ":\n"
+        <> output,
+      )
+  }
+}
+
+fn fixture_toml() -> String {
+  "name = \"dispatch_compile_fixture\"
+version = \"1.0.0\"
+
+[dependencies]
+gleam_stdlib = \">= 0.69.0 and < 2.0.0\"
+libero = { path = \"../../..\" }
+"
+}
+
+fn server_context_source() -> String {
+  "pub type ServerContext {
+  ServerContext
+}
+"
+}
+
+fn run_gleam(cwd: String, args: List(String)) -> #(Int, String) {
+  case find_executable("sh"), find_executable("gleam") {
+    option.Some(sh), option.Some(gleam) -> {
+      let command =
+        "cd " <> cwd <> " && " <> gleam <> " " <> string.join(args, " ")
+      run_executable_capturing_ffi(sh, ["-c", command])
+    }
+    _, option.None -> #(-1, "gleam executable not found on PATH")
+    option.None, _ -> #(-1, "sh executable not found on PATH")
+  }
+}
+
+@external(erlang, "libero_ffi", "find_executable")
+fn find_executable(name: String) -> option.Option(String)
+
+@external(erlang, "libero_ffi", "run_executable_capturing")
+fn run_executable_capturing_ffi(
+  path: String,
+  args: List(String),
+) -> #(Int, String)

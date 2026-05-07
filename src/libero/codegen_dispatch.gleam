@@ -146,6 +146,8 @@ fn ensure_atoms() -> Nil
       <> "          #(wire.tag_response(request_id:, data: wire.encode(Error(UnknownFunction(\""
       <> wire_module_tag
       <> "\")))), server_context)\n"
+      <> "        Error(_) ->\n"
+      <> "          #(wire.tag_response(request_id:, data: wire.encode(Error(MalformedRequest))), server_context)\n"
       <> "        "
     _ ->
       "        "
