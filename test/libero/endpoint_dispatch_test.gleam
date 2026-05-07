@@ -4,6 +4,7 @@ import gleam/string
 import libero/codegen_dispatch
 import libero/field_type
 import libero/scanner
+import libero/walker.{DiscoveredType, DiscoveredVariant}
 
 pub fn endpoint_dispatch_generates_client_msg_test() {
   let item_params = field_type.UserType("shared/items", "ItemParams", [])
@@ -235,7 +236,7 @@ pub fn generate_atoms_erl_produces_valid_erlang_test() {
     ),
   ]
   let content =
-    codegen_dispatch.generate_atoms_erl(endpoints, "generated@rpc_atoms")
+    codegen_dispatch.generate_atoms_erl(endpoints, [], "generated@rpc_atoms")
 
   // Module declaration
   let assert True = string.contains(content, "-module(generated@rpc_atoms).")
@@ -280,7 +281,7 @@ pub fn generate_atoms_erl_deduplicates_atoms_test() {
       msg_type_name: option.None,
     ),
   ]
-  let content = codegen_dispatch.generate_atoms_erl(endpoints, "mod")
+  let content = codegen_dispatch.generate_atoms_erl(endpoints, [], "mod")
 
   // "load_sponsors" should appear exactly once (deduplicated)
   // framework atom "ok" also appears once
@@ -313,4 +314,47 @@ pub fn dispatch_variant_names_include_server_prefix_test() {
 
   // Tag match uses server_ prefix
   let assert True = string.contains(content, "Ok(\"server_load_sponsors\")")
+}
+
+pub fn generate_atoms_erl_includes_variant_constructor_atoms_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "get_role",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: True,
+      msg_type_name: option.None,
+    ),
+  ]
+  let discovered = [
+    DiscoveredType(
+      module_path: "shared/types",
+      type_name: "Role",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "shared/types",
+          variant_name: "Admin",
+          atom_name: "admin",
+          float_field_indices: [],
+          fields: [],
+        ),
+        DiscoveredVariant(
+          module_path: "shared/types",
+          variant_name: "SuperUser",
+          atom_name: "super_user",
+          float_field_indices: [],
+          fields: [],
+        ),
+      ],
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_atoms_erl(endpoints, discovered, "test@atoms")
+
+  // Variant constructor atoms are included
+  let assert True = string.contains(content, "<<\"admin\">>")
+  let assert True = string.contains(content, "<<\"super_user\">>")
 }

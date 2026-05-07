@@ -83,6 +83,17 @@ pub type FieldType {
 /// not `shared/types.Item`). Used by codegen to embed types in
 /// generated Gleam source.
 pub fn to_gleam_source(ft: FieldType) -> String {
+  to_gleam_source_with_alias(ft, last_segment)
+}
+
+/// Like `to_gleam_source` but uses a caller-supplied function to
+/// resolve the import alias for a module path. This allows codegen to
+/// provide disambiguated aliases when multiple modules share the same
+/// last segment (e.g. two different `id_` modules).
+pub fn to_gleam_source_with_alias(
+  ft: FieldType,
+  resolve_alias: fn(String) -> String,
+) -> String {
   case ft {
     IntField -> "Int"
     FloatField -> "Float"
@@ -91,22 +102,40 @@ pub fn to_gleam_source(ft: FieldType) -> String {
     BitArrayField -> "BitArray"
     NilField -> "Nil"
     TypeVar(name:) -> name
-    ListOf(element:) -> "List(" <> to_gleam_source(element) <> ")"
-    OptionOf(inner:) -> "Option(" <> to_gleam_source(inner) <> ")"
+    ListOf(element:) ->
+      "List(" <> to_gleam_source_with_alias(element, resolve_alias) <> ")"
+    OptionOf(inner:) ->
+      "Option(" <> to_gleam_source_with_alias(inner, resolve_alias) <> ")"
     ResultOf(ok:, err:) ->
-      "Result(" <> to_gleam_source(ok) <> ", " <> to_gleam_source(err) <> ")"
+      "Result("
+      <> to_gleam_source_with_alias(ok, resolve_alias)
+      <> ", "
+      <> to_gleam_source_with_alias(err, resolve_alias)
+      <> ")"
     DictOf(key:, value:) ->
-      "Dict(" <> to_gleam_source(key) <> ", " <> to_gleam_source(value) <> ")"
+      "Dict("
+      <> to_gleam_source_with_alias(key, resolve_alias)
+      <> ", "
+      <> to_gleam_source_with_alias(value, resolve_alias)
+      <> ")"
     TupleOf(elements:) ->
-      "#(" <> string.join(list.map(elements, to_gleam_source), ", ") <> ")"
+      "#("
+      <> string.join(
+        list.map(elements, to_gleam_source_with_alias(_, resolve_alias)),
+        ", ",
+      )
+      <> ")"
     UserType(module_path:, type_name:, args: []) ->
-      last_segment(module_path) <> "." <> type_name
+      resolve_alias(module_path) <> "." <> type_name
     UserType(module_path:, type_name:, args:) ->
-      last_segment(module_path)
+      resolve_alias(module_path)
       <> "."
       <> type_name
       <> "("
-      <> string.join(list.map(args, to_gleam_source), ", ")
+      <> string.join(
+        list.map(args, to_gleam_source_with_alias(_, resolve_alias)),
+        ", ",
+      )
       <> ")"
   }
 }

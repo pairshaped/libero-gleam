@@ -13,6 +13,7 @@ import gleam/option
 import gleam/string
 import libero/codegen
 import libero/scanner
+import libero/walker.{type DiscoveredType}
 
 /// Generate dispatch.gleam source from scanned endpoints.
 /// The generated dispatch function signature:
@@ -34,18 +35,44 @@ pub fn generate(
       "import " <> mod <> " as " <> alias
     })
 
+  // Build an alias resolver that uses the handler alias when a type's
+  // module is already imported for the handler (avoids duplicate imports).
+  let base_resolve = codegen.build_alias_resolver(endpoints:)
+  let resolve_alias = fn(module_path: String) -> String {
+    case list.contains(handler_modules, module_path) {
+      True -> handler_alias(module_path)
+      False -> base_resolve(module_path)
+    }
+  }
+  // Only emit type imports for modules NOT already covered by handler imports.
   let shared_type_imports =
-    codegen.collect_endpoint_type_imports(endpoints:, include_return: False)
+    codegen.collect_endpoint_type_imports(
+      endpoints:,
+      include_return: False,
+      resolve_alias:,
+    )
+    |> list.filter(fn(import_line) {
+      !list.any(handler_modules, fn(mod) {
+        string.contains(import_line, "import " <> mod)
+      })
+    })
   let dict_import =
     codegen.import_if(
       endpoints:,
       predicate: codegen.is_dict,
       import_line: "import gleam/dict.{type Dict}",
     )
+  let option_import =
+    codegen.import_if(
+      endpoints:,
+      predicate: codegen.is_option,
+      import_line: "import gleam/option.{type Option}",
+    )
 
-  let client_msg_variants = codegen.emit_client_msg_variants(endpoints:)
+  let client_msg_variants =
+    codegen.emit_client_msg_variants(endpoints:, resolve_alias:)
 
-  let known_tag_pattern =
+  let known_tag_guards =
     endpoints
     |> list.map(fn(e) { "Ok(\"server_" <> e.fn_name <> "\")" })
     |> string.join("\n        | ")
@@ -118,7 +145,7 @@ fn ensure_atoms() -> Nil
 import gleam/io
 import libero/error.{InternalError, MalformedRequest, UnknownFunction}
 import libero/trace
-import libero/wire" <> dict_import <> "
+import libero/wire" <> dict_import <> option_import <> "
 import " <> context_module <> ".{type " <> context_type_name <> "}
 " <> string.join(handler_imports, "\n") <> "
 " <> string.join(shared_type_imports, "\n") <> "
@@ -134,7 +161,7 @@ pub fn handle(
   " <> ensure_call <> "case wire.decode_call(data) {
     Ok(#(\"" <> wire_module_tag <> "\", request_id, msg)) -> {
       case wire.variant_tag(msg) {
-        " <> known_tag_pattern <> " -> {
+        " <> known_tag_guards <> " -> {
           let typed_msg: ClientMsg = wire.coerce(msg)
           case typed_msg {
 " <> string.join(case_arms, "\n") <> "
@@ -166,6 +193,7 @@ fn handler_alias(module_path: String) -> String {
 /// can decode client ETF payloads without rejecting unknown atoms.
 pub fn generate_atoms_erl(
   endpoints endpoints: List(scanner.HandlerEndpoint),
+  discovered discovered: List(DiscoveredType),
   atoms_module atoms_module: String,
 ) -> String {
   let framework_atoms = [
@@ -174,8 +202,12 @@ pub fn generate_atoms_erl(
   ]
   let handler_atoms =
     list.flat_map(endpoints, fn(e) { [e.fn_name, "server_" <> e.fn_name] })
+  let variant_atoms =
+    list.flat_map(discovered, fn(dt) {
+      list.map(dt.variants, fn(v) { v.atom_name })
+    })
   let all_atoms =
-    list.append(framework_atoms, handler_atoms)
+    list.flatten([framework_atoms, handler_atoms, variant_atoms])
     |> list.unique()
     |> list.sort(string.compare)
   let atom_list =

@@ -60,7 +60,7 @@ export const decode_int = (term) => {
     }
     return Number(term);
   }
-  if (typeof term !== "number") {
+  if (typeof term !== "number" || !Number.isInteger(term)) {
     throw new DecodeError("expected Int, got " + typeof term);
   }
   return term;

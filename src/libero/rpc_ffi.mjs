@@ -56,6 +56,8 @@ export const ERROR_ATOM_TOO_LONG = "ETF_ATOM_TOO_LONG";
 export const ERROR_COLLECTION_TOO_LONG = "ETF_COLLECTION_TOO_LONG";
 /** Binary or bit-binary length exceeds MAX_BINARY_BYTES. */
 export const ERROR_BINARY_TOO_LARGE = "ETF_BINARY_TOO_LARGE";
+/** Trailing bytes after a decoded term. */
+export const ERROR_TRAILING_BYTES = "ETF_TRAILING_BYTES";
 
 // Hard caps so that a malformed (or hostile) frame cannot pre-allocate
 // gigabytes of references. Real mist frame limits will normally catch
@@ -219,7 +221,14 @@ class ETFDecoder {
         ERROR_VERSION_BYTE,
       );
     }
-    return this.decodeTerm();
+    const result = this.decodeTerm();
+    if (this.offset !== this.bytes.byteLength) {
+      throw makeError(
+        `ETF decode: trailing bytes at offset ${this.offset}, total length ${this.bytes.byteLength}`,
+        ERROR_TRAILING_BYTES,
+      );
+    }
+    return result;
   }
 
   ensureAvailable(n) {

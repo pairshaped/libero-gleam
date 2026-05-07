@@ -42,7 +42,7 @@ pub fn main() {
   }
   let atoms_module = default_atoms_module
   let dispatch_src = generate_dispatch(endpoints, option.Some(atoms_module))
-  let atoms_erl = generate_atoms(endpoints, atoms_module)
+  let atoms_erl = generate_atoms(endpoints, discovered, atoms_module)
   let decoders_js = generate_decoders_ffi(discovered, endpoints)
   let decoders_gleam = generate_decoders_gleam()
 
@@ -111,9 +111,10 @@ pub fn generate_dispatch(
 /// Module name uses Gleam's @-separated convention (e.g. "generated@rpc_atoms").
 pub fn generate_atoms(
   endpoints: List(HandlerEndpoint),
+  discovered: List(DiscoveredType),
   atoms_module: String,
 ) -> String {
-  codegen_dispatch.generate_atoms_erl(endpoints, atoms_module)
+  codegen_dispatch.generate_atoms_erl(endpoints, discovered, atoms_module)
 }
 
 /// Generate the JS typed decoder FFI source.

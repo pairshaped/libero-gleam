@@ -3,6 +3,7 @@
 //// Naming helpers and small predicates over `field_type.FieldType` graphs.
 
 import gleam/bool
+import gleam/dict
 import gleam/list
 import gleam/string
 import libero/field_type
@@ -67,9 +68,13 @@ pub fn variant_pattern(
   }
 }
 
-/// Emit the body lines of the generated `ClientMsg` type.
+/// Emit the body lines of the generated `ClientMsg` type. Uses
+/// `resolve_alias` to qualify user-defined types with the correct
+/// import alias (needed when multiple modules share the same last
+/// segment, e.g. two different `id_` modules).
 pub fn emit_client_msg_variants(
   endpoints endpoints: List(scanner.HandlerEndpoint),
+  resolve_alias resolve_alias: fn(String) -> String,
 ) -> List(String) {
   list.map(endpoints, fn(e) {
     let variant_name = to_pascal_case("server_" <> e.fn_name)
@@ -79,7 +84,9 @@ pub fn emit_client_msg_variants(
         let fields =
           list.map(params, fn(p) {
             let #(label, ft) = p
-            label <> ": " <> field_type.to_gleam_source(ft)
+            label
+            <> ": "
+            <> field_type.to_gleam_source_with_alias(ft, resolve_alias)
           })
         "  " <> variant_name <> "(" <> string.join(fields, ", ") <> ")"
       }
@@ -89,10 +96,12 @@ pub fn emit_client_msg_variants(
 
 /// Collect `import <module>` lines for every module path referenced
 /// (transitively) by the endpoints' parameter types and, optionally,
-/// return types.
+/// return types. Uses aliases from `resolve_alias` so that modules
+/// with the same last segment get distinct names.
 pub fn collect_endpoint_type_imports(
   endpoints endpoints: List(scanner.HandlerEndpoint),
   include_return include_return: Bool,
+  resolve_alias resolve_alias: fn(String) -> String,
 ) -> List(String) {
   endpoints
   |> list.flat_map(fn(e) {
@@ -109,7 +118,13 @@ pub fn collect_endpoint_type_imports(
   |> list.map(fn(ref) { ref.0 })
   |> list.unique()
   |> list.sort(string.compare)
-  |> list.map(fn(mod) { "import " <> mod })
+  |> list.map(fn(mod) {
+    let alias = resolve_alias(mod)
+    case alias == field_type.last_segment(mod) {
+      True -> "import " <> mod
+      False -> "import " <> mod <> " as " <> alias
+    }
+  })
 }
 
 pub fn is_dict(ft: field_type.FieldType) -> Bool {
@@ -123,6 +138,45 @@ pub fn is_option(ft: field_type.FieldType) -> Bool {
   case ft {
     field_type.OptionOf(_) -> True
     _ -> False
+  }
+}
+
+/// Build a resolver function that maps a module path to its import alias.
+/// Uses the last segment when unique, or the full underscored path when
+/// two or more modules share the same last segment.
+pub fn build_alias_resolver(
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+) -> fn(String) -> String {
+  let all_modules =
+    endpoints
+    |> list.flat_map(fn(e) {
+      let from_params =
+        list.flat_map(e.params, fn(p) { field_type.collect_user_types(p.1) })
+      let from_return =
+        list.append(
+          field_type.collect_user_types(e.return_ok),
+          field_type.collect_user_types(e.return_err),
+        )
+      list.append(from_params, from_return)
+    })
+    |> list.map(fn(ref) { ref.0 })
+    |> list.unique()
+  // Count how many modules share each last segment
+  let segment_counts =
+    list.fold(all_modules, dict.new(), fn(acc, mod) {
+      let seg = field_type.last_segment(mod)
+      let count = case dict.get(acc, seg) {
+        Ok(n) -> n + 1
+        Error(Nil) -> 1
+      }
+      dict.insert(acc, seg, count)
+    })
+  fn(module_path: String) -> String {
+    let seg = field_type.last_segment(module_path)
+    case dict.get(segment_counts, seg) {
+      Ok(n) if n > 1 -> module_to_underscored(module_path)
+      _ -> seg
+    }
   }
 }
 

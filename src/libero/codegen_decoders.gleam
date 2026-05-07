@@ -236,7 +236,14 @@ fn emit_record_decoder(variant: DiscoveredVariant) -> String {
       "    " <> field_decoder_call(ft, "term[" <> int.to_string(i + 1) <> "]")
     })
   let args = "\n" <> string.join(field_lines, ",\n") <> "\n  "
-  "  return " <> emit_variant_constructor_call(variant, args) <> ";"
+  "  if (!Array.isArray(term) || term[0] !== \""
+  <> variant.atom_name
+  <> "\") throw new DecodeError(\"expected "
+  <> variant.atom_name
+  <> "\");\n"
+  <> "  return "
+  <> emit_variant_constructor_call(variant, args)
+  <> ";"
 }
 
 fn emit_tagged_union_decoder(variants: List(DiscoveredVariant)) -> String {

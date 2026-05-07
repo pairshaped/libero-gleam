@@ -184,7 +184,11 @@ pub fn emit_client_msg_variants_zero_param_test() {
       mutates_context: True,
       msg_type_name: option.None,
     )
-  let lines = codegen.emit_client_msg_variants([ep])
+  let lines =
+    codegen.emit_client_msg_variants(
+      [ep],
+      resolve_alias: field_type.last_segment,
+    )
   let assert ["  ServerGetItems"] = lines
 }
 
@@ -202,7 +206,11 @@ pub fn emit_client_msg_variants_with_params_test() {
       mutates_context: True,
       msg_type_name: option.None,
     )
-  let lines = codegen.emit_client_msg_variants([ep])
+  let lines =
+    codegen.emit_client_msg_variants(
+      [ep],
+      resolve_alias: field_type.last_segment,
+    )
   let assert ["  ServerCreateItem(params: types.ItemParams, id: Int)"] = lines
 }
 
@@ -222,7 +230,11 @@ pub fn collect_endpoint_type_imports_params_only_test() {
       msg_type_name: option.None,
     )
   let imports =
-    codegen.collect_endpoint_type_imports([ep], include_return: False)
+    codegen.collect_endpoint_type_imports(
+      [ep],
+      include_return: False,
+      resolve_alias: field_type.last_segment,
+    )
   let assert ["import shared/types"] = imports
 }
 
@@ -240,7 +252,11 @@ pub fn collect_endpoint_type_imports_includes_return_test() {
       msg_type_name: option.None,
     )
   let imports =
-    codegen.collect_endpoint_type_imports([ep], include_return: True)
+    codegen.collect_endpoint_type_imports(
+      [ep],
+      include_return: True,
+      resolve_alias: field_type.last_segment,
+    )
   let assert 2 = list.length(imports)
   let assert True = list.contains(imports, "import shared/result")
   let assert True = list.contains(imports, "import shared/types")
@@ -272,6 +288,10 @@ pub fn collect_endpoint_type_imports_deduplicates_test() {
       msg_type_name: option.None,
     )
   let imports =
-    codegen.collect_endpoint_type_imports([ep1, ep2], include_return: False)
+    codegen.collect_endpoint_type_imports(
+      [ep1, ep2],
+      include_return: False,
+      resolve_alias: field_type.last_segment,
+    )
   let assert ["import shared/types"] = imports
 }
