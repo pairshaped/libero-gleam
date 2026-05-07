@@ -121,6 +121,58 @@ pub fn endpoint_dispatch_passes_whole_msg_type_to_handler_test() {
     )
 }
 
+pub fn dispatch_known_tags_call_shared_helper_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "first_endpoint",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: True,
+      msg_type_name: option.None,
+    ),
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "second_endpoint",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [#("id", field_type.IntField)],
+      mutates_context: True,
+      msg_type_name: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate(
+      endpoints: endpoints,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+    )
+
+  let assert True =
+    string.contains(
+      content,
+      "Ok(\"server_first_endpoint\") ->\n          dispatch_known(msg, request_id, server_context)",
+    )
+  let assert True =
+    string.contains(
+      content,
+      "Ok(\"server_second_endpoint\") ->\n          dispatch_known(msg, request_id, server_context)",
+    )
+  let assert True =
+    string.contains(
+      content,
+      "fn dispatch_known(msg, request_id, server_context)",
+    )
+  let assert False =
+    string.contains(
+      content,
+      "Ok(\"server_first_endpoint\")\n        | Ok(\"server_second_endpoint\")",
+    )
+}
+
 pub fn endpoint_dispatch_imports_qualified_param_types_test() {
   let endpoints = [
     scanner.HandlerEndpoint(

@@ -29,7 +29,6 @@ pub fn handle(
           #(wire.tag_response(request_id:, data: wire.encode(Error(UnknownFunction("rpc")))), server_context)
         Error(_) ->
           #(wire.tag_response(request_id:, data: wire.encode(Error(MalformedRequest))), server_context)
-        
       }
     }
     Ok(#(name, request_id, _)) ->
