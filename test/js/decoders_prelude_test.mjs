@@ -112,8 +112,8 @@ assertThrows(() => decode_string(null), "decode_string throws on null");
 // decode_bool
 assert.strictEqual(decode_bool(true), true, "decode_bool true");
 assert.strictEqual(decode_bool(false), false, "decode_bool false");
-assert.strictEqual(decode_bool("true"), true, "decode_bool atom-true");
-assert.strictEqual(decode_bool("false"), false, "decode_bool atom-false");
+assertThrows(() => decode_bool("true"), "decode_bool rejects string true");
+assertThrows(() => decode_bool("false"), "decode_bool rejects string false");
 assertThrows(() => decode_bool("yes"), "decode_bool throws on unknown atom");
 assertThrows(() => decode_bool(1), "decode_bool throws on number");
 

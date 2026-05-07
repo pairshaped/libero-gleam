@@ -25,6 +25,11 @@ const default_atoms_module = "generated@rpc_atoms"
 
 const default_context_module = "server/server_context"
 
+type WriteError {
+  CannotCreateDir(path: String, cause: simplifile.FileError)
+  CannotWriteFile(path: String, cause: simplifile.FileError)
+}
+
 /// Run the full generation pipeline, writing files to `src/generated/libero/`.
 pub fn main() -> Nil {
   let endpoints = case scan() {
@@ -49,21 +54,22 @@ pub fn main() -> Nil {
   let decoders_js = generate_decoders_ffi(discovered:, endpoints:)
   let decoders_gleam = generate_decoders_gleam()
 
-  let assert Ok(_) = simplifile.create_directory_all(out_dir)
-  let assert Ok(_) =
-    simplifile.write(
-      out_dir <> "/dispatch.gleam",
-      format.format_gleam(dispatch_src),
-    )
-  let assert Ok(_) =
-    simplifile.write(out_dir <> "/rpc_decoders_ffi.mjs", decoders_js)
-  let assert Ok(_) =
-    simplifile.write(
-      out_dir <> "/rpc_decoders.gleam",
-      format.format_gleam(decoders_gleam),
-    )
   let atoms_path = "src/" <> atoms_module <> ".erl"
-  let assert Ok(_) = simplifile.write(atoms_path, atoms_erl)
+  case
+    write_generated_files(
+      dispatch_src:,
+      decoders_js:,
+      decoders_gleam:,
+      atoms_path:,
+      atoms_erl:,
+    )
+  {
+    Ok(Nil) -> Nil
+    Error(err) -> {
+      print_write_error(err)
+      halt(1)
+    }
+  }
 
   // Write client-side files into the web client's generated dir when present.
   let client_out = "../clients/web/src/generated/libero"
@@ -152,6 +158,58 @@ pub fn generate_decoders_ffi(
 /// Generate the Gleam wrapper for the typed decoder FFI.
 pub fn generate_decoders_gleam() -> String {
   codegen_decoders.generate_decoders_gleam("rpc_decoders_ffi.mjs")
+}
+
+fn write_generated_files(
+  dispatch_src dispatch_src: String,
+  decoders_js decoders_js: String,
+  decoders_gleam decoders_gleam: String,
+  atoms_path atoms_path: String,
+  atoms_erl atoms_erl: String,
+) -> Result(Nil, WriteError) {
+  use _ <- result.try(
+    simplifile.create_directory_all(out_dir)
+    |> result.map_error(fn(cause) { CannotCreateDir(path: out_dir, cause:) }),
+  )
+  use _ <- result.try(write_file(
+    out_dir <> "/dispatch.gleam",
+    format.format_gleam(dispatch_src),
+  ))
+  use _ <- result.try(write_file(
+    out_dir <> "/rpc_decoders_ffi.mjs",
+    decoders_js,
+  ))
+  use _ <- result.try(write_file(
+    out_dir <> "/rpc_decoders.gleam",
+    format.format_gleam(decoders_gleam),
+  ))
+  use _ <- result.try(write_file(atoms_path, atoms_erl))
+  Ok(Nil)
+}
+
+fn write_file(path: String, content: String) -> Result(Nil, WriteError) {
+  simplifile.write(path, content)
+  |> result.map_error(fn(cause) { CannotWriteFile(path:, cause:) })
+}
+
+fn print_write_error(err: WriteError) -> Nil {
+  let message = case err {
+    CannotCreateDir(path, cause) ->
+      gen_error.error_box(
+        title: "Cannot create output directory",
+        path:,
+        body_lines: [simplifile.describe_error(cause)],
+        hint: option.None,
+      )
+    CannotWriteFile(path, cause) ->
+      gen_error.error_box(
+        title: "Cannot write generated file",
+        path:,
+        body_lines: [simplifile.describe_error(cause)],
+        hint: option.None,
+      )
+  }
+  io.println_error(message)
 }
 
 // nolint: discarded_result -- client writes are best-effort

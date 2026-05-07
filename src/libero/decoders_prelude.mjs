@@ -84,17 +84,8 @@ export const decode_string = (term) => {
 };
 
 export const decode_bool = (term) => {
-  // Accepts both native booleans and strings "true"/"false" by design:
-  // ETF atoms decode to strings in raw mode, so the atom `true` arrives
-  // as the string "true". The typed decoder knows the expected type, so
-  // this ambiguity with Gleam String("true") is harmless in practice.
-  //
-  // NOT safe for use outside the generated decoder pipeline: a Gleam
-  // String value "true" in a Bool-typed position would silently coerce.
-  // This is fine within libero because the type graph guarantees correct
-  // field placement, but callers building custom decoders should be aware.
-  if (term === true || term === "true") return true;
-  if (term === false || term === "false") return false;
+  if (term === true) return true;
+  if (term === false) return false;
   throw new DecodeError("expected Bool, got " + String(term));
 };
 

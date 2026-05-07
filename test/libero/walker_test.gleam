@@ -100,6 +100,38 @@ type Hidden {
   let assert Ok(Nil) = simplifile.delete_all([fixture_root <> "/empty"])
 }
 
+pub fn walks_user_type_shadowing_stdlib_result_test() {
+  let dir = fixture_root <> "/shadow/shared/src/shared"
+  let assert Ok(Nil) = simplifile.create_directory_all(dir)
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/custom_result.gleam",
+      "pub type Result {
+  Result(value: Int)
+}
+",
+    )
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/wrapper.gleam",
+      "import shared/custom_result.{type Result}
+
+pub type Wrapper {
+  Wrapper(result: Result)
+}
+",
+    )
+
+  let assert Ok(files) = scanner.walk_directory(path: dir)
+  let assert Ok(types) =
+    walker.walk(seeds: [#("shared/wrapper", "Wrapper")], file_paths: files)
+
+  let assert True = has_type(types, "Wrapper")
+  let assert True = has_type(types, "Result")
+
+  let assert Ok(Nil) = simplifile.delete_all([fixture_root <> "/shadow"])
+}
+
 fn has_type(types: List(DiscoveredType), name: String) -> Bool {
   list.any(types, fn(t) { t.type_name == name })
 }

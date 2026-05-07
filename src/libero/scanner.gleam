@@ -130,13 +130,17 @@ pub fn scan(
     walk_directory(path: src_dir)
     |> result.map_error(fn(cause) { [cause] }),
   )
+  let module_files =
+    list.fold(files, dict.new(), fn(acc, file_path) {
+      dict.insert(acc, derive_module_path(file_path:), file_path)
+    })
   // All-or-nothing: if any file fails to parse, the entire scan fails.
   // Valid endpoints from other files are discarded. This prevents codegen
   // from producing partial dispatch tables that silently drop handlers.
   let #(endpoints_rev, errors_rev) =
     list.fold(files, #([], []), fn(acc, file_path) {
       let #(eps_acc, errs_acc) = acc
-      case parse_endpoints(file_path:, context_type_name:) {
+      case parse_endpoints(file_path:, context_type_name:, module_files:) {
         Ok(eps) -> #(list.append(list.reverse(eps), eps_acc), errs_acc)
         Error(err) -> #(eps_acc, [err, ..errs_acc])
       }
@@ -208,6 +212,7 @@ pub fn parse_module(
 fn parse_endpoints(
   file_path file_path: String,
   context_type_name context_type_name: String,
+  module_files module_files: dict.Dict(String, String),
 ) -> Result(List(HandlerEndpoint), GenError) {
   use parsed <- result.map(parse_module(file_path:))
   let module_path = derive_module_path(file_path: file_path)
@@ -227,6 +232,7 @@ fn parse_endpoints(
           type_alias_originals: type_alias_originals,
           context_type_name: context_type_name,
           custom_types: parsed.custom_types,
+          module_files: module_files,
         )
     }
   })
@@ -288,6 +294,7 @@ fn parse_single_endpoint(
   type_alias_originals type_alias_originals: dict.Dict(String, String),
   context_type_name context_type_name: String,
   custom_types custom_types: List(glance.Definition(glance.CustomType)),
+  module_files module_files: dict.Dict(String, String),
 ) -> Result(HandlerEndpoint, Nil) {
   // Must have server_ prefix
   use <- bool.guard(
@@ -311,7 +318,13 @@ fn parse_single_endpoint(
   }
 
   let #(params_typed, msg_type_name) =
-    try_resolve_msg_type(payload_params, custom_types, to_ft)
+    try_resolve_msg_type(
+      payload_params,
+      module_path,
+      custom_types,
+      module_files,
+      to_ft,
+    )
 
   Ok(HandlerEndpoint(
     module_path: module_path,
@@ -326,7 +339,9 @@ fn parse_single_endpoint(
 
 fn try_resolve_msg_type(
   payload_params: List(glance.FunctionParameter),
+  current_module: String,
   custom_types: List(glance.Definition(glance.CustomType)),
+  module_files: dict.Dict(String, String),
   to_ft: fn(glance.Type) -> field_type.FieldType,
 ) -> #(List(#(String, field_type.FieldType)), option.Option(String)) {
   let fallback = #(
@@ -335,48 +350,111 @@ fn try_resolve_msg_type(
   )
   case payload_params {
     [param] -> {
-      use type_name <- try_msg_type_name(param, fallback)
-      use fields <- try_msg_type_fields(type_name, custom_types, fallback)
-      let resolved =
-        list.filter_map(fields, fn(field) {
-          case field {
-            glance.LabelledVariantField(label:, item:) ->
-              Ok(#(label, to_ft(item)))
-            _ -> Error(Nil)
-          }
-        })
-      #(resolved, option.Some(type_name))
+      use type_ <- try_msg_param_type(param, fallback)
+      case to_ft(type_) {
+        field_type.UserType(module_path:, type_name:, args: []) ->
+          resolve_msg_type_fields(
+            module_path:,
+            type_name:,
+            current_module:,
+            current_custom_types: custom_types,
+            module_files:,
+            current_to_ft: to_ft,
+          )
+          |> result.map(fn(fields) { #(fields, option.Some(type_name)) })
+          |> result.unwrap(or: fallback)
+        _ -> fallback
+      }
     }
     _ -> fallback
   }
 }
 
-fn try_msg_type_name(
+fn try_msg_param_type(
   param: glance.FunctionParameter,
   fallback: a,
-  next: fn(String) -> a,
+  next: fn(glance.Type) -> a,
 ) -> a {
-  case param.type_ {
-    option.Some(glance.NamedType(name: type_name, module: option.None, ..)) ->
-      next(type_name)
-    _ -> fallback
+  param.type_ |> option.map(next) |> option.unwrap(or: fallback)
+}
+
+fn resolve_msg_type_fields(
+  module_path module_path: String,
+  type_name type_name: String,
+  current_module current_module: String,
+  current_custom_types current_custom_types: List(
+    glance.Definition(glance.CustomType),
+  ),
+  module_files module_files: dict.Dict(String, String),
+  current_to_ft current_to_ft: fn(glance.Type) -> field_type.FieldType,
+) -> Result(List(#(String, field_type.FieldType)), Nil) {
+  case module_path == current_module {
+    True -> {
+      use fields <- result.try(one_variant_fields(
+        type_name:,
+        custom_types: current_custom_types,
+      ))
+      labelled_fields_to_params(fields, current_to_ft)
+    }
+    False -> {
+      use file_path <- result.try(
+        dict.get(module_files, module_path) |> result.replace_error(Nil),
+      )
+      use parsed <- result.try(
+        parse_module(file_path:) |> result.replace_error(Nil),
+      )
+      let to_ft = module_type_resolver(parsed.imports, module_path)
+      use fields <- result.try(one_variant_fields(
+        type_name:,
+        custom_types: parsed.custom_types,
+      ))
+      labelled_fields_to_params(fields, to_ft)
+    }
   }
 }
 
-fn try_msg_type_fields(
-  type_name: String,
-  custom_types: List(glance.Definition(glance.CustomType)),
-  fallback: a,
-  next: fn(List(glance.VariantField)) -> a,
-) -> a {
+fn module_type_resolver(
+  imports: List(glance.Definition(glance.Import)),
+  current_module: String,
+) -> fn(glance.Type) -> field_type.FieldType {
+  let type_imports = build_type_import_map(imports)
+  let alias_map = build_alias_resolution_map(imports)
+  let type_alias_originals = build_type_alias_originals(imports)
+  fn(t) {
+    glance_type_to_field_type(
+      type_: t,
+      imports: type_imports,
+      aliases: alias_map,
+      type_alias_originals: type_alias_originals,
+      current_module: current_module,
+    )
+  }
+}
+
+fn one_variant_fields(
+  type_name type_name: String,
+  custom_types custom_types: List(glance.Definition(glance.CustomType)),
+) -> Result(List(glance.VariantField), Nil) {
   case list.find(custom_types, fn(def) { def.definition.name == type_name }) {
     Ok(def) ->
       case def.definition.variants {
-        [single_variant] -> next(single_variant.fields)
-        _ -> fallback
+        [single_variant] -> Ok(single_variant.fields)
+        _ -> Error(Nil)
       }
-    Error(Nil) -> fallback
+    Error(Nil) -> Error(Nil)
   }
+}
+
+fn labelled_fields_to_params(
+  fields: List(glance.VariantField),
+  to_ft: fn(glance.Type) -> field_type.FieldType,
+) -> Result(List(#(String, field_type.FieldType)), Nil) {
+  list.try_map(fields, fn(field) {
+    case field {
+      glance.LabelledVariantField(label:, item:) -> Ok(#(label, to_ft(item)))
+      _ -> Error(Nil)
+    }
+  })
 }
 
 fn resolve_individual_params(

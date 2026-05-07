@@ -1,4 +1,6 @@
 import gleam/list
+import gleam/option
+import libero/field_type
 import libero/gen_error
 import libero/scanner
 import simplifile
@@ -77,6 +79,70 @@ pub fn includes_non_shared_type_endpoint_test() {
   let names = scan_fixture_names()
   let assert True = list.contains(names, "get_audit_log")
   let assert True = list.contains(names, "log_action")
+}
+
+pub fn resolves_cross_module_msg_type_fields_test() {
+  let dir = "build/.test_cross_module_msg_type"
+  let server_dir = dir <> "/src/server"
+  let shared_dir = dir <> "/src/shared"
+  let assert Ok(Nil) = simplifile.create_directory_all(server_dir)
+  let assert Ok(Nil) = simplifile.create_directory_all(shared_dir)
+
+  let assert Ok(Nil) =
+    simplifile.write(
+      shared_dir <> "/messages.gleam",
+      "pub type SetDarkMode {
+  SetDarkMode(enabled: Bool)
+}
+",
+    )
+  let assert Ok(Nil) =
+    simplifile.write(
+      shared_dir <> "/settings.gleam",
+      "pub type SetTheme {
+  SetTheme(name: String)
+}
+",
+    )
+  let assert Ok(Nil) =
+    simplifile.write(
+      server_dir <> "/handlers.gleam",
+      "import shared/messages.{type SetDarkMode}
+import shared/settings
+
+pub type ServerContext {
+  ServerContext
+}
+
+pub fn server_set_dark_mode(
+  msg msg: SetDarkMode,
+  server_context server_context: ServerContext,
+) -> #(Result(Nil, Nil), ServerContext) {
+  #(Ok(Nil), server_context)
+}
+
+pub fn server_set_theme(
+  msg msg: settings.SetTheme,
+  server_context server_context: ServerContext,
+) -> #(Result(Nil, Nil), ServerContext) {
+  #(Ok(Nil), server_context)
+}
+",
+    )
+
+  let assert Ok(endpoints) =
+    scanner.scan(src_dir: dir <> "/src", context_type_name: "ServerContext")
+  let assert Ok(set_dark_mode) =
+    list.find(endpoints, fn(e) { e.fn_name == "set_dark_mode" })
+  let assert Ok(set_theme) =
+    list.find(endpoints, fn(e) { e.fn_name == "set_theme" })
+
+  let assert option.Some("SetDarkMode") = set_dark_mode.msg_type_name
+  let assert [#("enabled", field_type.BoolField)] = set_dark_mode.params
+  let assert option.Some("SetTheme") = set_theme.msg_type_name
+  let assert [#("name", field_type.StringField)] = set_theme.params
+
+  let assert Ok(Nil) = simplifile.delete_all([dir])
 }
 
 fn scan_fixture_endpoints() -> List(scanner.HandlerEndpoint) {

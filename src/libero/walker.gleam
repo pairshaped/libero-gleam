@@ -376,10 +376,8 @@ fn collect_variant_field_refs(
       )
     })
   list.filter(field_refs, fn(ref) {
-    let #(ref_module, ref_type) = ref
-    !set.contains(visited, ref)
-    && !is_skipped_module(ref_module)
-    && !is_primitive_type(ref_type)
+    let #(ref_module, _) = ref
+    !set.contains(visited, ref) && !is_skipped_module(ref_module)
   })
 }
 

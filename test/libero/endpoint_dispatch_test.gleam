@@ -92,6 +92,35 @@ pub fn endpoint_dispatch_wraps_read_only_handler_test() {
   birdie.snap(content, title: "dispatch: read-only handler wrapper")
 }
 
+pub fn endpoint_dispatch_passes_whole_msg_type_to_handler_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "set_dark_mode",
+      return_ok: field_type.NilField,
+      return_err: field_type.NilField,
+      params: [#("enabled", field_type.BoolField)],
+      mutates_context: True,
+      msg_type_name: option.Some("SetDarkMode"),
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate(
+      endpoints: endpoints,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+    )
+
+  let assert True = string.contains(content, "ServerSetDarkMode(enabled: Bool)")
+  let assert True =
+    string.contains(
+      content,
+      "handler.server_set_dark_mode(msg: wire.coerce(typed_msg), server_context:)",
+    )
+}
+
 pub fn endpoint_dispatch_imports_qualified_param_types_test() {
   let endpoints = [
     scanner.HandlerEndpoint(

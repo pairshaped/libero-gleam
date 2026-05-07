@@ -9,6 +9,11 @@ import gleam/option.{None, Some}
 import libero/error
 import libero/wire
 
+pub type TestVariant {
+  TestAtom
+  TestRecord(value: Int)
+}
+
 // ---------- Call envelope decoding (call envelope format: {module, request_id, value}) ----------
 
 pub fn decode_call_with_nil_value_test() {
@@ -88,6 +93,22 @@ pub fn roundtrip_tuple_via_decode_test() {
   let result: #(String, Int, Bool) =
     wire.decode(wire.encode(#("session", 42, True)))
   let assert #("session", 42, True) = result
+}
+
+pub fn tag_push_prepends_push_frame_tag_test() {
+  let assert <<1, 2, 3, 4>> = wire.tag_push(<<2, 3, 4>>)
+}
+
+pub fn variant_tag_extracts_zero_arity_constructor_test() {
+  let assert Ok("test_atom") = wire.variant_tag(coerce(TestAtom))
+}
+
+pub fn variant_tag_extracts_record_constructor_test() {
+  let assert Ok("test_record") = wire.variant_tag(coerce(TestRecord(123)))
+}
+
+pub fn variant_tag_rejects_plain_tuple_test() {
+  let assert Error(Nil) = wire.variant_tag(coerce(#("not_an_atom", 1)))
 }
 
 // ---------- Helpers ----------

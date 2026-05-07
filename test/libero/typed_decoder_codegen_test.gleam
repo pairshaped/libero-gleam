@@ -161,3 +161,30 @@ pub fn option_field_snapshot_test() {
   let js = codegen_decoders.emit_typed_decoders(types)
   birdie.snap(js, title: "option field typed decoder")
 }
+
+pub fn dict_and_tuple_field_snapshot_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/compound",
+      type_name: "Compound",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/compound",
+          variant_name: "Compound",
+          atom_name: "compound",
+          float_field_indices: [],
+          fields: [
+            field_type.DictOf(
+              key: field_type.StringField,
+              value: field_type.IntField,
+            ),
+            field_type.TupleOf([field_type.StringField, field_type.BoolField]),
+          ],
+        ),
+      ],
+    ),
+  ]
+  let js = codegen_decoders.emit_typed_decoders(types)
+  birdie.snap(js, title: "dict tuple field typed decoder")
+}
