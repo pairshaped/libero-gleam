@@ -24,7 +24,7 @@ const out_dir = "src/generated/libero"
 const default_atoms_module = "generated@rpc_atoms"
 
 /// Run the full generation pipeline, writing files to `src/generated/libero/`.
-pub fn main() {
+pub fn main() -> Nil {
   let endpoints = case scan() {
     Ok(eps) -> eps
     Error(errors) -> {
@@ -41,25 +41,25 @@ pub fn main() {
     }
   }
   let atoms_module = default_atoms_module
-  let dispatch_src = generate_dispatch(endpoints, option.Some(atoms_module))
-  let atoms_erl = generate_atoms(endpoints, discovered, atoms_module)
-  let decoders_js = generate_decoders_ffi(discovered, endpoints)
+  let dispatch_src = generate_dispatch(endpoints:, atoms_module: option.Some(atoms_module))
+  let atoms_erl = generate_atoms(endpoints:, discovered:, atoms_module:)
+  let decoders_js = generate_decoders_ffi(discovered:, endpoints:)
   let decoders_gleam = generate_decoders_gleam()
 
-  let _ = simplifile.create_directory_all(out_dir)
-  let _ =
+  let assert Ok(_) = simplifile.create_directory_all(out_dir)
+  let assert Ok(_) =
     simplifile.write(
       out_dir <> "/dispatch.gleam",
       format.format_gleam(dispatch_src),
     )
-  let _ = simplifile.write(out_dir <> "/rpc_decoders_ffi.mjs", decoders_js)
-  let _ =
+  let assert Ok(_) = simplifile.write(out_dir <> "/rpc_decoders_ffi.mjs", decoders_js)
+  let assert Ok(_) =
     simplifile.write(
       out_dir <> "/rpc_decoders.gleam",
       format.format_gleam(decoders_gleam),
     )
   let atoms_path = "src/" <> atoms_module <> ".erl"
-  let _ = simplifile.write(atoms_path, atoms_erl)
+  let assert Ok(_) = simplifile.write(atoms_path, atoms_erl)
 
   io.println(
     "wrote "
@@ -95,8 +95,8 @@ pub fn walk(
 
 /// Generate the server dispatch module source.
 pub fn generate_dispatch(
-  endpoints: List(HandlerEndpoint),
-  atoms_module: option.Option(String),
+  endpoints endpoints: List(HandlerEndpoint),
+  atoms_module atoms_module: option.Option(String),
 ) -> String {
   codegen_dispatch.generate(
     endpoints,
@@ -110,17 +110,17 @@ pub fn generate_dispatch(
 /// Generate the Erlang atoms pre-registration file content.
 /// Module name uses Gleam's @-separated convention (e.g. "generated@rpc_atoms").
 pub fn generate_atoms(
-  endpoints: List(HandlerEndpoint),
-  discovered: List(DiscoveredType),
-  atoms_module: String,
+  endpoints endpoints: List(HandlerEndpoint),
+  discovered discovered: List(DiscoveredType),
+  atoms_module atoms_module: String,
 ) -> String {
   codegen_dispatch.generate_atoms_erl(endpoints, discovered, atoms_module)
 }
 
 /// Generate the JS typed decoder FFI source.
 pub fn generate_decoders_ffi(
-  discovered: List(DiscoveredType),
-  endpoints: List(HandlerEndpoint),
+  discovered discovered: List(DiscoveredType),
+  endpoints endpoints: List(HandlerEndpoint),
 ) -> String {
   codegen_decoders.generate_decoders_ffi(discovered, endpoints, "../../")
 }
@@ -130,8 +130,8 @@ pub fn generate_decoders_gleam() -> String {
   codegen_decoders.generate_decoders_gleam("rpc_decoders_ffi.mjs")
 }
 
+// nolint: avoid_panic -- erlang:halt/1 FFI; JS body is unreachable
 @external(erlang, "libero_ffi", "halt")
-fn halt(code: Int) -> a {
-  let _ = code
+fn halt(_code: Int) -> a {
   panic as "halt: Erlang-only, unreachable on JavaScript target"
 }
