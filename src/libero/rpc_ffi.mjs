@@ -88,36 +88,22 @@ export function identity(x) {
   return x;
 }
 
-// ---------- Float field registry ----------
+// ---------- Field type registry ----------
 //
 // JS has no int/float distinction - `2.0 === 2` and
 // `Number.isInteger(2.0) === true`. But ETF does distinguish them,
 // and Gleam's BEAM runtime treats Int and Float as different types.
 //
-// The generator discovers which constructor fields are typed as Float
-// and emits registerFloatFields() calls. The ETF encoder checks this
-// registry when encoding custom type fields, ensuring whole-number
-// floats like `2.0` are encoded as NEW_FLOAT_EXT (tag 70) instead of
-// INTEGER_EXT (tags 97/98).
+// The generator emits registerFieldTypes() calls with enough type
+// information for direct fields and container elements typed as Float
+// to be encoded as NEW_FLOAT_EXT (tag 70), even when the JS value is a
+// whole number.
 //
 // This is ETF-specific metadata - a JSON encoder would ignore it
 // since JSON has only one number type.
 
-/** @type {Map<string, Set<number>>} */
-const floatFieldRegistry = new Map();
-
 /** @type {Map<string, any[]>} */
 const fieldTypeRegistry = new Map();
-
-/**
- * Register which field indices of a custom-type atom should be encoded
- * as floats regardless of whether the JS value is a whole number.
- * @param {string} atomName snake_case constructor name
- * @param {number[]} fieldIndices 0-based positions of Float-typed fields
- */
-export function registerFloatFields(atomName, fieldIndices) {
-  floatFieldRegistry.set(atomName, new Set(fieldIndices));
-}
 
 /**
  * Register field type hints for a custom-type atom. Hints are generated
@@ -758,15 +744,11 @@ class ETFEncoder {
           this.writeUint32(arity);
         }
         this.writeAtom(ctorName);
-        // Check float field registry - fields at registered indices
-        // must be encoded as floats even if Number.isInteger is true.
-        const floatIndices = floatFieldRegistry.get(ctorName);
         const fieldTypes = fieldTypeRegistry.get(ctorName);
         keys.forEach((k, i) => {
           const fieldValue = value[k];
           const hintedField = hintForConstructorField(ctorName, i, typeHint)
-            ?? fieldTypes?.[i]
-            ?? (floatIndices && floatIndices.has(i) ? "float" : undefined);
+            ?? fieldTypes?.[i];
           this.encodeTerm(fieldValue, hintedField);
         });
       }

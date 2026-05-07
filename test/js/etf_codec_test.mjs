@@ -17,12 +17,7 @@ import { strict as assert } from "assert";
 // Inlined from rpc_ffi.mjs - decoder, encoder, helpers
 // ============================================================
 
-const floatFieldRegistry = new Map();
 const fieldTypeRegistry = new Map();
-
-function registerFloatFields(atomName, fieldIndices) {
-  floatFieldRegistry.set(atomName, new Set(fieldIndices));
-}
 
 function registerFieldTypes(atomName, fieldTypes) {
   fieldTypeRegistry.set(atomName, fieldTypes);
@@ -365,12 +360,10 @@ class ETFEncoder {
         this.writeUint8(104);
         this.writeUint8(keys.length + 1);
         this.writeAtom(ctorName);
-        const floatIndices = floatFieldRegistry.get(ctorName);
         const fieldTypes = fieldTypeRegistry.get(ctorName);
         keys.forEach((k, i) => {
           const hintedField = hintForConstructorField(ctorName, i, typeHint)
-            ?? fieldTypes?.[i]
-            ?? (floatIndices && floatIndices.has(i) ? "float" : undefined);
+            ?? fieldTypes?.[i];
           this.encodeTerm(value[k], hintedField);
         });
       }
@@ -879,22 +872,21 @@ test("RoundTrip", "map", () => {
 });
 
 // ============================================================
-// Float field registry tests
+// Float type hint tests
 // ============================================================
 
-console.log("\nFloat field registry tests:");
+console.log("\nFloat type hint tests:");
 
-test("FloatRegistry", "whole-number float encoded as NEW_FLOAT_EXT when registered", () => {
+test("FloatHints", "whole-number float encoded as NEW_FLOAT_EXT with an explicit hint", () => {
   const enc1 = new ETFEncoder();
   enc1.writeUint8(131);
   enc1.encodeNumber(2);
   const bytes1 = new Uint8Array(enc1.result());
-  assert.equal(bytes1[1], 97, "Without registry, 2 should use SMALL_INTEGER_EXT (97)");
+  assert.equal(bytes1[1], 97, "Without a hint, 2 should use SMALL_INTEGER_EXT (97)");
 
   const enc2 = new ETFEncoder();
   enc2.writeUint8(131);
-  enc2.writeUint8(70); // NEW_FLOAT_EXT
-  enc2.writeFloat64(2.0);
+  enc2.encodeTerm(2.0, "float");
   const bytes2 = new Uint8Array(enc2.result());
   assert.equal(bytes2[1], 70, "NEW_FLOAT_EXT tag should be 70");
 
@@ -903,31 +895,27 @@ test("FloatRegistry", "whole-number float encoded as NEW_FLOAT_EXT when register
   assert.equal(erlResult, "2.0");
 });
 
-test("FloatRegistry", "registerFloatFields stores and retrieves correctly", () => {
-  registerFloatFields("my_type", [0, 2]);
-  const indices = floatFieldRegistry.get("my_type");
-  assert.ok(indices instanceof Set);
-  assert.ok(indices.has(0));
-  assert.ok(!indices.has(1));
-  assert.ok(indices.has(2));
-  floatFieldRegistry.delete("my_type");
+test("FloatHints", "registerFieldTypes stores direct float hints", () => {
+  registerFieldTypes("my_type", ["float", undefined, "float"]);
+  const hints = fieldTypeRegistry.get("my_type");
+  assert.deepEqual(hints, ["float", undefined, "float"]);
+  fieldTypeRegistry.delete("my_type");
 });
 
-test("FloatRegistry", "encoder uses registry for custom type float fields", () => {
-  registerFloatFields("point", [0, 1]);
-  const indices = floatFieldRegistry.get("point");
-  assert.ok(indices.has(0));
-  assert.ok(indices.has(1));
+test("FloatHints", "encoder uses type hints for custom type float fields", () => {
+  registerFieldTypes("point", ["float", "float"]);
+  assert.deepEqual(fieldTypeRegistry.get("point"), ["float", "float"]);
 
   const enc = new ETFEncoder();
   enc.writeUint8(131);
-  enc.writeUint8(104); // SMALL_TUPLE_EXT
-  enc.writeUint8(3);   // arity: atom + 2 fields
-  enc.writeAtom("point");
-  enc.writeUint8(70);
-  enc.writeFloat64(2.0);
-  enc.writeUint8(70);
-  enc.writeFloat64(3.0);
+  class Point extends CustomType {
+    constructor(x, y) {
+      super();
+      this.x = x;
+      this.y = y;
+    }
+  }
+  enc.encodeTerm(new Point(2.0, 3.0));
 
   const b64 = bufferToBase64(enc.result());
   const erlResult = etfDecodeInErlang(b64);
@@ -944,10 +932,10 @@ test("FloatRegistry", "encoder uses registry for custom type float fields", () =
   const erlResult2 = etfDecodeInErlang(b642);
   assert.equal(erlResult2, "{point,2,3}");
 
-  floatFieldRegistry.delete("point");
+  fieldTypeRegistry.delete("point");
 });
 
-test("FloatRegistry", "encoder uses nested float hints inside lists", () => {
+test("FloatHints", "encoder uses nested float hints inside lists", () => {
   registerFieldTypes("float_list", [{ kind: "list", element: "float" }]);
 
   class FloatList extends CustomType {
@@ -1256,9 +1244,9 @@ test("Encode", "some wrapping custom type", () => {
   assert.equal(erlResult, "{some,{point,1.0,2.0}}");
 });
 
-// --- Float field registry: full cross-runtime roundtrip ---
+// --- Float type hint: full cross-runtime roundtrip ---
 
-test("FloatRegistry", "registry roundtrip: whole-number floats preserved BEAM → JS → BEAM", () => {
+test("FloatHints", "type hint roundtrip: whole-number floats preserved BEAM → JS → BEAM", () => {
   // 1. BEAM encodes {point, 2.0, 3.0} as {point, NEW_FLOAT_EXT, NEW_FLOAT_EXT}
   const buf = etfFromErlang("{point, 2.0, 3.0}");
   const decoder = new ETFDecoder(buf);
@@ -1266,28 +1254,25 @@ test("FloatRegistry", "registry roundtrip: whole-number floats preserved BEAM �
   assert.deepEqual(decoded, ["point", 2.0, 3.0]);
   assert.equal(Number.isInteger(decoded[1]), true); // 2.0 === 2 in JS
 
-  // 2. JS re-encodes using float field registry, BEAM sees floats not ints
-  registerFloatFields("point", [0, 1]);
+  // 2. JS re-encodes using field type hints, BEAM sees floats instead of ints.
+  registerFieldTypes("point", ["float", "float"]);
   try {
+    class Point extends CustomType {
+      constructor(x, y) {
+        super();
+        this.x = x;
+        this.y = y;
+      }
+    }
+
     const enc = new ETFEncoder();
     enc.writeUint8(131);
-    enc.writeUint8(104); enc.writeUint8(3);
-    enc.writeAtom("point");
-    // Simulate what the custom-type encode path does: check registry,
-    // force NEW_FLOAT_EXT for registered indices.
-    const floatIndices = floatFieldRegistry.get("point");
-    [decoded[1], decoded[2]].forEach((v, i) => {
-      if (floatIndices && floatIndices.has(i)) {
-        enc.writeUint8(70); enc.writeFloat64(v);
-      } else {
-        enc.encodeTerm(v);
-      }
-    });
+    enc.encodeTerm(new Point(decoded[1], decoded[2]));
     const b64 = bufferToBase64(enc.result());
     const erlResult = etfDecodeInErlang(b64);
     assert.equal(erlResult, "{point,2.0,3.0}");
   } finally {
-    floatFieldRegistry.delete("point");
+    fieldTypeRegistry.delete("point");
   }
 });
 

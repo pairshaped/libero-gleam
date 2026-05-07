@@ -1,10 +1,12 @@
 # Libero Context
 
-Libero is an RPC plumbing library for Gleam (6.0.0). It scans Gleam source for handler function signatures and generates typed dispatch, decoder, and wire protocol code. Most users run `gleam run -m libero` to generate into `src/generated/libero/`. Frameworks call the library API programmatically.
+Libero is an RPC plumbing library for Gleam (6.0.0). It scans Gleam source for handler function signatures and generates typed server dispatch, JavaScript decoders, Erlang atom pre-registration, and ETF wire protocol code. Most users run `gleam run -m libero` to generate server files into `src/generated/libero/` and `src/generated@rpc_atoms.erl`. Frameworks call the library API programmatically.
 
 ## Conventions
 
-Libero is opinionated: context type is `ServerContext` in the `server_context` module, wire tag is `"rpc"`, source is always `src/`, output is always `src/generated/libero/`, and `src/generated/` is skipped during scanning.
+Libero is opinionated: context type is `ServerContext` in the `server_context` module, wire tag is `"rpc"`, source is always `src/`, server output is always `src/generated/libero/`, atoms output is always `src/generated@rpc_atoms.erl`, and `src/generated/` is skipped during scanning.
+
+Libero does not generate client stubs, WebSocket clients, routers, SSR, scaffolded apps, or framework transport. Frameworks such as Rally own those layers. Rally may use Libero for scanner, walker, dispatch, atoms, and ETF primitives, but Rally should generate its own client `ClientMsg` mirror and transport API.
 
 ## CLI
 
@@ -16,9 +18,17 @@ Writes three files to `src/generated/libero/`:
 
 | File | Purpose |
 |------|---------|
-| `dispatch.gleam` | `ClientMsg` type and `handle` function with panic catching |
+| `dispatch.gleam` | server `ClientMsg` type and `handle` function with panic catching |
 | `rpc_decoders_ffi.mjs` | Typed JS decoders for every discovered type |
 | `rpc_decoders.gleam` | Gleam wrapper that registers the JS decoders |
+
+Also writes `src/generated@rpc_atoms.erl` for Erlang atom pre-registration. To mirror the JavaScript decoder files into a client package, set `LIBERO_CLIENT_OUT_DIR`, for example:
+
+```sh
+LIBERO_CLIENT_OUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
+```
+
+`LIBERO_CLIENT_OUT_DIR` only mirrors decoder files. It does not generate client message constructors or transport code.
 
 ## Library API
 
@@ -33,7 +43,7 @@ let decoders_js = libero.generate_decoders_ffi(discovered, endpoints) // 5. Gene
 let decoders_gleam = libero.generate_decoders_gleam()                 // 6. Generate Gleam wrapper
 ```
 
-Each function returns a string — the caller owns file I/O. Internal modules (`libero/scanner`, `libero/codegen_dispatch`, etc.) keep flexible parameterized signatures for framework consumers that need programmatic control.
+Each function returns a string, so the caller owns file I/O. Internal modules (`libero/scanner`, `libero/codegen_dispatch`, etc.) keep flexible parameterized signatures for framework consumers that need programmatic control.
 
 ## What it provides
 
@@ -43,7 +53,7 @@ Each function returns a string — the caller owns file I/O. Internal modules (`
 
 3. **Dispatch codegen** (`libero/codegen_dispatch`): Generates a Gleam module with a `ClientMsg` type and a `handle` function. Wraps each handler in `trace.try_call` for panic safety.
 
-4. **Decoder codegen** (`libero/codegen_decoders`): Generates JavaScript typed decoders so the JS client can reconstruct Gleam values from ETF.
+4. **Decoder codegen** (`libero/codegen_decoders`): Generates JavaScript typed decoders so the JS client can reconstruct Gleam values from ETF. It also emits float type hints used by the JS ETF encoder.
 
 5. **Wire protocol** (`libero/wire`): ETF codec for both Erlang and JavaScript targets. Call envelope, response framing, variant tag extraction.
 
@@ -134,6 +144,7 @@ pub fn handle(
 - Response frame: `<<0x00, request_id:32-big, etf_bytes>>`
 - Push frame: `<<0x01, etf_bytes>>` (server-initiated, no request ID)
 - JS codec: custom ETF encoder/decoder in `rpc_ffi.mjs` with typed decoder layer
+- Float handling: generated code calls `registerFieldTypes` so JavaScript whole-number floats are encoded as ETF floats, including inside `List`, `Option`, `Result`, `Dict`, and tuple containers
 
 ## Error model
 
