@@ -193,7 +193,8 @@ pub fn qualified_atoms_for_colliding_variants_test() {
   let assert "shared_b__discount" = bv.atom_name
   let assert True = av.atom_name != bv.atom_name
 
-  let assert Ok(Nil) = simplifile.delete_all([fixture_root <> "/atom_collision"])
+  let assert Ok(Nil) =
+    simplifile.delete_all([fixture_root <> "/atom_collision"])
 }
 
 fn find_type(

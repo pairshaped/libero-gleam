@@ -56,6 +56,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
   birdie.snap(content, title: "dispatch: four mutating endpoints")
 }
@@ -88,6 +89,7 @@ pub fn endpoint_dispatch_wraps_read_only_handler_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
   birdie.snap(content, title: "dispatch: read-only handler wrapper")
 }
@@ -111,6 +113,7 @@ pub fn endpoint_dispatch_passes_whole_msg_type_to_handler_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
 
   let assert True = string.contains(content, "ServerSetDarkMode(enabled: Bool)")
@@ -149,6 +152,7 @@ pub fn dispatch_known_tags_call_shared_helper_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
 
   let assert True =
@@ -214,6 +218,7 @@ pub fn endpoint_dispatch_imports_qualified_param_types_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "shared/types",
       atoms_module: option.None,
+      wire_module: option.None,
     )
   birdie.snap(content, title: "dispatch: qualified param type imports")
 }
@@ -242,6 +247,7 @@ pub fn endpoint_dispatch_imports_stdlib_param_types_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "shared/types",
       atoms_module: option.None,
+      wire_module: option.None,
     )
   birdie.snap(content, title: "dispatch: stdlib param type imports")
 }
@@ -265,6 +271,7 @@ pub fn dispatch_includes_ensure_atoms_when_module_set_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.Some("generated@rpc_atoms"),
+      wire_module: option.None,
     )
   let assert True = string.contains(content, "ensure_atoms()")
   let assert True =
@@ -293,6 +300,7 @@ pub fn dispatch_omits_ensure_atoms_when_module_is_none_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
   let assert False = string.contains(content, "ensure_atoms")
   let assert False = string.contains(content, "@external(erlang")
@@ -391,6 +399,7 @@ pub fn dispatch_variant_names_include_server_prefix_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
 
   // ClientMsg variant uses Server prefix
@@ -476,8 +485,10 @@ pub fn generate_atoms_erl_no_duplicate_end_of_function_test() {
   let content =
     codegen_dispatch.generate_atoms_erl(endpoints, discovered, "test@atoms")
 
+  // No AtomMap under the wire-identity scheme; just atom pre-registration.
+  let assert False = string.contains(content, "AtomMap")
+  let assert False = string.contains(content, "atom_map")
   // Must end with exactly one trailing nil.
-  let assert True = string.contains(content, "AtomMap),\n    persistent_term")
   let assert True =
     string.contains(
       content,
@@ -496,6 +507,7 @@ pub fn empty_endpoints_generates_valid_dispatch_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
 
   // Must not produce a naked `->` (syntax error when known_tag_guards is empty)

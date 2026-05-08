@@ -14,6 +14,7 @@ import libero/field_type.{
 }
 import libero/scanner
 import libero/walker.{type DiscoveredType, type DiscoveredVariant}
+import libero/wire_identity
 
 /// Generate the Gleam wrapper module source for the typed decoder FFI.
 pub fn generate_decoders_gleam(
@@ -39,8 +40,7 @@ pub fn generate_decoders_ffi(
   let imports = emit_decoder_imports(discovered:, endpoints:, relpath_prefix:)
   let body = emit_typed_decoders(discovered)
   let response_decoders = emit_response_decoders(endpoints)
-  let float_type_registrations =
-    emit_float_type_registrations(discovered:, endpoints:)
+  let class_statics = emit_class_statics(discovered)
   // nolint: unnecessary_string_concatenation -- codegen template
   let ctor_setters =
     "setResultCtors(Ok, ResultError);\n"
@@ -51,7 +51,7 @@ pub fn generate_decoders_ffi(
 //
 // Per-type decoder functions derived from the DiscoveredType graph.
 
-" <> imports <> "\n\n" <> ctor_setters <> float_type_registrations <> "\n" <> body <> "\n" <> response_decoders
+" <> imports <> "\n\n" <> ctor_setters <> class_statics <> "\n" <> body <> "\n" <> response_decoders
 }
 
 /// Emit a JS string with one decoder function per discovered type,
@@ -69,7 +69,9 @@ pub fn emit_typed_decoders(discovered: List(DiscoveredType)) -> String {
   string.join(parts, "\n\n")
 }
 
-fn emit_typed_decoder_registrations(discovered: List(DiscoveredType)) -> String {
+fn emit_typed_decoder_registrations(
+  discovered: List(DiscoveredType),
+) -> String {
   case discovered {
     [] -> ""
     _ -> {
@@ -77,16 +79,13 @@ fn emit_typed_decoder_registrations(discovered: List(DiscoveredType)) -> String 
         list.flat_map(discovered, fn(t) {
           let fn_name = decoder_fn_name(t.module_path, t.type_name)
           list.map(t.variants, fn(v) {
-            let bare = walker.to_snake_case(v.variant_name)
             "registerAtomDecoder(\""
-            <> v.atom_name
+            <> variant_hash(v)
             <> "\", \""
             <> fn_name
             <> "\", "
             <> fn_name
-            <> ", \""
-            <> bare
-            <> "\");"
+            <> ");"
           })
         })
         |> string.join("\n")
@@ -131,24 +130,12 @@ fn emit_decoder_imports(
     <> "import { from_list as dictFromList } from \""
     <> relpath_prefix
     <> "gleam_stdlib/gleam/dict.mjs\";"
-  let rpc_ffi_import = {
-    let needs_typed = !list.is_empty(discovered)
-    let needs_float = needs_float_type_hints(discovered:, endpoints:)
-    case needs_typed, needs_float {
-      True, True ->
-        "\nimport { registerAtomDecoder, registerFieldTypes } from \""
-        <> relpath_prefix
-        <> "libero/libero/rpc_ffi.mjs\";"
-      True, False ->
-        "\nimport { registerAtomDecoder } from \""
-        <> relpath_prefix
-        <> "libero/libero/rpc_ffi.mjs\";"
-      False, True ->
-        "\nimport { registerFieldTypes } from \""
-        <> relpath_prefix
-        <> "libero/libero/rpc_ffi.mjs\";"
-      False, False -> ""
-    }
+  let rpc_ffi_import = case list.is_empty(discovered) {
+    True -> ""
+    False ->
+      "\nimport { registerAtomDecoder } from \""
+      <> relpath_prefix
+      <> "libero/libero/rpc_ffi.mjs\";"
   }
   let module_imports =
     list.map(module_paths, fn(mp) {
@@ -186,89 +173,51 @@ fn emit_decoder_imports(
   )
 }
 
-fn needs_float_type_hints(
-  discovered discovered: List(DiscoveredType),
-  endpoints endpoints: List(scanner.HandlerEndpoint),
-) -> Bool {
-  discovered_has_float_fields(discovered)
-  || list.any(endpoints, fn(e) {
-    list.any(e.params, fn(p) { contains_float(p.1) })
-  })
-}
-
-fn discovered_has_float_fields(discovered: List(DiscoveredType)) -> Bool {
-  list.any(discovered, fn(t) {
-    list.any(t.variants, fn(v) { list.any(v.fields, contains_float) })
-  })
-}
-
-fn contains_float(ft: FieldType) -> Bool {
-  field_type.contains(ft, fn(inner) {
-    case inner {
-      FloatField -> True
-      _ -> False
-    }
-  })
-}
-
-pub fn emit_float_type_registrations(
-  discovered discovered: List(DiscoveredType),
-  endpoints endpoints: List(scanner.HandlerEndpoint),
-) -> String {
+/// Emit per-variant class-static assignments for every discovered user
+/// type. `__wireAtom` carries the 10-char hash; `__fieldTypes` carries
+/// the positional field-type hints the encoder needs (Float marked,
+/// containers wrapped, primitives null). These statics replace the
+/// runtime `_bareToQualifiedAtom` and `fieldTypeRegistry` lookup tables.
+///
+/// Even 0-arity variants get a `__fieldTypes = []` for symmetry; the
+/// encoder branches on key count so the empty array is never indexed.
+pub fn emit_class_statics(discovered: List(DiscoveredType)) -> String {
   let lines =
-    list.append(
-      emit_discovered_float_type_registrations(discovered),
-      emit_endpoint_float_type_registrations(endpoints),
-    )
+    list.flat_map(discovered, fn(t) {
+      list.flat_map(t.variants, fn(v) {
+        let class_ref =
+          "_m_"
+          <> codegen.module_to_underscored(v.module_path)
+          <> "."
+          <> v.variant_name
+        let hints =
+          v.fields
+          |> list.map(emit_float_type_hint)
+          |> string.join(", ")
+        [
+          class_ref <> ".__wireAtom = \"" <> variant_hash(v) <> "\";",
+          class_ref <> ".__fieldTypes = [" <> hints <> "];",
+        ]
+      })
+    })
   case lines {
     [] -> ""
     _ -> string.join(lines, "\n") <> "\n"
   }
 }
 
-fn emit_discovered_float_type_registrations(
-  discovered: List(DiscoveredType),
-) -> List(String) {
-  list.flat_map(discovered, fn(t) {
-    list.filter_map(t.variants, fn(v) {
-      case list.any(v.fields, contains_float) {
-        False -> Error(Nil)
-        True -> {
-          let hints =
-            v.fields
-            |> list.map(emit_float_type_hint)
-            |> string.join(", ")
-          Ok(
-            "registerFieldTypes(\"" <> v.atom_name <> "\", [" <> hints <> "]);",
-          )
-        }
-      }
-    })
-  })
+fn variant_hash(v: DiscoveredVariant) -> String {
+  let #(_sig, hash) =
+    wire_identity.wire_identity(
+      module_path: v.module_path,
+      constructor_name: v.variant_name,
+      fields: v.fields,
+    )
+  hash
 }
 
-fn emit_endpoint_float_type_registrations(
-  endpoints: List(scanner.HandlerEndpoint),
-) -> List(String) {
-  list.filter_map(endpoints, fn(e) {
-    let field_types = list.map(e.params, fn(p) { p.1 })
-    case list.any(field_types, contains_float) {
-      False -> Error(Nil)
-      True -> {
-        let hints =
-          field_types
-          |> list.map(emit_float_type_hint)
-          |> string.join(", ")
-        Ok(
-          "registerFieldTypes(\"server_"
-          <> e.fn_name
-          <> "\", ["
-          <> hints
-          <> "]);",
-        )
-      }
-    }
-  })
+fn variant_source_label(v: DiscoveredVariant) -> String {
+  v.variant_name <> " @ " <> v.module_path
 }
 
 fn emit_float_type_hint(ft: FieldType) -> String {
@@ -353,13 +302,14 @@ fn emit_enum_decoder(variants: List(DiscoveredVariant)) -> String {
   let cases =
     list.map(variants, fn(v) {
       "  if (term === \""
-      <> v.atom_name
+      <> variant_hash(v)
       <> "\") return "
       <> emit_variant_constructor_call(v, "")
-      <> ";"
+      <> "; // "
+      <> variant_source_label(v)
     })
   string.join(cases, "\n")
-  <> "\n  throw new DecodeError(\"unknown variant: \" + String(term));"
+  <> "\n  throw new DecodeError(\"unknown variant atom: \" + String(term));"
 }
 
 fn emit_record_decoder(variant: DiscoveredVariant) -> String {
@@ -368,11 +318,15 @@ fn emit_record_decoder(variant: DiscoveredVariant) -> String {
       "    " <> field_decoder_call(ft, "term[" <> int.to_string(i + 1) <> "]")
     })
   let args = "\n" <> string.join(field_lines, ",\n") <> "\n  "
+  let hash = variant_hash(variant)
+  let label = variant_source_label(variant)
   "  if (!Array.isArray(term) || term[0] !== \""
-  <> variant.atom_name
+  <> hash
   <> "\") throw new DecodeError(\"expected "
-  <> variant.atom_name
-  <> "\");\n"
+  <> hash
+  <> " ("
+  <> label
+  <> "), got \" + (Array.isArray(term) ? String(term[0]) : typeof term));\n"
   <> "  return "
   <> emit_variant_constructor_call(variant, args)
   <> ";"
@@ -391,15 +345,17 @@ fn emit_tagged_union_decoder(variants: List(DiscoveredVariant)) -> String {
           |> string.join(", ")
       }
       "    case \""
-      <> v.atom_name
-      <> "\":\n      return "
+      <> variant_hash(v)
+      <> "\": // "
+      <> variant_source_label(v)
+      <> "\n      return "
       <> emit_variant_constructor_call(v, args)
       <> ";"
     })
   "  const tag = Array.isArray(term) ? term[0] : term;\n"
   <> "  switch (tag) {\n"
   <> string.join(arms, "\n")
-  <> "\n    default:\n      throw new DecodeError(\"unknown variant: \" + String(tag));\n"
+  <> "\n    default:\n      throw new DecodeError(\"unknown variant atom: \" + String(tag));\n"
   <> "  }"
 }
 

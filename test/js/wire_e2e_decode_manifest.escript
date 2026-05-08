@@ -5,8 +5,25 @@
 %%
 %% Called from wire_e2e_setup.sh with libero ebins on the path:
 %%   erl -noshell -pa <ebin_dirs> -eval "$(cat decode_manifest.erl)" > manifest.json
+%%
+%% User-type values are in wire-shape (hashed atoms) via the generated
+%% wire transformers, matching what the dispatch handler would send.
 
 generated@rpc_atoms:ensure(),
+
+%% Wire transformer aliases for user types
+EncItem = fun(V) -> 'generated@rpc_wire':encode_shared_types__item(V) end,
+EncStatus = fun(V) -> 'generated@rpc_wire':encode_shared_types__status(V) end,
+EncTree = fun(V) -> 'generated@rpc_wire':encode_shared_types__tree(V) end,
+EncItemError = fun(V) -> 'generated@rpc_wire':encode_shared_types__item_error(V) end,
+EncWithFloats = fun(V) -> 'generated@rpc_wire':encode_shared_types__with_floats(V) end,
+EncNested = fun(V) -> 'generated@rpc_wire':encode_shared_types__nested_record(V) end,
+EncItemListData = fun(V) -> 'generated@rpc_wire':encode_shared_types__item_list_data(V) end,
+EncItemSummaryData = fun(V) -> 'generated@rpc_wire':encode_shared_types__item_summary_data(V) end,
+EncFormPrefill = fun(V) -> 'generated@rpc_wire':encode_shared_types__form_prefill(V) end,
+EncNestedEnvelope = fun(V) -> 'generated@rpc_wire':encode_shared_types__nested_envelope(V) end,
+EncDictAndList = fun(V) -> 'generated@rpc_wire':encode_shared_types__dict_and_list_envelope(V) end,
+
 Encode = fun(Term) -> binary_to_list(base64:encode(libero_ffi:encode(Term))) end,
 
 Item = {item, 7, <<"wrench">>, 12.5, true},
@@ -52,32 +69,32 @@ Cases = [
   {"echo_dict_string_int/pairs", {ok, {ok, #{<<"one">> => 1, <<"two">> => 2}}}},
   {"echo_dict_string_int/empty", {ok, {ok, #{}}}},
   {"echo_tuple_int_string/pair", {ok, {ok, {9, <<"nine">>}}}},
-  {"echo_status/active", {ok, {ok, active}}},
-  {"echo_status/pending", {ok, {ok, pending}}},
-  {"echo_status/cancelled", {ok, {ok, cancelled}}},
-  {"echo_item/basic", {ok, {ok, Item}}},
-  {"echo_tree/leaf", {ok, {ok, leaf}}},
-  {"echo_tree/deep", {ok, {ok, DeepTree}}},
-  {"echo_tree/deep_left", {ok, {ok, DeepLeftTree}}},
-  {"echo_item_error/not_found", {ok, {ok, not_found}}},
-  {"echo_item_error/validation_failed", {ok, {ok, {validation_failed, <<"name">>, <<"required">>}}}},
-  {"echo_with_floats/whole", {ok, {ok, {with_floats, 2.0, 3.0, <<"whole">>}}}},
-  {"echo_list_of_items/many", {ok, {ok, [Item, Item2]}}},
-  {"echo_option_item/some", {ok, {ok, {some, Item}}}},
+  {"echo_status/active", {ok, {ok, EncStatus(active)}}},
+  {"echo_status/pending", {ok, {ok, EncStatus(pending)}}},
+  {"echo_status/cancelled", {ok, {ok, EncStatus(cancelled)}}},
+  {"echo_item/basic", {ok, {ok, EncItem(Item)}}},
+  {"echo_tree/leaf", {ok, {ok, EncTree(leaf)}}},
+  {"echo_tree/deep", {ok, {ok, EncTree(DeepTree)}}},
+  {"echo_tree/deep_left", {ok, {ok, EncTree(DeepLeftTree)}}},
+  {"echo_item_error/not_found", {ok, {ok, EncItemError(not_found)}}},
+  {"echo_item_error/validation_failed", {ok, {ok, EncItemError({validation_failed, <<"name">>, <<"required">>})}}},
+  {"echo_with_floats/whole", {ok, {ok, EncWithFloats({with_floats, 2.0, 3.0, <<"whole">>})}}},
+  {"echo_list_of_items/many", {ok, {ok, [EncItem(Item), EncItem(Item2)]}}},
+  {"echo_option_item/some", {ok, {ok, {some, EncItem(Item)}}}},
   {"echo_option_item/none", {ok, {ok, none}}},
-  {"echo_dict_string_item/pairs", {ok, {ok, #{<<"one">> => Item, <<"two">> => Item2}}}},
+  {"echo_dict_string_item/pairs", {ok, {ok, #{<<"one">> => EncItem(Item), <<"two">> => EncItem(Item2)}}}},
   {"echo_dict_string_item/empty", {ok, {ok, #{}}}},
-  {"echo_nested_record/basic", {ok, {ok, Nested}}},
-  {"echo_typed_err/validation_failed", {ok, {error, {validation_failed, <<"name">>, <<"required">>}}}},
+  {"echo_nested_record/basic", {ok, {ok, EncNested(Nested)}}},
+  {"echo_typed_err/validation_failed", {ok, {error, EncItemError({validation_failed, <<"name">>, <<"required">>})}}},
   %% v3-style envelope coverage
-  {"echo_item_list_data/basic", {ok, {ok, ItemListData}}},
-  {"echo_item_list_data/empty", {ok, {ok, ItemListEmpty}}},
-  {"echo_item_summary_data/basic", {ok, {ok, ItemSummary}}},
-  {"echo_form_prefill/with_item", {ok, {ok, FormPrefillSome}}},
-  {"echo_form_prefill/without_item", {ok, {ok, FormPrefillNone}}},
-  {"echo_nested_envelope/with_message", {ok, {ok, NestedEnv}}},
-  {"echo_nested_envelope/no_message", {ok, {ok, NestedEnvNone}}},
-  {"echo_dict_and_list_envelope/basic", {ok, {ok, DictAndList}}}
+  {"echo_item_list_data/basic", {ok, {ok, EncItemListData(ItemListData)}}},
+  {"echo_item_list_data/empty", {ok, {ok, EncItemListData(ItemListEmpty)}}},
+  {"echo_item_summary_data/basic", {ok, {ok, EncItemSummaryData(ItemSummary)}}},
+  {"echo_form_prefill/with_item", {ok, {ok, EncFormPrefill(FormPrefillSome)}}},
+  {"echo_form_prefill/without_item", {ok, {ok, EncFormPrefill(FormPrefillNone)}}},
+  {"echo_nested_envelope/with_message", {ok, {ok, EncNestedEnvelope(NestedEnv)}}},
+  {"echo_nested_envelope/no_message", {ok, {ok, EncNestedEnvelope(NestedEnvNone)}}},
+  {"echo_dict_and_list_envelope/basic", {ok, {ok, EncDictAndList(DictAndList)}}}
 ],
 
 Print = fun

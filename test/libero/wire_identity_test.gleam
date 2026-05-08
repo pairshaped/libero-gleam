@@ -48,11 +48,13 @@ pub fn canonical_signature_list_of_user_type_test() {
       module_path: "admin/discounts",
       constructor_name: "DiscountAdminData",
       fields: [
-        ListOf(UserType(
-          module_path: "admin/discounts",
-          type_name: "Discount",
-          args: [],
-        )),
+        ListOf(
+          UserType(
+            module_path: "admin/discounts",
+            type_name: "Discount",
+            args: [],
+          ),
+        ),
       ],
     )
 }
@@ -128,16 +130,14 @@ pub fn check_uniqueness_empty_list_test() {
 
 pub fn check_uniqueness_distinct_constructors_test() {
   let constructors = [
-    Constructor(
-      module_path: "admin/discounts",
-      name: "Discount",
-      fields: [IntField, StringField],
-    ),
-    Constructor(
-      module_path: "admin/promos",
-      name: "Promo",
-      fields: [IntField, StringField],
-    ),
+    Constructor(module_path: "admin/discounts", name: "Discount", fields: [
+      IntField,
+      StringField,
+    ]),
+    Constructor(module_path: "admin/promos", name: "Promo", fields: [
+      IntField,
+      StringField,
+    ]),
     Constructor(module_path: "shared/types", name: "Pending", fields: []),
   ]
   let assert Ok(Nil) = wire_identity.check_uniqueness(constructors)
@@ -147,11 +147,9 @@ pub fn check_uniqueness_distinct_constructors_test() {
 /// not a collision — same identity, just listed twice.
 pub fn check_uniqueness_duplicate_constructor_test() {
   let c =
-    Constructor(
-      module_path: "admin/discounts",
-      name: "Discount",
-      fields: [IntField],
-    )
+    Constructor(module_path: "admin/discounts", name: "Discount", fields: [
+      IntField,
+    ])
   let assert Ok(Nil) = wire_identity.check_uniqueness([c, c])
 }
 
@@ -159,16 +157,12 @@ pub fn check_uniqueness_duplicate_constructor_test() {
 /// signatures, distinct hashes, no collision. Headline property.
 pub fn check_uniqueness_same_name_different_module_test() {
   let constructors = [
-    Constructor(
-      module_path: "admin/pages/discounts",
-      name: "Discount",
-      fields: [IntField],
-    ),
-    Constructor(
-      module_path: "admin/pages/promos",
-      name: "Discount",
-      fields: [IntField],
-    ),
+    Constructor(module_path: "admin/pages/discounts", name: "Discount", fields: [
+      IntField,
+    ]),
+    Constructor(module_path: "admin/pages/promos", name: "Discount", fields: [
+      IntField,
+    ]),
   ]
   let assert Ok(Nil) = wire_identity.check_uniqueness(constructors)
 }
@@ -207,40 +201,30 @@ pub fn check_uniqueness_with_mock_ignores_duplicate_signatures_test() {
 
 pub fn check_wire_safety_accepts_primitives_and_containers_test() {
   let c =
-    Constructor(
-      module_path: "m",
-      name: "Discount",
-      fields: [
-        IntField,
-        StringField,
-        OptionOf(StringField),
-        ListOf(IntField),
-      ],
-    )
+    Constructor(module_path: "m", name: "Discount", fields: [
+      IntField,
+      StringField,
+      OptionOf(StringField),
+      ListOf(IntField),
+    ])
   let assert Ok(Nil) = wire_identity.check_wire_safety([c])
 }
 
 pub fn check_wire_safety_accepts_dict_with_primitive_keys_test() {
   let c =
-    Constructor(
-      module_path: "m",
-      name: "Index",
-      fields: [
-        DictOf(key: StringField, value: IntField),
-        DictOf(key: IntField, value: StringField),
-        DictOf(key: BoolField, value: StringField),
-      ],
-    )
+    Constructor(module_path: "m", name: "Index", fields: [
+      DictOf(key: StringField, value: IntField),
+      DictOf(key: IntField, value: StringField),
+      DictOf(key: BoolField, value: StringField),
+    ])
   let assert Ok(Nil) = wire_identity.check_wire_safety([c])
 }
 
 pub fn check_wire_safety_rejects_float_dict_key_test() {
   let c =
-    Constructor(
-      module_path: "m",
-      name: "Index",
-      fields: [DictOf(key: FloatField, value: IntField)],
-    )
+    Constructor(module_path: "m", name: "Index", fields: [
+      DictOf(key: FloatField, value: IntField),
+    ])
   let assert Error(gen_error.DictKeyMustBePrimitive(
     field_path: path,
     key_type_repr: repr,
@@ -251,33 +235,21 @@ pub fn check_wire_safety_rejects_float_dict_key_test() {
 
 pub fn check_wire_safety_rejects_bit_array_dict_key_test() {
   let c =
-    Constructor(
-      module_path: "m",
-      name: "Index",
-      fields: [
-        DictOf(key: BitArrayField, value: IntField),
-      ],
-    )
+    Constructor(module_path: "m", name: "Index", fields: [
+      DictOf(key: BitArrayField, value: IntField),
+    ])
   let assert Error(gen_error.DictKeyMustBePrimitive(..)) =
     wire_identity.check_wire_safety([c])
 }
 
 pub fn check_wire_safety_rejects_user_typed_dict_key_test() {
   let c =
-    Constructor(
-      module_path: "m",
-      name: "Index",
-      fields: [
-        DictOf(
-          key: UserType(
-            module_path: "m",
-            type_name: "Item",
-            args: [],
-          ),
-          value: IntField,
-        ),
-      ],
-    )
+    Constructor(module_path: "m", name: "Index", fields: [
+      DictOf(
+        key: UserType(module_path: "m", type_name: "Item", args: []),
+        value: IntField,
+      ),
+    ])
   let assert Error(gen_error.DictKeyMustBePrimitive(
     field_path: _,
     key_type_repr: repr,
@@ -289,13 +261,9 @@ pub fn check_wire_safety_rejects_user_typed_dict_key_test() {
 /// the field path should reflect the nesting.
 pub fn check_wire_safety_finds_dict_key_violation_inside_list_test() {
   let c =
-    Constructor(
-      module_path: "m",
-      name: "Wrapper",
-      fields: [
-        ListOf(DictOf(key: FloatField, value: IntField)),
-      ],
-    )
+    Constructor(module_path: "m", name: "Wrapper", fields: [
+      ListOf(DictOf(key: FloatField, value: IntField)),
+    ])
   let assert Error(gen_error.DictKeyMustBePrimitive(
     field_path: path,
     key_type_repr: _,
@@ -305,11 +273,7 @@ pub fn check_wire_safety_finds_dict_key_violation_inside_list_test() {
 
 pub fn check_wire_safety_rejects_typevar_field_test() {
   let c =
-    Constructor(
-      module_path: "m",
-      name: "Holder",
-      fields: [TypeVar(name: "a")],
-    )
+    Constructor(module_path: "m", name: "Holder", fields: [TypeVar(name: "a")])
   let assert Error(gen_error.WireTypeContainsTypeVar(
     field_path: path,
     var_name: name,
@@ -320,11 +284,9 @@ pub fn check_wire_safety_rejects_typevar_field_test() {
 
 pub fn check_wire_safety_finds_typevar_inside_option_test() {
   let c =
-    Constructor(
-      module_path: "m",
-      name: "Holder",
-      fields: [OptionOf(TypeVar(name: "x"))],
-    )
+    Constructor(module_path: "m", name: "Holder", fields: [
+      OptionOf(TypeVar(name: "x")),
+    ])
   let assert Error(gen_error.WireTypeContainsTypeVar(
     field_path: path,
     var_name: name,
@@ -336,11 +298,7 @@ pub fn check_wire_safety_finds_typevar_inside_option_test() {
 pub fn check_wire_safety_walks_all_constructors_test() {
   let safe = Constructor(module_path: "m", name: "Safe", fields: [IntField])
   let unsafe =
-    Constructor(
-      module_path: "m",
-      name: "Unsafe",
-      fields: [TypeVar(name: "t")],
-    )
+    Constructor(module_path: "m", name: "Unsafe", fields: [TypeVar(name: "t")])
   let assert Error(gen_error.WireTypeContainsTypeVar(..)) =
     wire_identity.check_wire_safety([safe, unsafe])
 }

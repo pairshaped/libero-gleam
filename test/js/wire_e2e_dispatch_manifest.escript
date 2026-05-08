@@ -2,9 +2,24 @@
 %% wire_e2e_dispatch_test.mjs. Each entry maps a case name to the
 %% base64-encoded response frame produced by generated@libero@dispatch:handle/2.
 %%
-%% Expects the fixture ebin directory as an -extra argument.
 %% Called from wire_e2e_setup.sh:
 %%   erl -noshell -pa <ebin_dirs> -eval "$(cat dispatch_manifest.erl)" > manifest.json
+%%
+%% User-type values are encoded in wire-shape (hashed atoms) via the
+%% generated wire transformers, matching what a JS client would send.
+
+W = fun(F) -> fun(V) -> F(V) end end,
+Enc = W(fun 'generated@rpc_wire':encode_shared_types__item/1),
+EncStatus = W(fun 'generated@rpc_wire':encode_shared_types__status/1),
+EncTree = W(fun 'generated@rpc_wire':encode_shared_types__tree/1),
+EncItemError = W(fun 'generated@rpc_wire':encode_shared_types__item_error/1),
+EncWithFloats = W(fun 'generated@rpc_wire':encode_shared_types__with_floats/1),
+EncNested = W(fun 'generated@rpc_wire':encode_shared_types__nested_record/1),
+EncItemListData = W(fun 'generated@rpc_wire':encode_shared_types__item_list_data/1),
+EncItemSummaryData = W(fun 'generated@rpc_wire':encode_shared_types__item_summary_data/1),
+EncFormPrefill = W(fun 'generated@rpc_wire':encode_shared_types__form_prefill/1),
+EncNestedEnvelope = W(fun 'generated@rpc_wire':encode_shared_types__nested_envelope/1),
+EncDictAndList = W(fun 'generated@rpc_wire':encode_shared_types__dict_and_list_envelope/1),
 
 EncodeCall = fun(RequestId, Msg) ->
   libero_ffi:encode({<<"rpc">>, RequestId, Msg})
@@ -31,16 +46,21 @@ Cases = [
   {"echo_result_int_string/error", 51, {server_echo_result_int_string, {error, <<"bad">>}}},
   {"echo_dict_string_int/pairs", 52, {server_echo_dict_string_int, #{<<"one">> => 1, <<"two">> => 2}}},
   {"echo_tuple_int_string/pair", 53, {server_echo_tuple_int_string, {9, <<"nine">>}}},
-  {"echo_status/active", 54, {server_echo_status, active}},
-  {"echo_item/basic", 55, {server_echo_item, Item}},
-  {"echo_tree/deep", 56, {server_echo_tree, DeepTree}},
-  {"echo_item_error/validation_failed", 57, {server_echo_item_error, {validation_failed, <<"name">>, <<"required">>}}},
-  {"echo_with_floats/whole", 58, {server_echo_with_floats, {with_floats, 2.0, 3.0, <<"whole">>}}},
-  {"echo_list_of_items/many", 59, {server_echo_list_of_items, [Item, Item2]}},
-  {"echo_option_item/some", 60, {server_echo_option_item, {some, Item}}},
-  {"echo_dict_string_item/pairs", 61, {server_echo_dict_string_item, #{<<"one">> => Item, <<"two">> => Item2}}},
-  {"echo_nested_record/basic", 62, {server_echo_nested_record, Nested}},
-  {"echo_typed_err/validation_failed", 63, {server_echo_typed_err, Item}},
+  {"echo_status/active", 54, {server_echo_status, EncStatus(active)}},
+  {"echo_item/basic", 55, {server_echo_item, Enc(Item)}},
+  {"echo_tree/deep", 56, {server_echo_tree, EncTree(DeepTree)}},
+  {"echo_item_error/validation_failed", 57, {server_echo_item_error, EncItemError({validation_failed, <<"name">>, <<"required">>})}},
+  {"echo_with_floats/whole", 58, {server_echo_with_floats, EncWithFloats({with_floats, 2.0, 3.0, <<"whole">>})}},
+  {"echo_list_of_items/many", 59, {server_echo_list_of_items, [Enc(Item), Enc(Item2)]}},
+  {"echo_option_item/some", 60, {server_echo_option_item, {some, Enc(Item)}}},
+  {"echo_dict_string_item/pairs", 61, {server_echo_dict_string_item, #{<<"one">> => Enc(Item), <<"two">> => Enc(Item2)}}},
+  {"echo_nested_record/basic", 62, {server_echo_nested_record, EncNested(Nested)}},
+  {"echo_typed_err/validation_failed", 63, {server_echo_typed_err, Enc(Item)}},
+  {"echo_item_list_data/basic", 71, {server_echo_item_list_data, EncItemListData({item_list_data, [Item, Item2]})}},
+  {"echo_item_summary_data/basic", 72, {server_echo_item_summary_data, EncItemSummaryData({item_summary_data, [Item], 42, 1})}},
+  {"echo_form_prefill/basic", 73, {server_echo_form_prefill, EncFormPrefill({form_prefill, {some, Item}, pending})}},
+  {"echo_nested_envelope/basic", 74, {server_echo_nested_envelope, EncNestedEnvelope({nested_envelope, {item_list_data, [Item]}, {some, <<"hello">>}})}},
+  {"echo_dict_and_list_envelope/basic", 75, {server_echo_dict_and_list_envelope, EncDictAndList({dict_and_list_envelope, #{<<"one">> => Item}, [Item2]})}},
   {"dispatch/unknown_module", 64, {<<"other/module">>, 64, {server_echo_int, 5}}},
   {"dispatch/malformed_envelope", 0, malformed},
   {"dispatch/handler_panic", 65, {server_echo_panic, 0}},

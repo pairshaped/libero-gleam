@@ -1,8 +1,31 @@
 # Wire-Format Type Identity via Codegen
 
-**Status:** Spec + plan, pending review (review v2: hash-only + lockstep cutover)
+**Status:** Implementation in progress (libero steps 1-8 complete, pending commit)
 **Created:** 2026-05-08
 **Scope:** libero (primary), rally (consumer), v3 (smoke target)
+
+### Implementation status
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1-2 | Hash + canonical signature primitives, uniqueness check | Done (2b00822, 99297d4) |
+| 3 | Per-type Erlang transformers (`codegen_wire_erl`) | Done (b9b2213) |
+| 1+ | Wire `codegen_wire_erl.generate()` into pipeline | Done (this session) |
+| 6 | Dispatch calls generated decode/encode transformers | Done (this session, was missing from previous attempt) |
+| 4-5 | Per-class `__wireAtom`/`__fieldTypes` in JS codegen | Done (this session) |
+| 7 | JS runtime cleanup (`_bareToQualifiedAtom`, `fieldTypeRegistry` removed) | Done (this session) |
+| 8 | Erlang runtime cleanup (`qualify_atoms` removed, `encode/1` = `term_to_binary`) | Done (this session) |
+| 9 | Same-name collision E2E fixture | Not yet |
+| 10 | `gleam test` + `gleam run -m glinter` clean | Done |
+| 11 | v3 cutover (`bin/regen`, smoke test) | Not yet |
+
+**Lesson from first attempt:** Steps 4, 5, 7, 8 were landed without Step 6.
+The dispatch never called the wire transformers, so JS sent hashed atoms that
+the Erlang dispatch couldn't decode, and the Erlang handler returned bare atoms
+that JS couldn't decode. The fix was to implement Step 6 first (dispatch calls
+`decode_X` on inbound params, `encode_X` on outbound results), then layer the
+other steps on top. The atoms_erl module also dropped its AtomMap in this pass
+since wire identity is now baked into the transformer functions.
 
 ---
 

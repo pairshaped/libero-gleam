@@ -5,23 +5,23 @@ title: tagged union typed decoder
 export function decode_shared_notification_notification(term) {
   const tag = Array.isArray(term) ? term[0] : term;
   switch (tag) {
-    case "items_loaded":
+    case "b010c12384": // ItemsLoaded @ shared/notification
       return new _m_shared_notification.ItemsLoaded(decode_list_of((t0) => decode_shared_item_item(t0), term[1]));
-    case "status_changed":
+    case "326bdc0db9": // StatusChanged @ shared/notification
       return new _m_shared_notification.StatusChanged(decode_string(term[1]));
-    case "disconnected":
+    case "affa55a329": // Disconnected @ shared/notification
       return new _m_shared_notification.Disconnected();
-    case "refreshed":
+    case "113eb8ea33": // Refreshed @ shared/notification
       return new _m_shared_notification.Refreshed();
     default:
-      throw new DecodeError("unknown variant: " + String(tag));
+      throw new DecodeError("unknown variant atom: " + String(tag));
   }
 }
 
-registerAtomDecoder("items_loaded", "decode_shared_notification_notification", decode_shared_notification_notification, "items_loaded");
-registerAtomDecoder("status_changed", "decode_shared_notification_notification", decode_shared_notification_notification, "status_changed");
-registerAtomDecoder("disconnected", "decode_shared_notification_notification", decode_shared_notification_notification, "disconnected");
-registerAtomDecoder("refreshed", "decode_shared_notification_notification", decode_shared_notification_notification, "refreshed");
+registerAtomDecoder("b010c12384", "decode_shared_notification_notification", decode_shared_notification_notification);
+registerAtomDecoder("326bdc0db9", "decode_shared_notification_notification", decode_shared_notification_notification);
+registerAtomDecoder("affa55a329", "decode_shared_notification_notification", decode_shared_notification_notification);
+registerAtomDecoder("113eb8ea33", "decode_shared_notification_notification", decode_shared_notification_notification);
 
 
 export function ensure_decoders() { return true; }

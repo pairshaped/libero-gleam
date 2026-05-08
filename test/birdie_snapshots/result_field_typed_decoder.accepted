@@ -3,13 +3,13 @@ version: 2.0.0
 title: result field typed decoder
 ---
 export function decode_shared_result_type_wrapper(term) {
-  if (!Array.isArray(term) || term[0] !== "wrapper") throw new DecodeError("expected wrapper");
+  if (!Array.isArray(term) || term[0] !== "90013c04b8") throw new DecodeError("expected 90013c04b8 (Wrapper @ shared/result_type), got " + (Array.isArray(term) ? String(term[0]) : typeof term));
   return new _m_shared_result_type.Wrapper(
     decode_result_of((t1) => decode_string(t1), (t2) => decode_int(t2), term[1])
   );
 }
 
-registerAtomDecoder("wrapper", "decode_shared_result_type_wrapper", decode_shared_result_type_wrapper, "wrapper");
+registerAtomDecoder("90013c04b8", "decode_shared_result_type_wrapper", decode_shared_result_type_wrapper);
 
 
 export function ensure_decoders() { return true; }

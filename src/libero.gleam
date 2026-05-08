@@ -14,6 +14,7 @@ import gleam/result
 import gleam/string
 import libero/codegen_decoders
 import libero/codegen_dispatch
+import libero/codegen_wire_erl
 import libero/format
 import libero/gen_error.{type GenError}
 import libero/scanner.{type HandlerEndpoint}
@@ -23,6 +24,8 @@ import simplifile
 const out_dir = "src/generated/libero"
 
 const default_atoms_module = "generated@rpc_atoms"
+
+const default_wire_module = "generated@rpc_wire"
 
 const default_context_module = "server/server_context"
 
@@ -49,13 +52,26 @@ pub fn main() -> Nil {
     }
   }
   let atoms_module = default_atoms_module
+  let wire_module = default_wire_module
   let dispatch_src =
-    generate_dispatch(endpoints:, atoms_module: option.Some(atoms_module))
+    generate_dispatch(
+      endpoints:,
+      atoms_module: option.Some(atoms_module),
+      wire_module: option.Some(wire_module),
+    )
   let atoms_erl = generate_atoms(endpoints:, discovered:, atoms_module:)
+  let wire_erl = case generate_wire_erl(discovered:, wire_module:) {
+    Ok(src) -> src
+    Error(err) -> {
+      gen_error.print_error(err)
+      halt(1)
+    }
+  }
   let decoders_js = generate_decoders_ffi(discovered:, endpoints:)
   let decoders_gleam = generate_decoders_gleam()
 
   let atoms_path = "src/" <> atoms_module <> ".erl"
+  let wire_path = "src/" <> wire_module <> ".erl"
   case
     write_generated_files(
       dispatch_src:,
@@ -63,6 +79,8 @@ pub fn main() -> Nil {
       decoders_gleam:,
       atoms_path:,
       atoms_erl:,
+      wire_path:,
+      wire_erl:,
     )
   {
     Ok(Nil) -> Nil
@@ -87,7 +105,9 @@ pub fn main() -> Nil {
     "wrote "
     <> out_dir
     <> "/dispatch.gleam, rpc_decoders_ffi.mjs, rpc_decoders.gleam, "
-    <> atoms_path,
+    <> atoms_path
+    <> ", "
+    <> wire_path,
   )
 }
 
@@ -127,6 +147,7 @@ pub fn walk(
 pub fn generate_dispatch(
   endpoints endpoints: List(HandlerEndpoint),
   atoms_module atoms_module: option.Option(String),
+  wire_module wire_module: option.Option(String),
 ) -> String {
   codegen_dispatch.generate(
     endpoints,
@@ -134,6 +155,7 @@ pub fn generate_dispatch(
     "ServerContext",
     "rpc",
     atoms_module,
+    wire_module,
   )
 }
 
@@ -145,6 +167,14 @@ pub fn generate_atoms(
   atoms_module atoms_module: String,
 ) -> String {
   codegen_dispatch.generate_atoms_erl(endpoints, discovered, atoms_module)
+}
+
+/// Generate the per-type wire-transformer Erlang module.
+pub fn generate_wire_erl(
+  discovered discovered: List(DiscoveredType),
+  wire_module wire_module: String,
+) -> Result(String, GenError) {
+  codegen_wire_erl.generate(module_name: wire_module, discovered:)
 }
 
 /// Generate the JS typed decoder FFI source.
@@ -182,6 +212,8 @@ fn write_generated_files(
   decoders_gleam decoders_gleam: String,
   atoms_path atoms_path: String,
   atoms_erl atoms_erl: String,
+  wire_path wire_path: String,
+  wire_erl wire_erl: String,
 ) -> Result(Nil, WriteError) {
   use _ <- result.try(
     simplifile.create_directory_all(out_dir)
@@ -200,6 +232,7 @@ fn write_generated_files(
     format.format_gleam(decoders_gleam),
   ))
   use _ <- result.try(write_file(atoms_path, atoms_erl))
+  use _ <- result.try(write_file(wire_path, wire_erl))
   Ok(Nil)
 }
 

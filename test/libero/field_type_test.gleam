@@ -287,36 +287,33 @@ pub fn to_canonical_token_tuple_test() {
 }
 
 pub fn to_canonical_token_empty_tuple_test() {
-  let assert "tuple<>" =
-    field_type.to_canonical_token(TupleOf(elements: []))
+  let assert "tuple<>" = field_type.to_canonical_token(TupleOf(elements: []))
 }
 
 pub fn to_canonical_token_user_type_zero_arg_test() {
   let assert "<type:admin/discounts|Discount>" =
-    field_type.to_canonical_token(UserType(
-      module_path: "admin/discounts",
-      type_name: "Discount",
-      args: [],
-    ))
+    field_type.to_canonical_token(
+      UserType(module_path: "admin/discounts", type_name: "Discount", args: []),
+    )
 }
 
 pub fn to_canonical_token_user_type_applied_generic_test() {
   let assert "<type:m|Box<int>>" =
-    field_type.to_canonical_token(UserType(
-      module_path: "m",
-      type_name: "Box",
-      args: [IntField],
-    ))
+    field_type.to_canonical_token(
+      UserType(module_path: "m", type_name: "Box", args: [IntField]),
+    )
 }
 
 pub fn to_canonical_token_nested_list_of_user_type_test() {
   let assert "list<<type:admin/discounts|Discount>>" =
     field_type.to_canonical_token(
-      ListOf(UserType(
-        module_path: "admin/discounts",
-        type_name: "Discount",
-        args: [],
-      )),
+      ListOf(
+        UserType(
+          module_path: "admin/discounts",
+          type_name: "Discount",
+          args: [],
+        ),
+      ),
     )
 }
 
