@@ -74,9 +74,17 @@ fn emit_typed_decoder_registrations(discovered: List(DiscoveredType)) -> String 
     [] -> ""
     _ -> {
       let calls =
-        list.map(discovered, fn(t) {
+        list.flat_map(discovered, fn(t) {
           let fn_name = decoder_fn_name(t.module_path, t.type_name)
-          "registerTypedDecoder(\"" <> fn_name <> "\", " <> fn_name <> ");"
+          list.map(t.variants, fn(v) {
+            "registerAtomDecoder(\""
+            <> v.atom_name
+            <> "\", \""
+            <> fn_name
+            <> "\", "
+            <> fn_name
+            <> ");"
+          })
         })
         |> string.join("\n")
       calls <> "\n"
@@ -125,11 +133,11 @@ fn emit_decoder_imports(
     let needs_float = needs_float_type_hints(discovered:, endpoints:)
     case needs_typed, needs_float {
       True, True ->
-        "\nimport { registerTypedDecoder, registerFieldTypes } from \""
+        "\nimport { registerAtomDecoder, registerFieldTypes } from \""
         <> relpath_prefix
         <> "libero/libero/rpc_ffi.mjs\";"
       True, False ->
-        "\nimport { registerTypedDecoder } from \""
+        "\nimport { registerAtomDecoder } from \""
         <> relpath_prefix
         <> "libero/libero/rpc_ffi.mjs\";"
       False, True ->

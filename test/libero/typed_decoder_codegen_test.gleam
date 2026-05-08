@@ -195,12 +195,13 @@ pub fn dict_and_tuple_field_snapshot_test() {
 pub fn decode_typed_dispatch_in_output_test() {
   let js = codegen_decoders.emit_typed_decoders(sample_record_type())
 
-  // Registration calls populate rpc_ffi.mjs's typed decoder registry so
-  // callers (e.g. wire.decode_typed) can apply typed decoders by name.
+  // Registration calls populate rpc_ffi.mjs's atom→decoder reverse
+  // mapping so the ETF decoder can reconstruct custom types in non-raw
+  // mode without the deprecated constructorRegistry.
   let assert True =
-    string.contains(js, "registerTypedDecoder(\"decode_shared_item_item\"")
+    string.contains(js, "registerAtomDecoder(\"item\"")
   let assert True =
-    string.contains(js, "decode_shared_item_item);")
+    string.contains(js, "\"decode_shared_item_item\"")
 }
 
 pub fn float_type_hint_registration_test() {

@@ -60,6 +60,27 @@ export function decodeTyped(value, decoderName) {
   return fn(value);
 }
 
+// Atom → decoder-name reverse mapping so the ETF decoder's non-raw mode
+// can reconstruct custom types without a constructor registry. Populated
+// alongside registerTypedDecoder by the generated codec_ffi.mjs.
+//
+// If two modules define the same atom name the second registration
+// overwrites the first, same as the old constructorRegistry. The two-pass
+// path (decode_safe_raw + apply_typed_decoder) handles collisions
+// correctly where the caller knows the expected type.
+const _atomToDecoderName = new Map();
+
+export function registerAtomDecoder(atomName, decoderName, decoderFn) {
+  registerTypedDecoder(decoderName, decoderFn);
+  _atomToDecoderName.set(atomName, decoderName);
+}
+
+export function lookupAtomDecoder(atomName) {
+  const decoderName = _atomToDecoderName.get(atomName);
+  if (!decoderName) return undefined;
+  return _typedDecoderRegistry.get(decoderName);
+}
+
 // ---------- Error names ----------
 //
 // Error.name values set on exceptions thrown by the codec. Consumers
@@ -506,6 +527,22 @@ class ETFDecoder {
           while (fields.length < reg.fieldCount) fields.push(undefined);
           fields.length = reg.fieldCount;
           return new reg.ctor(...fields);
+        }
+      }
+
+      // Typed decoder reconstruction: when not in raw mode, check the
+      // atom→decoder reverse mapping populated by generated codec_ffi.mjs.
+      // The typed decoder receives the raw array and returns a properly
+      // constructed Gleam class instance (module-specific, no collisions
+      // for the common single-module case).
+      if (!this.raw) {
+        const decoderFn = lookupAtomDecoder(atomName);
+        if (decoderFn) {
+          const elements = [atomName];
+          for (let i = 1; i < arity; i++) {
+            elements.push(this.decodeTerm());
+          }
+          return decoderFn(elements);
         }
       }
 

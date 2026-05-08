@@ -10,7 +10,8 @@ export function decode_shared_line_item_status(term) {
   throw new DecodeError("unknown variant: " + String(term));
 }
 
-registerTypedDecoder("decode_shared_line_item_status", decode_shared_line_item_status);
+registerAtomDecoder("pending", "decode_shared_line_item_status", decode_shared_line_item_status);
+registerAtomDecoder("paid", "decode_shared_line_item_status", decode_shared_line_item_status);
 
 
 export function ensure_decoders() { return true; }

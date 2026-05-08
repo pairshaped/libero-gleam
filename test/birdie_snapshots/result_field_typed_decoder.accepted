@@ -11,7 +11,7 @@ export function decode_shared_result_type_wrapper(term) {
   );
 }
 
-registerTypedDecoder("decode_shared_result_type_wrapper", decode_shared_result_type_wrapper);
+registerAtomDecoder("wrapper", "decode_shared_result_type_wrapper", decode_shared_result_type_wrapper);
 
 
 export function ensure_decoders() { return true; }

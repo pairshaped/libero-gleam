@@ -11,7 +11,7 @@ export function decode_shared_opt_type_opt_wrapper(term) {
   );
 }
 
-registerTypedDecoder("decode_shared_opt_type_opt_wrapper", decode_shared_opt_type_opt_wrapper);
+registerAtomDecoder("opt_wrapper", "decode_shared_opt_type_opt_wrapper", decode_shared_opt_type_opt_wrapper);
 
 
 export function ensure_decoders() { return true; }

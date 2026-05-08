@@ -13,7 +13,7 @@ export function decode_shared_item_item(term) {
   );
 }
 
-registerTypedDecoder("decode_shared_item_item", decode_shared_item_item);
+registerAtomDecoder("item", "decode_shared_item_item", decode_shared_item_item);
 
 
 export function ensure_decoders() { return true; }

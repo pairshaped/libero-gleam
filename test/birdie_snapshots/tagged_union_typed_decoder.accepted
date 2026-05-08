@@ -20,7 +20,10 @@ export function decode_shared_notification_notification(term) {
   }
 }
 
-registerTypedDecoder("decode_shared_notification_notification", decode_shared_notification_notification);
+registerAtomDecoder("items_loaded", "decode_shared_notification_notification", decode_shared_notification_notification);
+registerAtomDecoder("status_changed", "decode_shared_notification_notification", decode_shared_notification_notification);
+registerAtomDecoder("disconnected", "decode_shared_notification_notification", decode_shared_notification_notification);
+registerAtomDecoder("refreshed", "decode_shared_notification_notification", decode_shared_notification_notification);
 
 
 export function ensure_decoders() { return true; }
