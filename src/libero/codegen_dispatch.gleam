@@ -373,14 +373,13 @@ fn emit_wire_externals(
 
 fn needs_container_import(ft: FieldType) -> Bool {
   case ft {
-    ListOf(UserType(..)) -> True
-    ListOf(inner) -> needs_container_import(inner)
-    OptionOf(UserType(..)) -> True
-    OptionOf(inner) -> needs_container_import(inner)
-    DictOf(_, UserType(..)) -> True
-    DictOf(_, value) -> needs_container_import(value)
+    ListOf(element) -> option.is_some(wire_transform_fn_ref(element, "encode"))
+    OptionOf(inner) -> option.is_some(wire_transform_fn_ref(inner, "encode"))
+    DictOf(_, value) -> option.is_some(wire_transform_fn_ref(value, "encode"))
     ResultOf(ok, err) ->
       needs_container_import(ok) || needs_container_import(err)
+    TupleOf(elements) -> list.any(elements, needs_container_import)
+    UserType(args:, ..) -> list.any(args, needs_container_import)
     _ -> False
   }
 }
