@@ -532,15 +532,21 @@ class ETFDecoder {
 
       // Typed decoder reconstruction: when not in raw mode, check the
       // atom→decoder reverse mapping populated by generated codec_ffi.mjs.
-      // The typed decoder receives the raw array and returns a properly
-      // constructed Gleam class instance (module-specific, no collisions
-      // for the common single-module case).
+      // The typed decoder primitives (decode_list_of, decode_dict_of, etc.)
+      // expect raw ETF shapes — arrays of pairs, tagged arrays — not
+      // reconstructed Gleam instances. Toggle raw mode while decoding
+      // fields so the typed decoder receives raw shapes it can consume.
       if (!this.raw) {
         const decoderFn = lookupAtomDecoder(atomName);
         if (decoderFn) {
           const elements = [atomName];
-          for (let i = 1; i < arity; i++) {
-            elements.push(this.decodeTerm());
+          this.raw = true;
+          try {
+            for (let i = 1; i < arity; i++) {
+              elements.push(this.decodeTerm());
+            }
+          } finally {
+            this.raw = false;
           }
           return decoderFn(elements);
         }
