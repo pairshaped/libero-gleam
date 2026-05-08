@@ -668,6 +668,65 @@ function makeStringBytes(str) {
   _typedDecoderRegistry.delete("decode_outer");
 }
 
+// ---- Regression: RPC response with record wrapping nested custom type ----
+// Wire shape: {ok, {ok, {envelope, {item, int, int}, total}}}
+// The outer Ok layers are framework-special-cased; the envelope goes
+// through lookupAtomDecoder; the nested custom type must also be
+// reconstructed (not left as raw array by toRawShape).
+// Uses int fields only to avoid binary encoding complexity.
+{
+  class Item extends CustomType {
+    constructor(x, y) { super(); this.x = x; this[0] = x; this.y = y; this[1] = y; }
+  }
+  class Envelope extends CustomType {
+    constructor(item, total) { super(); this.item = item; this[0] = item; this.total = total; this[1] = total; }
+  }
+
+  function decode_item(term) {
+    if (!Array.isArray(term) || term[0] !== "item") throw new Error("expected item");
+    return new Item(term[1], term[2]);
+  }
+  function decode_envelope(term) {
+    if (!Array.isArray(term) || term[0] !== "envelope") throw new Error("expected envelope");
+    // term[1] must be an Item instance (reconstructed by atom→decoder)
+    assert.ok(term[1] instanceof Item, "envelope field must be Item instance via nested atom→decoder");
+    return new Envelope(term[1], term[2]);
+  }
+
+  registerAtomDecoder("item", "decode_item", decode_item);
+  registerAtomDecoder("envelope", "decode_envelope", decode_envelope);
+
+  // Manually encode: {ok, {ok, {envelope, {item, 10, 20}, 99}}}
+  const okAtom = [119, 2, 111, 107];
+  const envAtom = [119, 8, 101, 110, 118, 101, 108, 111, 112, 101]; // "envelope"
+  const itemAtom = [119, 4, 105, 116, 101, 109]; // "item"
+  const itemTuple = [104, 3, ...itemAtom, 97, 10, 97, 20]; // {item, 10, 20}
+  const envTuple = [104, 3, ...envAtom, ...itemTuple, 97, 99]; // {envelope, {item,10,20}, 99}
+  const innerOk = [104, 2, ...okAtom, ...envTuple]; // {ok, {envelope,...}}
+  const outerOk = [104, 2, ...okAtom, ...innerOk]; // {ok, {ok, {envelope,...}}}
+  const bytes = new Uint8Array([131, ...outerOk]);
+
+  const decoded = new MiniETFDecoder(bytes).decode();
+
+  assert.ok(decoded instanceof Ok, "RPC: outer Ok");
+  const inner1 = decoded[0];
+  assert.ok(inner1 instanceof Ok, "RPC: inner Ok");
+  const envelope = inner1[0];
+  assert.ok(envelope instanceof Envelope, "RPC: envelope via atom→decoder");
+  // Nested item via atom→decoder (not stripped by toRawShape)
+  const item = envelope[0];
+  assert.ok(item instanceof Item, "RPC: nested item is Item instance (atom→decoder preserved)");
+  assert.equal(item.x, 10);
+  assert.equal(item.y, 20);
+  assert.equal(envelope[1], 99, "RPC: total field");
+  console.log("PASS: RPC response — Ok(Ok(Envelope{item: Item, total}))");
+
+  _atomToDecoderName.delete("item");
+  _atomToDecoderName.delete("envelope");
+  _typedDecoderRegistry.delete("decode_item");
+  _typedDecoderRegistry.delete("decode_envelope");
+}
+
 {
   // Clean up: remove test registrations so they don't leak
   constructorRegistry.delete("sponsor");
