@@ -40,6 +40,15 @@ pub type GenError {
   /// generic survives only if the user wrote a wire type with an
   /// uninstantiated generic parameter, which is a logic error.
   WireTypeContainsTypeVar(field_path: String, var_name: String)
+  /// Two constructors from different modules share the same snake_case
+  /// name and field count. `encode_term` dispatches on
+  /// `{bare_atom, arity}` so it cannot distinguish them at runtime.
+  BareAtomArityCollision(
+    bare_atom: String,
+    arity: Int,
+    first: String,
+    second: String,
+  )
 }
 
 pub fn print_error(err: GenError) -> Nil {
@@ -181,6 +190,23 @@ fn to_string(err: GenError) -> String {
         ],
         hint: Some(
           "Replace the generic parameter with a concrete type at the\n        wire boundary, or wrap it in a fully-applied user type before\n        the value crosses the wire.",
+        ),
+      )
+
+    BareAtomArityCollision(bare_atom, arity, first, second) ->
+      error_box(
+        title: "Bare-atom/arity collision between wire types",
+        path: "encode_term",
+        body_lines: [
+          "Two constructors from different modules produce the same",
+          "  {" <> bare_atom <> ", " <> int.to_string(arity) <> "} tuple tag:",
+          "  " <> first,
+          "  " <> second,
+          "encode_term dispatches on {bare_atom, arity} and cannot",
+          "tell these apart at runtime.",
+        ],
+        hint: Some(
+          "Rename one of the constructors so its snake_case name differs,\n        or change its field count.",
         ),
       )
   }

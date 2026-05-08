@@ -25,8 +25,8 @@ import libero/field_type.{
   NilField, OptionOf, ResultOf, StringField, TupleOf, TypeVar, UserType,
 }
 import libero/gen_error.{
-  type GenError, DictKeyMustBePrimitive, TypeIdentityHashCollision,
-  WireTypeContainsTypeVar,
+  type GenError, BareAtomArityCollision, DictKeyMustBePrimitive,
+  TypeIdentityHashCollision, WireTypeContainsTypeVar,
 }
 
 /// The minimal projection of a constructor needed to compute its wire
@@ -246,4 +246,89 @@ fn check_dict_key(key: FieldType, field_path: String) -> Result(Nil, GenError) {
         key_type_repr: field_type.to_canonical_token(key),
       ))
   }
+}
+
+/// Walk a list of constructors and detect bare-atom/arity collisions —
+/// two constructors from different modules that share the same
+/// snake_case name and field count. `encode_term` dispatches on
+/// `{bare_atom, arity}` and cannot distinguish them at runtime.
+///
+/// Returns `Ok(Nil)` when every `{snake_name, arity}` pair is
+/// unambiguous, or `Error(BareAtomArityCollision)` on the first
+/// conflict found.
+///
+/// Same-module constructors with the same name are impossible in Gleam
+/// (the compiler enforces unique type names per module), but if the
+/// same constructor is passed twice from the same module the check
+/// passes — the key includes the module path only for conflict
+/// detection, and equal module paths are not a conflict.
+pub fn check_bare_arity_uniqueness(
+  constructors: List(Constructor),
+) -> Result(Nil, GenError) {
+  do_check_bare_arity(constructors, dict.new())
+}
+
+fn do_check_bare_arity(
+  remaining: List(Constructor),
+  seen: Dict(#(String, Int), #(String, String)),
+) -> Result(Nil, GenError) {
+  case remaining {
+    [] -> Ok(Nil)
+    [c, ..rest] -> {
+      let key = #(constructor_to_snake_case(c.name), list.length(c.fields))
+      case dict.get(seen, key) {
+        Ok(#(prev_module, prev_name)) if prev_module != c.module_path ->
+          Error(BareAtomArityCollision(
+            bare_atom: key.0,
+            arity: key.1 + 1,
+            first: prev_module <> "." <> prev_name,
+            second: c.module_path <> "." <> c.name,
+          ))
+        _ ->
+          do_check_bare_arity(
+            rest,
+            dict.insert(seen, key, #(c.module_path, c.name)),
+          )
+      }
+    }
+  }
+}
+
+fn constructor_to_snake_case(name: String) -> String {
+  let graphemes = string.to_graphemes(name)
+  let triples = build_triples_for_snake(graphemes, "")
+  list.index_fold(triples, "", fn(acc, triple, i) {
+    let #(prev, g, next) = triple
+    case i == 0, is_upper(g) {
+      True, _ -> acc <> string.lowercase(g)
+      False, True -> {
+        let prev_upper = is_upper(prev)
+        let next_lower = next != "" && !is_upper(next)
+        case prev_upper, next_lower {
+          True, True -> acc <> "_" <> string.lowercase(g)
+          True, False -> acc <> string.lowercase(g)
+          _, _ -> acc <> "_" <> string.lowercase(g)
+        }
+      }
+      False, False -> acc <> g
+    }
+  })
+}
+
+fn build_triples_for_snake(
+  remaining: List(String),
+  prev: String,
+) -> List(#(String, String, String)) {
+  case remaining {
+    [] -> []
+    [g] -> [#(prev, g, "")]
+    [g, next, ..rest] -> [
+      #(prev, g, next),
+      ..build_triples_for_snake([next, ..rest], g)
+    ]
+  }
+}
+
+fn is_upper(g: String) -> Bool {
+  g != "" && g == string.uppercase(g) && g != string.lowercase(g)
 }

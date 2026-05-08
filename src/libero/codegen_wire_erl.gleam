@@ -45,6 +45,7 @@ pub fn generate(
   let constructors = constructors_from_discovered(discovered)
   use _ <- result.try(wire_identity.check_wire_safety(constructors))
   use _ <- result.try(wire_identity.check_uniqueness(constructors))
+  use _ <- result.try(wire_identity.check_bare_arity_uniqueness(constructors))
   let exports = build_exports(discovered)
   let transformers =
     discovered

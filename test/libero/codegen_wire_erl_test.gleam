@@ -297,7 +297,7 @@ pub fn same_named_types_in_different_modules_get_distinct_function_names_test() 
     ])
   let dt_b =
     typ("admin/pages/promos", "Discount", [
-      variant("admin/pages/promos", "Discount", [IntField]),
+      variant("admin/pages/promos", "Discount", [IntField, StringField]),
     ])
   let assert Ok(out) =
     codegen_wire_erl.generate(module_name: "x_wire", discovered: [dt_a, dt_b])
