@@ -235,4 +235,33 @@ assert.equal(
   "rpc.bogus_function",
 );
 
+// ---- Regression: non-raw decode of a record-wrapper containing a list of nested records ----
+// Production path uses decode_value (non-raw) which triggers the
+// atom→decoder pipeline mid-decode. Inner custom-type instances must
+// be returned to raw tagged-array shape by toRawShape so the
+// generated wrapper decoder's `decode_list_of(inner_decoder, term[i])`
+// can re-decode each element. Without recursive raw-shaping in
+// toRawShape, the wrapper sees a JS array of class instances and the
+// inner decoder throws "expected <atom>" on the first element.
+{
+  const decodeManifest = JSON.parse(
+    readFileSync("test/js/.wire_e2e_decode_manifest.json", "utf8"),
+  );
+  const bytes = Buffer.from(decodeManifest["echo_nested_record/basic"], "base64");
+  const decoded = rpcFfi.decode_value(bytes);
+  // Outer is Ok(Ok(NestedRecord(...)))
+  assert.ok(decoded instanceof gleam.Ok, "non-raw: outer Ok");
+  assert.ok(decoded[0] instanceof gleam.Ok, "non-raw: inner Ok");
+  const nested = decoded[0][0];
+  assert.ok(nested instanceof types.NestedRecord, "non-raw: NestedRecord reconstructed");
+  // The list-of-Item field must round-trip through the wrapper decoder
+  const itemsArr = [];
+  let node = nested.items;
+  while (node && node.head !== undefined) { itemsArr.push(node.head); node = node.tail; }
+  assert.equal(itemsArr.length, 2, "non-raw: two items in list");
+  assert.ok(itemsArr[0] instanceof types.Item, "non-raw: first list element is Item");
+  assert.ok(itemsArr[1] instanceof types.Item, "non-raw: second list element is Item");
+  console.log("PASS: non-raw decode_value through wrapper containing list of nested records");
+}
+
 console.log(`wire e2e dispatch test passed (${Object.keys(manifest).length} cases)`);

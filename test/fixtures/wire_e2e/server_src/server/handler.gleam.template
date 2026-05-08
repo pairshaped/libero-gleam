@@ -2,8 +2,9 @@ import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 import server/server_context.{type ServerContext}
 import shared/types.{
-  type Item, type ItemError, type NestedRecord, type Status, type Tree,
-  type WithFloats, ValidationFailed,
+  type DictAndListEnvelope, type FormPrefill, type Item, type ItemError,
+  type ItemListData, type ItemSummaryData, type NestedEnvelope,
+  type NestedRecord, type Status, type Tree, type WithFloats, ValidationFailed,
 }
 
 pub fn server_echo_int(
@@ -167,4 +168,39 @@ pub fn server_echo_panic(
   // dispatch. The dispatch returns Error(InternalError(...)), and the
   // request_id round-trips.
   panic as "handler panic test"
+}
+
+pub fn server_echo_item_list_data(
+  value value: ItemListData,
+  server_context server_context: ServerContext,
+) -> #(Result(ItemListData, Nil), ServerContext) {
+  #(Ok(value), server_context)
+}
+
+pub fn server_echo_item_summary_data(
+  value value: ItemSummaryData,
+  server_context server_context: ServerContext,
+) -> #(Result(ItemSummaryData, Nil), ServerContext) {
+  #(Ok(value), server_context)
+}
+
+pub fn server_echo_form_prefill(
+  value value: FormPrefill,
+  server_context server_context: ServerContext,
+) -> #(Result(FormPrefill, Nil), ServerContext) {
+  #(Ok(value), server_context)
+}
+
+pub fn server_echo_nested_envelope(
+  value value: NestedEnvelope,
+  server_context server_context: ServerContext,
+) -> #(Result(NestedEnvelope, Nil), ServerContext) {
+  #(Ok(value), server_context)
+}
+
+pub fn server_echo_dict_and_list_envelope(
+  value value: DictAndListEnvelope,
+  server_context server_context: ServerContext,
+) -> #(Result(DictAndListEnvelope, Nil), ServerContext) {
+  #(Ok(value), server_context)
 }

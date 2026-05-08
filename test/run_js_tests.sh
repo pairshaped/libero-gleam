@@ -10,5 +10,8 @@ node test/js/etf_codec_test.mjs
 node test/js/decoders_prelude_test.mjs
 node test/js/wire_e2e_module_load_test.mjs
 node test/js/wire_e2e_decode_test.mjs
+node test/js/wire_e2e_decode_typed_test.mjs
 node test/js/wire_e2e_encode_test.mjs
 node test/js/wire_e2e_dispatch_test.mjs
+node test/js/typed_decode_pipeline_test.mjs
+node test/js/etf_constructor_decode_test.mjs

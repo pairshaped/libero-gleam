@@ -33,3 +33,33 @@ pub type NestedRecord {
     by_id: Dict(String, Item),
   )
 }
+
+/// Envelope wrapping a single list — the most common admin-page response shape.
+/// Mirrors v3 patterns like DiscountAdminData(discounts: List(Discount)).
+pub type ItemListData {
+  ItemListData(items: List(Item))
+}
+
+/// Envelope with list + metadata — a paginated list response.
+/// Mirrors patterns like accounting/payouts list pages.
+pub type ItemSummaryData {
+  ItemSummaryData(items: List(Item), total: Int, page: Int)
+}
+
+/// Form prefill response — record with optional pre-existing entity plus enum default.
+/// Mirrors edit-page initial loads where the entity may or may not exist.
+pub type FormPrefill {
+  FormPrefill(item: Option(Item), default_status: Status)
+}
+
+/// Doubly-nested envelope — page-data wrapped inside another wrapper.
+/// Mirrors patterns like ReportData(payload: ListData, message: Option(String)).
+pub type NestedEnvelope {
+  NestedEnvelope(data: ItemListData, message: Option(String))
+}
+
+/// Mixed dict-and-list envelope — both indexed lookup and ordered list.
+/// Mirrors patterns where the same data is exposed two ways.
+pub type DictAndListEnvelope {
+  DictAndListEnvelope(by_id: Dict(String, Item), ordered: List(Item))
+}

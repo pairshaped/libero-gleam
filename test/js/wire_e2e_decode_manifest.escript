@@ -14,6 +14,15 @@ Item2 = {item, 8, <<"bolt">>, 1.25, false},
 DeepLeftTree = {node, 1, {node, 2, {node, 3, leaf, leaf}, leaf}, leaf},
 DeepTree = {node, 1, {node, 2, leaf, leaf}, {node, 3, leaf, {node, 4, leaf, leaf}}},
 Nested = {nested_record, [Item, Item2], {some, Item}, [pending, active, cancelled], #{<<"one">> => Item, <<"two">> => Item2}},
+%% v3-style envelope shapes
+ItemListData = {item_list_data, [Item, Item2]},
+ItemListEmpty = {item_list_data, []},
+ItemSummary = {item_summary_data, [Item, Item2], 100, 1},
+FormPrefillSome = {form_prefill, {some, Item}, active},
+FormPrefillNone = {form_prefill, none, pending},
+NestedEnv = {nested_envelope, ItemListData, {some, <<"hello">>}},
+NestedEnvNone = {nested_envelope, ItemListEmpty, none},
+DictAndList = {dict_and_list_envelope, #{<<"a">> => Item, <<"b">> => Item2}, [Item, Item2]},
 
 Cases = [
   {"echo_int/positive", {ok, {ok, 5}}},
@@ -59,7 +68,16 @@ Cases = [
   {"echo_dict_string_item/pairs", {ok, {ok, #{<<"one">> => Item, <<"two">> => Item2}}}},
   {"echo_dict_string_item/empty", {ok, {ok, #{}}}},
   {"echo_nested_record/basic", {ok, {ok, Nested}}},
-  {"echo_typed_err/validation_failed", {ok, {error, {validation_failed, <<"name">>, <<"required">>}}}}
+  {"echo_typed_err/validation_failed", {ok, {error, {validation_failed, <<"name">>, <<"required">>}}}},
+  %% v3-style envelope coverage
+  {"echo_item_list_data/basic", {ok, {ok, ItemListData}}},
+  {"echo_item_list_data/empty", {ok, {ok, ItemListEmpty}}},
+  {"echo_item_summary_data/basic", {ok, {ok, ItemSummary}}},
+  {"echo_form_prefill/with_item", {ok, {ok, FormPrefillSome}}},
+  {"echo_form_prefill/without_item", {ok, {ok, FormPrefillNone}}},
+  {"echo_nested_envelope/with_message", {ok, {ok, NestedEnv}}},
+  {"echo_nested_envelope/no_message", {ok, {ok, NestedEnvNone}}},
+  {"echo_dict_and_list_envelope/basic", {ok, {ok, DictAndList}}}
 ],
 
 Print = fun

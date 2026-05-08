@@ -952,24 +952,49 @@ class ETFEncoder {
  */
 function toRawShape(value) {
   if (value === undefined || value === null) return value;
-  // Gleam linked list → JS array
+  // Gleam linked list → JS array (recursively raw-shape each element)
   if (value instanceof Empty) return [];
   if (value instanceof NonEmpty) {
     const arr = [];
     let cur = value;
     while (cur instanceof NonEmpty) {
-      arr.push(cur.head);
+      arr.push(toRawShape(cur.head));
       cur = cur.tail;
     }
     return arr;
   }
-  // Gleam Dict (duck-typed by HAMT internals) → leave as-is;
-  // the typed decoder's decode_dict_of handles both Map and pair arrays.
-  // Framework constructors → raw tagged shapes
-  if (value instanceof Some) return ["some", value[0]];
+  // Gleam Dict → JS array of [key, value] pairs (recursively
+  // raw-shape both sides). decode_dict_of expects this shape.
+  if (value && typeof value === "object" && value.root !== undefined && value.size !== undefined) {
+    const list = dictToList(value);
+    const pairs = [];
+    let cur = list;
+    while (cur instanceof NonEmpty) {
+      const [k, v] = cur.head;
+      pairs.push([toRawShape(k), toRawShape(v)]);
+      cur = cur.tail;
+    }
+    return pairs;
+  }
+  // Framework constructors → raw tagged shapes (recurse into payload)
+  if (value instanceof Some) return ["some", toRawShape(value[0])];
   if (value instanceof None) return "none";
-  if (value instanceof Ok) return ["ok", value[0]];
-  if (value instanceof ResultError) return ["error", value[0]];
+  if (value instanceof Ok) return ["ok", toRawShape(value[0])];
+  if (value instanceof ResultError) return ["error", toRawShape(value[0])];
+  // User custom type → reconstruct raw wire shape so a parent typed
+  // decoder's `decode_list_of(inner_decoder, term[i])` (or any body
+  // that re-decodes a field) sees the wire shape it was generated
+  // against. 0-arity variants encode as bare atoms (the decoder body
+  // checks `term === "atom"`); N-arity variants encode as tagged
+  // arrays (the decoder body checks `term[0] === "atom"`).
+  if (value instanceof CustomType) {
+    const bareName = snakeCase(value.constructor.name);
+    const wireAtom = _bareToQualifiedAtom.get(bareName) ?? bareName;
+    const keys = Object.keys(value);
+    if (keys.length === 0) return wireAtom;
+    const fields = keys.map(k => toRawShape(value[k]));
+    return [wireAtom, ...fields];
+  }
   return value;
 }
 
