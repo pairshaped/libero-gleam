@@ -443,6 +443,51 @@ pub fn generate_atoms_erl_includes_variant_constructor_atoms_test() {
   let assert True = string.contains(content, "<<\"super_user\">>")
 }
 
+pub fn generate_atoms_erl_no_duplicate_end_of_function_test() {
+  // The qualified-atom AtomMap block must not duplicate the
+  // persistent_term:put({?MODULE, done}, true), nil. trailer.
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "get_role",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: True,
+      msg_type_name: option.None,
+    ),
+  ]
+  let discovered = [
+    DiscoveredType(
+      module_path: "shared/types",
+      type_name: "Role",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "shared/types",
+          variant_name: "Admin",
+          atom_name: "shared_types__admin",
+          float_field_indices: [],
+          fields: [],
+        ),
+      ],
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_atoms_erl(endpoints, discovered, "test@atoms")
+
+  // Must end with exactly one trailing nil.
+  let assert True = string.contains(content, "AtomMap),\n    persistent_term")
+  let assert True =
+    string.contains(
+      content,
+      "persistent_term:put({?MODULE, done}, true),\n    nil.\n",
+    )
+  // Must NOT have duplicate done/nil
+  let assert False =
+    string.contains(content, "nil.\n    persistent_term:put({?MODULE, done}")
+}
+
 pub fn empty_endpoints_generates_valid_dispatch_test() {
   let content =
     codegen_dispatch.generate(

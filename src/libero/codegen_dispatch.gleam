@@ -282,7 +282,5 @@ do_ensure() ->
     persistent_term:put({libero, atom_map}, AtomMap),
     persistent_term:put({?MODULE, done}, true),
     nil.
-    persistent_term:put({?MODULE, done}, true),
-    nil.
 "
 }
