@@ -3,13 +3,13 @@ version: 2.0.0
 title: option field typed decoder
 ---
 export function decode_shared_opt_type_opt_wrapper(term) {
-  if (!Array.isArray(term) || term[0] !== "24735379b4") throw new DecodeError("expected 24735379b4 (OptWrapper @ shared/opt_type), got " + (Array.isArray(term) ? String(term[0]) : typeof term));
+  if (!Array.isArray(term) || term[0] !== "opt_wrapper") throw new DecodeError("expected opt_wrapper");
   return new _m_shared_opt_type.OptWrapper(
     decode_option_of((t0) => decode_string(t0), term[1])
   );
 }
 
-registerAtomDecoder("24735379b4", "decode_shared_opt_type_opt_wrapper", decode_shared_opt_type_opt_wrapper);
+registerAtomDecoder("opt_wrapper", "decode_shared_opt_type_opt_wrapper", decode_shared_opt_type_opt_wrapper, "opt_wrapper");
 
 
 export function ensure_decoders() { return true; }

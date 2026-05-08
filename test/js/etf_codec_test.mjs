@@ -16,12 +16,12 @@ import { strict as assert } from "assert";
 // ============================================================
 // Inlined from rpc_ffi.mjs - decoder, encoder, helpers
 // ============================================================
-//
-// Wire identity in the production runtime is per-class: the Gleam
-// codegen attaches `__wireAtom` and `__fieldTypes` static properties
-// to each user type's class. The inlined encoder mirrors that scheme
-// exactly — no global registry — so these tests exercise the same
-// resolution path the production runtime takes.
+
+const fieldTypeRegistry = new Map();
+
+function registerFieldTypes(atomName, fieldTypes) {
+  fieldTypeRegistry.set(atomName, fieldTypes);
+}
 
 class CustomType {}
 
@@ -352,22 +352,17 @@ class ETFEncoder {
       return;
     }
     if (value instanceof CustomType) {
-      // Match production: wire atom comes from the class's __wireAtom
-      // static, falling back to snake_case(class.name) for framework
-      // types and unannotated user classes. Field hints come from the
-      // class's __fieldTypes static.
-      const wireAtom =
-        value.constructor.__wireAtom ?? snakeCase(value.constructor.name);
-      const fieldTypes = value.constructor.__fieldTypes;
+      const ctorName = snakeCase(value.constructor.name);
       const keys = Object.keys(value);
       if (keys.length === 0) {
-        this.writeAtom(wireAtom);
+        this.writeAtom(ctorName);
       } else {
         this.writeUint8(104);
         this.writeUint8(keys.length + 1);
-        this.writeAtom(wireAtom);
+        this.writeAtom(ctorName);
+        const fieldTypes = fieldTypeRegistry.get(ctorName);
         keys.forEach((k, i) => {
-          const hintedField = hintForConstructorField(wireAtom, i, typeHint)
+          const hintedField = hintForConstructorField(ctorName, i, typeHint)
             ?? fieldTypes?.[i];
           this.encodeTerm(value[k], hintedField);
         });
@@ -900,7 +895,19 @@ test("FloatHints", "whole-number float encoded as NEW_FLOAT_EXT with an explicit
   assert.equal(erlResult, "2.0");
 });
 
-test("FloatHints", "encoder uses class __fieldTypes for custom type float fields", () => {
+test("FloatHints", "registerFieldTypes stores direct float hints", () => {
+  registerFieldTypes("my_type", ["float", undefined, "float"]);
+  const hints = fieldTypeRegistry.get("my_type");
+  assert.deepEqual(hints, ["float", undefined, "float"]);
+  fieldTypeRegistry.delete("my_type");
+});
+
+test("FloatHints", "encoder uses type hints for custom type float fields", () => {
+  registerFieldTypes("point", ["float", "float"]);
+  assert.deepEqual(fieldTypeRegistry.get("point"), ["float", "float"]);
+
+  const enc = new ETFEncoder();
+  enc.writeUint8(131);
   class Point extends CustomType {
     constructor(x, y) {
       super();
@@ -908,18 +915,12 @@ test("FloatHints", "encoder uses class __fieldTypes for custom type float fields
       this.y = y;
     }
   }
-  Point.__fieldTypes = ["float", "float"];
-
-  const enc = new ETFEncoder();
-  enc.writeUint8(131);
   enc.encodeTerm(new Point(2.0, 3.0));
 
   const b64 = bufferToBase64(enc.result());
   const erlResult = etfDecodeInErlang(b64);
   assert.equal(erlResult, "{point,2.0,3.0}");
 
-  // Sanity check: without a hint, the same whole-number values would
-  // encode as ints (BEAM sees `{point, 2, 3}`).
   const enc2 = new ETFEncoder();
   enc2.writeUint8(131);
   enc2.writeUint8(104);
@@ -930,16 +931,19 @@ test("FloatHints", "encoder uses class __fieldTypes for custom type float fields
   const b642 = bufferToBase64(enc2.result());
   const erlResult2 = etfDecodeInErlang(b642);
   assert.equal(erlResult2, "{point,2,3}");
+
+  fieldTypeRegistry.delete("point");
 });
 
-test("FloatHints", "encoder uses class __fieldTypes for nested float hints inside lists", () => {
+test("FloatHints", "encoder uses nested float hints inside lists", () => {
+  registerFieldTypes("float_list", [{ kind: "list", element: "float" }]);
+
   class FloatList extends CustomType {
     constructor(values) {
       super();
       this.values = values;
     }
   }
-  FloatList.__fieldTypes = [{ kind: "list", element: "float" }];
 
   const enc = new ETFEncoder();
   enc.writeUint8(131);
@@ -948,28 +952,8 @@ test("FloatHints", "encoder uses class __fieldTypes for nested float hints insid
   const b64 = bufferToBase64(enc.result());
   const erlResult = etfDecodeInErlang(b64);
   assert.equal(erlResult, "{float_list,[2.0,3.5]}");
-});
 
-test("FloatHints", "encoder reads __wireAtom for the wire tag", () => {
-  // Production attaches `__wireAtom = "<hash>"` to each user class so
-  // the wire bytes carry the codegen-baked hash, not the snake-cased
-  // class name. This test confirms the inlined encoder honours the
-  // override exactly the way production does.
-  class Item extends CustomType {
-    constructor(id) {
-      super();
-      this.id = id;
-    }
-  }
-  Item.__wireAtom = "a3b9c2d1ee";
-  Item.__fieldTypes = [null];
-
-  const enc = new ETFEncoder();
-  enc.writeUint8(131);
-  enc.encodeTerm(new Item(7));
-  const b64 = bufferToBase64(enc.result());
-  const erlResult = etfDecodeInErlang(b64);
-  assert.equal(erlResult, "{a3b9c2d1ee,7}");
+  fieldTypeRegistry.delete("float_list");
 });
 
 // ============================================================
@@ -1270,23 +1254,26 @@ test("FloatHints", "type hint roundtrip: whole-number floats preserved BEAM → 
   assert.deepEqual(decoded, ["point", 2.0, 3.0]);
   assert.equal(Number.isInteger(decoded[1]), true); // 2.0 === 2 in JS
 
-  // 2. JS re-encodes using class __fieldTypes hints; BEAM sees floats
-  //    instead of ints.
-  class Point extends CustomType {
-    constructor(x, y) {
-      super();
-      this.x = x;
-      this.y = y;
+  // 2. JS re-encodes using field type hints, BEAM sees floats instead of ints.
+  registerFieldTypes("point", ["float", "float"]);
+  try {
+    class Point extends CustomType {
+      constructor(x, y) {
+        super();
+        this.x = x;
+        this.y = y;
+      }
     }
-  }
-  Point.__fieldTypes = ["float", "float"];
 
-  const enc = new ETFEncoder();
-  enc.writeUint8(131);
-  enc.encodeTerm(new Point(decoded[1], decoded[2]));
-  const b64 = bufferToBase64(enc.result());
-  const erlResult = etfDecodeInErlang(b64);
-  assert.equal(erlResult, "{point,2.0,3.0}");
+    const enc = new ETFEncoder();
+    enc.writeUint8(131);
+    enc.encodeTerm(new Point(decoded[1], decoded[2]));
+    const b64 = bufferToBase64(enc.result());
+    const erlResult = etfDecodeInErlang(b64);
+    assert.equal(erlResult, "{point,2.0,3.0}");
+  } finally {
+    fieldTypeRegistry.delete("point");
+  }
 });
 
 // ============================================================

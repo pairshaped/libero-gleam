@@ -3,7 +3,7 @@ version: 2.0.0
 title: record typed decoder
 ---
 export function decode_shared_item_item(term) {
-  if (!Array.isArray(term) || term[0] !== "a9192bf366") throw new DecodeError("expected a9192bf366 (Item @ shared/item), got " + (Array.isArray(term) ? String(term[0]) : typeof term));
+  if (!Array.isArray(term) || term[0] !== "item") throw new DecodeError("expected item");
   return new _m_shared_item.Item(
     decode_string(term[1]),
     decode_int(term[2]),
@@ -11,7 +11,7 @@ export function decode_shared_item_item(term) {
   );
 }
 
-registerAtomDecoder("a9192bf366", "decode_shared_item_item", decode_shared_item_item);
+registerAtomDecoder("item", "decode_shared_item_item", decode_shared_item_item, "item");
 
 
 export function ensure_decoders() { return true; }

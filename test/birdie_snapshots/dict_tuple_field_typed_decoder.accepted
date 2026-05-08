@@ -1,18 +1,16 @@
 ---
 version: 2.0.0
 title: dict tuple field typed decoder
-file: ./test/libero/typed_decoder_codegen_test.gleam
-test_name: dict_and_tuple_field_snapshot_test
 ---
 export function decode_shared_compound_compound(term) {
-  if (!Array.isArray(term) || term[0] !== "2d8d14cff4") throw new DecodeError("expected 2d8d14cff4 (Compound @ shared/compound), got " + (Array.isArray(term) ? String(term[0]) : typeof term));
+  if (!Array.isArray(term) || term[0] !== "compound") throw new DecodeError("expected compound");
   return new _m_shared_compound.Compound(
     decode_dict_of((t1) => decode_string(t1), (t2) => decode_int(t2), term[1]),
     decode_tuple_of([(t1) => decode_string(t1), (t2) => decode_bool(t2)], term[2])
   );
 }
 
-registerAtomDecoder("2d8d14cff4", "decode_shared_compound_compound", decode_shared_compound_compound);
+registerAtomDecoder("compound", "decode_shared_compound_compound", decode_shared_compound_compound, "compound");
 
 
 export function ensure_decoders() { return true; }

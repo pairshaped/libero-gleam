@@ -444,11 +444,8 @@ pub fn generate_atoms_erl_includes_variant_constructor_atoms_test() {
 }
 
 pub fn generate_atoms_erl_no_duplicate_end_of_function_test() {
-  // The atoms_erl module must end with exactly one trailing
-  // persistent_term:put({?MODULE, done}, true), nil. trailer. Originally
-  // a regression test for an AtomMap-emission bug; AtomMap is gone
-  // under the wire-identity scheme, but the structural invariant
-  // (single trailer, no dup) still matters.
+  // The qualified-atom AtomMap block must not duplicate the
+  // persistent_term:put({?MODULE, done}, true), nil. trailer.
   let endpoints = [
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -479,6 +476,8 @@ pub fn generate_atoms_erl_no_duplicate_end_of_function_test() {
   let content =
     codegen_dispatch.generate_atoms_erl(endpoints, discovered, "test@atoms")
 
+  // Must end with exactly one trailing nil.
+  let assert True = string.contains(content, "AtomMap),\n    persistent_term")
   let assert True =
     string.contains(
       content,
@@ -487,8 +486,6 @@ pub fn generate_atoms_erl_no_duplicate_end_of_function_test() {
   // Must NOT have duplicate done/nil
   let assert False =
     string.contains(content, "nil.\n    persistent_term:put({?MODULE, done}")
-  // AtomMap is removed under the wire-identity scheme.
-  let assert False = string.contains(content, "AtomMap")
 }
 
 pub fn empty_endpoints_generates_valid_dispatch_test() {
