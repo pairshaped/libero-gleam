@@ -15,12 +15,19 @@
 import gleam/bit_array
 import gleam/crypto
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/list
 import gleam/result
 import gleam/string
 
-import libero/field_type.{type FieldType}
-import libero/gen_error.{type GenError, TypeIdentityHashCollision}
+import libero/field_type.{
+  type FieldType, BitArrayField, BoolField, DictOf, FloatField, IntField,
+  ListOf, NilField, OptionOf, ResultOf, StringField, TupleOf, TypeVar, UserType,
+}
+import libero/gen_error.{
+  type GenError, DictKeyMustBePrimitive, TypeIdentityHashCollision,
+  WireTypeContainsTypeVar,
+}
 
 /// The minimal projection of a constructor needed to compute its wire
 /// identity: source module path, constructor name, and ordered field
@@ -144,5 +151,107 @@ fn do_check_uniqueness(
         _ -> do_check_uniqueness(rest, hash_fn, dict.insert(seen, hash, sig))
       }
     }
+  }
+}
+
+/// Walk a list of constructors and verify each one's fields are wire-safe.
+/// Returns `Ok(Nil)` when every field can be encoded over the wire, or
+/// the first violation encountered as a `GenError`.
+///
+/// Currently rejects:
+/// - `Dict(K, V)` where `K` is anything other than `Int`, `String`, or
+///   `Bool` (other key types have ambiguous JS-side identity or wire
+///   contracts that don't round-trip cleanly).
+/// - `TypeVar(_)` — an unresolved generic parameter that survived to
+///   runtime. Without a concrete type, codegen cannot emit transformer
+///   logic for nested fields; matching JS's runtime stance, we reject
+///   at codegen time so the failure is loud and early.
+///
+/// The codegen calls this before emission so unsafe types never reach
+/// the transformer emitter (where they would become silent footguns).
+pub fn check_wire_safety(
+  constructors: List(Constructor),
+) -> Result(Nil, GenError) {
+  case constructors {
+    [] -> Ok(Nil)
+    [c, ..rest] -> {
+      use _ <- result.try(check_constructor_safety(c))
+      check_wire_safety(rest)
+    }
+  }
+}
+
+fn check_constructor_safety(c: Constructor) -> Result(Nil, GenError) {
+  let label = c.module_path <> "." <> c.name
+  c.fields
+  |> list.index_map(fn(field, i) { #(field, i) })
+  |> list.try_each(fn(pair) {
+    let #(field, index) = pair
+    check_field_safety(
+      field,
+      label <> " field[" <> int.to_string(index) <> "]",
+    )
+  })
+}
+
+fn check_field_safety(
+  ft: FieldType,
+  field_path: String,
+) -> Result(Nil, GenError) {
+  case ft {
+    IntField
+    | FloatField
+    | StringField
+    | BoolField
+    | BitArrayField
+    | NilField -> Ok(Nil)
+    TypeVar(name:) ->
+      Error(WireTypeContainsTypeVar(field_path: field_path, var_name: name))
+    ListOf(element:) ->
+      check_field_safety(element, field_path <> ".element")
+    OptionOf(inner:) ->
+      check_field_safety(inner, field_path <> ".inner")
+    ResultOf(ok:, err:) -> {
+      use _ <- result.try(check_field_safety(ok, field_path <> ".ok"))
+      check_field_safety(err, field_path <> ".err")
+    }
+    DictOf(key:, value:) -> {
+      use _ <- result.try(check_dict_key(key, field_path))
+      check_field_safety(value, field_path <> ".value")
+    }
+    TupleOf(elements:) ->
+      elements
+      |> list.index_map(fn(element, i) { #(element, i) })
+      |> list.try_each(fn(pair) {
+        let #(element, index) = pair
+        check_field_safety(
+          element,
+          field_path <> ".element[" <> int.to_string(index) <> "]",
+        )
+      })
+    UserType(args:, ..) ->
+      args
+      |> list.index_map(fn(arg, i) { #(arg, i) })
+      |> list.try_each(fn(pair) {
+        let #(arg, index) = pair
+        check_field_safety(
+          arg,
+          field_path <> ".arg[" <> int.to_string(index) <> "]",
+        )
+      })
+  }
+}
+
+fn check_dict_key(
+  key: FieldType,
+  field_path: String,
+) -> Result(Nil, GenError) {
+  case key {
+    IntField | StringField | BoolField -> Ok(Nil)
+    _ ->
+      Error(DictKeyMustBePrimitive(
+        field_path: field_path,
+        key_type_repr: field_type.to_canonical_token(key),
+      ))
   }
 }

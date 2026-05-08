@@ -7,7 +7,8 @@
 
 import gleam/string
 import libero/field_type.{
-  IntField, ListOf, OptionOf, StringField, UserType,
+  BitArrayField, BoolField, DictOf, FloatField, IntField, ListOf, OptionOf,
+  StringField, TypeVar, UserType,
 }
 import libero/gen_error
 import libero/wire_identity.{Constructor}
@@ -200,4 +201,146 @@ pub fn check_uniqueness_with_mock_ignores_duplicate_signatures_test() {
   let c = Constructor(module_path: "m", name: "A", fields: [IntField])
   let assert Ok(Nil) =
     wire_identity.check_uniqueness_with([c, c, c], const_hash)
+}
+
+// -- check_wire_safety -----------------------------------------------------
+
+pub fn check_wire_safety_accepts_primitives_and_containers_test() {
+  let c =
+    Constructor(
+      module_path: "m",
+      name: "Discount",
+      fields: [
+        IntField,
+        StringField,
+        OptionOf(StringField),
+        ListOf(IntField),
+      ],
+    )
+  let assert Ok(Nil) = wire_identity.check_wire_safety([c])
+}
+
+pub fn check_wire_safety_accepts_dict_with_primitive_keys_test() {
+  let c =
+    Constructor(
+      module_path: "m",
+      name: "Index",
+      fields: [
+        DictOf(key: StringField, value: IntField),
+        DictOf(key: IntField, value: StringField),
+        DictOf(key: BoolField, value: StringField),
+      ],
+    )
+  let assert Ok(Nil) = wire_identity.check_wire_safety([c])
+}
+
+pub fn check_wire_safety_rejects_float_dict_key_test() {
+  let c =
+    Constructor(
+      module_path: "m",
+      name: "Index",
+      fields: [DictOf(key: FloatField, value: IntField)],
+    )
+  let assert Error(gen_error.DictKeyMustBePrimitive(
+    field_path: path,
+    key_type_repr: repr,
+  )) = wire_identity.check_wire_safety([c])
+  let assert "m.Index field[0]" = path
+  let assert "float" = repr
+}
+
+pub fn check_wire_safety_rejects_bit_array_dict_key_test() {
+  let c =
+    Constructor(
+      module_path: "m",
+      name: "Index",
+      fields: [
+        DictOf(key: BitArrayField, value: IntField),
+      ],
+    )
+  let assert Error(gen_error.DictKeyMustBePrimitive(..)) =
+    wire_identity.check_wire_safety([c])
+}
+
+pub fn check_wire_safety_rejects_user_typed_dict_key_test() {
+  let c =
+    Constructor(
+      module_path: "m",
+      name: "Index",
+      fields: [
+        DictOf(
+          key: UserType(
+            module_path: "m",
+            type_name: "Item",
+            args: [],
+          ),
+          value: IntField,
+        ),
+      ],
+    )
+  let assert Error(gen_error.DictKeyMustBePrimitive(
+    field_path: _,
+    key_type_repr: repr,
+  )) = wire_identity.check_wire_safety([c])
+  let assert "<type:m|Item>" = repr
+}
+
+/// Nested Dict-with-bad-key inside a List should still be detected and
+/// the field path should reflect the nesting.
+pub fn check_wire_safety_finds_dict_key_violation_inside_list_test() {
+  let c =
+    Constructor(
+      module_path: "m",
+      name: "Wrapper",
+      fields: [
+        ListOf(DictOf(key: FloatField, value: IntField)),
+      ],
+    )
+  let assert Error(gen_error.DictKeyMustBePrimitive(
+    field_path: path,
+    key_type_repr: _,
+  )) = wire_identity.check_wire_safety([c])
+  let assert "m.Wrapper field[0].element" = path
+}
+
+pub fn check_wire_safety_rejects_typevar_field_test() {
+  let c =
+    Constructor(
+      module_path: "m",
+      name: "Holder",
+      fields: [TypeVar(name: "a")],
+    )
+  let assert Error(gen_error.WireTypeContainsTypeVar(
+    field_path: path,
+    var_name: name,
+  )) = wire_identity.check_wire_safety([c])
+  let assert "m.Holder field[0]" = path
+  let assert "a" = name
+}
+
+pub fn check_wire_safety_finds_typevar_inside_option_test() {
+  let c =
+    Constructor(
+      module_path: "m",
+      name: "Holder",
+      fields: [OptionOf(TypeVar(name: "x"))],
+    )
+  let assert Error(gen_error.WireTypeContainsTypeVar(
+    field_path: path,
+    var_name: name,
+  )) = wire_identity.check_wire_safety([c])
+  let assert "m.Holder field[0].inner" = path
+  let assert "x" = name
+}
+
+pub fn check_wire_safety_walks_all_constructors_test() {
+  let safe = Constructor(module_path: "m", name: "Safe", fields: [IntField])
+  let unsafe =
+    Constructor(
+      module_path: "m",
+      name: "Unsafe",
+      fields: [TypeVar(name: "t")],
+    )
+  let assert Error(gen_error.WireTypeContainsTypeVar(..)) =
+    wire_identity.check_wire_safety([safe, unsafe])
 }

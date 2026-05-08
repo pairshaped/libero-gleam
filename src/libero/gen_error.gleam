@@ -24,6 +24,22 @@ pub type GenError {
     signature_a: String,
     signature_b: String,
   )
+  /// A field declares `Dict(K, V)` with K something other than Int,
+  /// String, or Bool. Other key types have ambiguous JS-side identity
+  /// or wire-encoding rules; the codegen rejects them upfront so
+  /// behaviour is symmetric across BEAM and JS.
+  ///
+  /// `field_path` locates the offending field, e.g.
+  /// `admin/discounts.Discount field[2].value.key` for a nested case.
+  /// `key_type_repr` is the FieldType's canonical token string for
+  /// readability in the error box.
+  DictKeyMustBePrimitive(field_path: String, key_type_repr: String)
+  /// A field's type still contains an unresolved type variable
+  /// (generic parameter that survived to runtime). Wire transformer
+  /// codegen needs the concrete type to emit encode/decode logic; a
+  /// generic survives only if the user wrote a wire type with an
+  /// uninstantiated generic parameter, which is a logic error.
+  WireTypeContainsTypeVar(field_path: String, var_name: String)
 }
 
 pub fn print_error(err: GenError) -> Nil {
@@ -138,6 +154,33 @@ fn to_string(err: GenError) -> String {
         ],
         hint: Some(
           "This is an extremely rare birthday collision. File a libero\n        issue with both canonical signatures so the hash algorithm\n        can be adjusted.",
+        ),
+      )
+
+    DictKeyMustBePrimitive(field_path, key_type_repr) ->
+      error_box(
+        title: "Unsupported Dict key type",
+        path: field_path,
+        body_lines: [
+          "Field declares Dict(" <> key_type_repr <> ", _) but only Int,",
+          "String, and Bool are allowed as Dict keys on the wire.",
+        ],
+        hint: Some(
+          "Use Int/String/Bool keys, or restructure the data as\n        List(#(KeyType, ValueType)) and convert at the application\n        boundary.",
+        ),
+      )
+
+    WireTypeContainsTypeVar(field_path, var_name) ->
+      error_box(
+        title: "Wire type contains unresolved generic",
+        path: field_path,
+        body_lines: [
+          "Type variable `" <> var_name <> "` survived to runtime in this",
+          "field. Wire transformer codegen needs concrete types so it can",
+          "emit per-field encode/decode logic.",
+        ],
+        hint: Some(
+          "Replace the generic parameter with a concrete type at the\n        wire boundary, or wrap it in a fully-applied user type before\n        the value crosses the wire.",
         ),
       )
   }

@@ -1,7 +1,6 @@
 # Wire-Format Type Identity via Codegen
 
 **Status:** Spec + plan, pending review (review v2: hash-only + lockstep cutover)
-**Author:** dave@rapin.com
 **Created:** 2026-05-08
 **Scope:** libero (primary), rally (consumer), v3 (smoke target)
 
@@ -793,7 +792,7 @@ The work is sequenced for the implementer's sanity, but everything lands togethe
 7. **JS runtime cleanup.** Drop `_bareToQualifiedAtom`, `fieldTypeRegistry`, `registerFieldTypes` from `rpc_ffi.mjs`. Update encoder and `toRawShape` to read `__wireAtom` and `__fieldTypes` from constructors. Drop `bareName` from `registerAtomDecoder` signature.
 8. **Erlang runtime cleanup.** Drop `qualify_atoms/1` from `libero_ffi.erl`. Simplify `encode/1` to call `term_to_binary/1` directly.
 9. **Same-name collision E2E fixture.** Add the wire_e2e fixture from the test plan.
-10. **libero `bin/test`, `bin/lint` pass.** Verify libero is fully clean.
+10. **libero `gleam test`, `gleam run -m glinter` pass.** Verify libero is fully clean. (libero has no `bin/` scripts; v3 does.)
 11. **v3 cutover.** In v3: `bin/regen`, `bin/dev`, smoke test admin SPA. Verify originally-failing `/admin/registration/discounts` loads. Walk all admin pages.
 
 Steps 1-10 land in one libero PR. Step 11 is the v3-side action that runs immediately after libero is merged or pulled. There is no half-state where libero is "done" but v3 has not regenerated; v3 regenerates as part of the same change set.
@@ -857,8 +856,8 @@ The work is complete when ALL of the following hold:
 1. `git grep -i 'qualify_atoms' libero/src/` returns zero hits.
 2. `git grep '_bareToQualifiedAtom\|fieldTypeRegistry\|registerFieldTypes' libero/src/` returns zero hits.
 3. `git grep '_bareToQualifiedAtom\|fieldTypeRegistry' v3/.generated_client/` returns zero hits after `bin/regen`.
-4. `bin/test` passes in libero (including new fixtures from Tests 1-11).
-5. `bin/lint` passes in libero.
+4. `gleam test` passes in libero (including new fixtures from Tests 1-11).
+5. `gleam run -m glinter` reports no issues in libero.
 6. `bin/dev` builds cleanly in v3.
 7. v3 admin SPA loads `/admin/registration/discounts` without a DecodeError.
 8. Smoke walk of v3 admin SPA produces no regressions on any other page.
