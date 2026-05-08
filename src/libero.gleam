@@ -59,7 +59,13 @@ pub fn main() -> Nil {
       atoms_module: option.Some(atoms_module),
       wire_module: option.Some(wire_module),
     )
-  let atoms_erl = generate_atoms(endpoints:, discovered:, atoms_module:)
+  let atoms_erl =
+    generate_atoms(
+      endpoints:,
+      discovered:,
+      atoms_module:,
+      wire_module: option.Some(wire_module),
+    )
   let wire_erl = case generate_wire_erl(discovered:, wire_module:) {
     Ok(src) -> src
     Error(err) -> {
@@ -165,8 +171,14 @@ pub fn generate_atoms(
   endpoints endpoints: List(HandlerEndpoint),
   discovered discovered: List(DiscoveredType),
   atoms_module atoms_module: String,
+  wire_module wire_module: option.Option(String),
 ) -> String {
-  codegen_dispatch.generate_atoms_erl(endpoints, discovered, atoms_module)
+  codegen_dispatch.generate_atoms_erl(
+    endpoints,
+    discovered,
+    atoms_module,
+    wire_module,
+  )
 }
 
 /// Generate the per-type wire-transformer Erlang module.

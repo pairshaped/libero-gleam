@@ -584,6 +584,7 @@ pub fn generate_atoms_erl(
   endpoints endpoints: List(scanner.HandlerEndpoint),
   discovered discovered: List(DiscoveredType),
   atoms_module atoms_module: String,
+  wire_module wire_module: option.Option(String),
 ) -> String {
   let framework_atoms = [
     "ok", "error", "some", "none", "nil", "true", "false", "malformed_request",
@@ -639,7 +640,11 @@ do_ensure() ->
     lists:foreach(fun(B) -> binary_to_atom(B) end, [
 " <> atom_list <> "
     ]),
-    persistent_term:put({?MODULE, done}, true),
+    " <> case wire_module {
+    option.Some(mod) ->
+      "persistent_term:put({libero, wire_module}, '" <> mod <> "'),\n    "
+    option.None -> ""
+  } <> "persistent_term:put({?MODULE, done}, true),
     nil.
 "
 }

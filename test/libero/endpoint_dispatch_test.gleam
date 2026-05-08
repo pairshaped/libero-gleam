@@ -347,7 +347,12 @@ pub fn generate_atoms_erl_produces_valid_erlang_test() {
     ),
   ]
   let content =
-    codegen_dispatch.generate_atoms_erl(endpoints, [], "generated@rpc_atoms")
+    codegen_dispatch.generate_atoms_erl(
+      endpoints,
+      [],
+      "generated@rpc_atoms",
+      option.None,
+    )
 
   // Module declaration
   let assert True = string.contains(content, "-module(generated@rpc_atoms).")
@@ -392,7 +397,8 @@ pub fn generate_atoms_erl_deduplicates_atoms_test() {
       msg_type: option.None,
     ),
   ]
-  let content = codegen_dispatch.generate_atoms_erl(endpoints, [], "mod")
+  let content =
+    codegen_dispatch.generate_atoms_erl(endpoints, [], "mod", option.None)
 
   // "load_sponsors" should appear exactly once (deduplicated)
   // framework atom "ok" also appears once
@@ -464,7 +470,12 @@ pub fn generate_atoms_erl_includes_variant_constructor_atoms_test() {
     ),
   ]
   let content =
-    codegen_dispatch.generate_atoms_erl(endpoints, discovered, "test@atoms")
+    codegen_dispatch.generate_atoms_erl(
+      endpoints,
+      discovered,
+      "test@atoms",
+      option.None,
+    )
 
   // Variant constructor atoms are included
   let assert True = string.contains(content, "<<\"admin\">>")
@@ -502,7 +513,12 @@ pub fn generate_atoms_erl_no_duplicate_end_of_function_test() {
     ),
   ]
   let content =
-    codegen_dispatch.generate_atoms_erl(endpoints, discovered, "test@atoms")
+    codegen_dispatch.generate_atoms_erl(
+      endpoints,
+      discovered,
+      "test@atoms",
+      option.None,
+    )
 
   // No AtomMap under the wire-identity scheme; just atom pre-registration.
   let assert False = string.contains(content, "AtomMap")
@@ -516,6 +532,33 @@ pub fn generate_atoms_erl_no_duplicate_end_of_function_test() {
   // Must NOT have duplicate done/nil
   let assert False =
     string.contains(content, "nil.\n    persistent_term:put({?MODULE, done}")
+}
+
+pub fn generate_atoms_erl_registers_wire_module_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "ping",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: True,
+      msg_type: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_atoms_erl(
+      endpoints,
+      [],
+      "test@atoms",
+      option.Some("test@wire"),
+    )
+
+  let assert True =
+    string.contains(
+      content,
+      "persistent_term:put({libero, wire_module}, 'test@wire')",
+    )
 }
 
 pub fn empty_endpoints_generates_valid_dispatch_test() {

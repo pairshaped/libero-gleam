@@ -14,19 +14,19 @@
 
 identity(X) -> X.
 
-%% Wire identity is baked at codegen time: the per-type transformer
-%% functions in <consumer>_wire.erl convert BEAM-shape (bare atoms) to
-%% wire-shape (10-char hex hashes) before encode/1 sees the term, so
-%% encode/1 just calls term_to_binary directly.
 encode(Term) ->
-    erlang:term_to_binary(Term).
+    Term2 = case persistent_term:get({libero, wire_module}, undefined) of
+        undefined -> Term;
+        Mod -> Mod:encode_term(Term)
+    end,
+    erlang:term_to_binary(Term2).
 
 decode(Bin) ->
-    erlang:binary_to_term(Bin, [safe]).
+    apply_decode_term(erlang:binary_to_term(Bin, [safe])).
 
 decode_safe(Bin) ->
     try erlang:binary_to_term(Bin, [safe]) of
-        Term -> {ok, Term}
+        Term -> {ok, apply_decode_term(Term)}
     catch
         _:Reason ->
             Msg = erlang:iolist_to_binary(
@@ -35,10 +35,14 @@ decode_safe(Bin) ->
             {error, {decode_error, Msg}}
     end.
 
-%% On BEAM, ETF is native — the decoder_name is ignored since
-%% binary_to_term already reconstructs all types correctly.
 decode_typed(Bin, _DecoderName) ->
     decode_safe(Bin).
+
+apply_decode_term(Term) ->
+    case persistent_term:get({libero, wire_module}, undefined) of
+        undefined -> Term;
+        Mod -> Mod:decode_term(Term)
+    end.
 
 try_call(F) ->
     try F() of
