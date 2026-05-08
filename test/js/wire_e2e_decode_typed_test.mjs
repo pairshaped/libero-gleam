@@ -32,6 +32,9 @@ await import(
 const types = await import(
   pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href
 );
+const collision = await import(
+  pathToFileURL(join(webRoot, "shared/shared/collision.mjs")).href
+);
 const gleam = await import(pathToFileURL(join(webRoot, "gleam_stdlib/gleam.mjs")).href);
 const option = await import(
   pathToFileURL(join(webRoot, "gleam_stdlib/gleam/option.mjs")).href
@@ -264,6 +267,20 @@ assert.ok(decodeOk("echo_option_item/none") instanceof option.None);
   assert.equal(ordered.length, 2);
   expectItem(ordered[0], item);
   expectItem(ordered[1], item2);
+}
+
+// ---------- Cross-module type-name collisions ----------
+
+{
+  const v = decodeOk("echo_types_tag/basic");
+  assert.ok(v instanceof types.Tag, "types.Tag instance");
+  assert.equal(v.label, "sale");
+  assert.equal(v.color, "red");
+}
+{
+  const v = decodeOk("echo_collision_tag/basic");
+  assert.ok(v instanceof collision.Tag, "collision.Tag instance");
+  assert.equal(v.label, "promo");
 }
 
 console.log("wire e2e decode-typed test passed (every manifest case via decode_value)");

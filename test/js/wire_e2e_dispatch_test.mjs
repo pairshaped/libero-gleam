@@ -22,6 +22,9 @@ const remoteData = await import(
 const types = await import(
   pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href
 );
+const collision = await import(
+  pathToFileURL(join(webRoot, "shared/shared/collision.mjs")).href
+);
 const gleam = await import(pathToFileURL(join(webRoot, "gleam_stdlib/gleam.mjs")).href);
 const option = await import(
   pathToFileURL(join(webRoot, "gleam_stdlib/gleam/option.mjs")).href
@@ -104,6 +107,8 @@ const expectedRequestIds = {
   "echo_typed_err/validation_failed": 63,
   "dispatch/handler_panic": 65,
   "dispatch/unknown_variant": 66,
+  "echo_types_tag/basic": 76,
+  "echo_collision_tag/basic": 77,
 };
 
 for (const [name, requestId] of Object.entries(expectedRequestIds)) {
@@ -198,6 +203,21 @@ const nested = expectSuccess(
 );
 assert.ok(nested instanceof types.NestedRecord);
 expectItem(dictGet(nested.by_id, "one"), 7);
+
+const typesTag = expectSuccess(
+  decodeFrame(manifest["echo_types_tag/basic"]),
+  decoders.decode_response_echo_types_tag,
+);
+assert.ok(typesTag instanceof types.Tag);
+assert.equal(typesTag.label, "sale");
+assert.equal(typesTag.color, "red");
+
+const collisionTag = expectSuccess(
+  decodeFrame(manifest["echo_collision_tag/basic"]),
+  decoders.decode_response_echo_collision_tag,
+);
+assert.ok(collisionTag instanceof collision.Tag);
+assert.equal(collisionTag.label, "promo");
 
 expectValidationFailed(
   expectDomainFailure(

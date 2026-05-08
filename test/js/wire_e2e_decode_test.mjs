@@ -21,6 +21,9 @@ const remoteData = await import(
 const types = await import(
   pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href
 );
+const collision = await import(
+  pathToFileURL(join(webRoot, "shared/shared/collision.mjs")).href
+);
 const gleam = await import(pathToFileURL(join(webRoot, "gleam_stdlib/gleam.mjs")).href);
 const option = await import(
   pathToFileURL(join(webRoot, "gleam_stdlib/gleam/option.mjs")).href
@@ -184,6 +187,15 @@ const cases = [
     assert.ok(statuses[1] instanceof types.Active);
     assert.ok(statuses[2] instanceof types.Cancelled);
     expectItem(dictGet(v.by_id, "one"), item);
+  }],
+  ["echo_types_tag/basic", decoders.decode_response_echo_types_tag, (v) => {
+    assert.ok(v instanceof types.Tag);
+    assert.equal(v.label, "sale");
+    assert.equal(v.color, "red");
+  }],
+  ["echo_collision_tag/basic", decoders.decode_response_echo_collision_tag, (v) => {
+    assert.ok(v instanceof collision.Tag);
+    assert.equal(v.label, "promo");
   }],
 ];
 
