@@ -339,3 +339,96 @@ pub fn bitarray_and_nil_pass_through_test() {
 
   let assert True = string.contains(out, "{'" <> hash <> "', F0, F1}")
 }
+
+// -- encode_term / decode_term generic walkers ----------------------------
+
+pub fn encode_term_and_decode_term_exported_test() {
+  let dt =
+    typ("m", "Item", [
+      variant("m", "Item", [StringField, IntField]),
+    ])
+  let assert Ok(out) =
+    codegen_wire_erl.generate(module_name: "x_wire", discovered: [dt])
+
+  let assert True = string.contains(out, "encode_term/1")
+  let assert True = string.contains(out, "decode_term/1")
+}
+
+pub fn encode_term_maps_bare_atoms_for_zero_arity_variants_test() {
+  let pending_hash = hash_for("shared/types", "Pending", [])
+  let active_hash = hash_for("shared/types", "Active", [])
+  let dt =
+    typ("shared/types", "Status", [
+      variant("shared/types", "Pending", []),
+      variant("shared/types", "Active", []),
+    ])
+  let assert Ok(out) =
+    codegen_wire_erl.generate(module_name: "x_wire", discovered: [dt])
+
+  let assert True = string.contains(out, "pending -> '" <> pending_hash <> "'")
+  let assert True = string.contains(out, "active -> '" <> active_hash <> "'")
+}
+
+pub fn encode_term_matches_bare_atom_and_arity_for_n_arity_variants_test() {
+  let dt =
+    typ("m", "Item", [
+      variant("m", "Item", [StringField, IntField, BoolField]),
+    ])
+  let assert Ok(out) =
+    codegen_wire_erl.generate(module_name: "x_wire", discovered: [dt])
+
+  // 3 fields + 1 tag = tuple arity 4
+  let assert True = string.contains(out, "{item, 4} -> encode_m__item(Tuple)")
+}
+
+pub fn decode_term_maps_hashed_atoms_for_zero_arity_variants_test() {
+  let pending_hash = hash_for("shared/types", "Pending", [])
+  let active_hash = hash_for("shared/types", "Active", [])
+  let dt =
+    typ("shared/types", "Status", [
+      variant("shared/types", "Pending", []),
+      variant("shared/types", "Active", []),
+    ])
+  let assert Ok(out) =
+    codegen_wire_erl.generate(module_name: "x_wire", discovered: [dt])
+
+  let assert True = string.contains(out, "'" <> pending_hash <> "' -> pending")
+  let assert True = string.contains(out, "'" <> active_hash <> "' -> active")
+}
+
+pub fn decode_term_matches_hash_and_arity_for_n_arity_variants_test() {
+  let item_hash = hash_for("m", "Item", [StringField, IntField, BoolField])
+  let dt =
+    typ("m", "Item", [
+      variant("m", "Item", [StringField, IntField, BoolField]),
+    ])
+  let assert Ok(out) =
+    codegen_wire_erl.generate(module_name: "x_wire", discovered: [dt])
+
+  let assert True =
+    string.contains(out, "{'" <> item_hash <> "', 4} -> decode_m__item(Tuple)")
+}
+
+pub fn encode_term_mixed_zero_and_n_arity_test() {
+  let dt_status =
+    typ("m", "Status", [
+      variant("m", "Pending", []),
+      variant("m", "Active", []),
+    ])
+  let dt_item =
+    typ("m", "Item", [
+      variant("m", "Item", [StringField, IntField]),
+    ])
+  let assert Ok(out) =
+    codegen_wire_erl.generate(module_name: "x_wire", discovered: [
+      dt_status,
+      dt_item,
+    ])
+
+  // Atom clause has 0-arity variants
+  let pending_hash = hash_for("m", "Pending", [])
+  let assert True = string.contains(out, "pending -> '" <> pending_hash <> "'")
+
+  // Tuple clause has N-arity variants (2 fields + 1 tag = 3)
+  let assert True = string.contains(out, "{item, 3} -> encode_m__item(Tuple)")
+}
