@@ -18,20 +18,36 @@ encode(Term) ->
     QTerm = qualify_atoms(Term),
     erlang:term_to_binary(QTerm).
 
-qualify_atoms({Atom, _} = Tuple) when is_atom(Atom) ->
-    case persistent_term:get({libero, atom_map}, #{}) of
-        #{Atom := Qualified} -> setelement(1, Tuple, Qualified);
-        #{} -> Tuple
-    end;
 qualify_atoms(Atom) when is_atom(Atom) ->
+    %% Bare atom: the wire form for a 0-arity variant. Look up by atom.
     case persistent_term:get({libero, atom_map}, #{}) of
         #{Atom := Qualified} -> Qualified;
         #{} -> Atom
     end;
 qualify_atoms(List) when is_list(List) ->
     [qualify_atoms(Item) || Item <- List];
+qualify_atoms(Tuple) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->
+    %% Tagged tuple: look up by {HeadAtom, Arity} so two variants in
+    %% different modules with the same bare atom but different arities
+    %% (e.g. list-page Discount with 6 fields vs edit-page Discount with
+    %% 13 fields) get distinct qualified wire atoms.
+    Head = element(1, Tuple),
+    Map = persistent_term:get({libero, atom_map}, #{}),
+    Arity = tuple_size(Tuple),
+    Qualified =
+        case is_atom(Head) of
+            true ->
+                case Map of
+                    #{{Head, Arity} := Q} -> Q;
+                    #{Head := Q} -> Q;
+                    #{} -> Head
+                end;
+            false -> Head
+        end,
+    Rest = [qualify_atoms(Item) || Item <- tl(tuple_to_list(Tuple))],
+    list_to_tuple([Qualified | Rest]);
 qualify_atoms(Tuple) when is_tuple(Tuple) ->
-    list_to_tuple([qualify_atoms(Item) || Item <- tuple_to_list(Tuple)]);
+    Tuple;
 qualify_atoms(Map) when is_map(Map) ->
     maps:from_list([{qualify_atoms(K), qualify_atoms(V)} || {K, V} <- maps:to_list(Map)]);
 qualify_atoms(Term) ->

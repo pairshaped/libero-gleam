@@ -8,6 +8,7 @@
 //// produces a structured InternalError response (with trace ID for log
 //// correlation) instead of crashing the caller's process.
 
+import gleam/int
 import gleam/list
 import gleam/option
 import gleam/string
@@ -248,7 +249,23 @@ pub fn generate_atoms_erl(
       list.map(dt.variants, fn(v) {
         let bare = walker.to_snake_case(v.variant_name)
         let qualified = v.atom_name
-        "        <<\"" <> bare <> "\">> => <<\"" <> qualified <> "\">>"
+        let bare_expr = "binary_to_existing_atom(<<\"" <> bare <> "\">>)"
+        let qualified_expr =
+          "binary_to_existing_atom(<<\"" <> qualified <> "\">>)"
+        case v.fields {
+          // 0-arity variant: encoded as a bare atom on the wire, key by atom.
+          [] -> "        " <> bare_expr <> " => " <> qualified_expr
+          // N-arity variant: encoded as {atom, F1..FN}, key by {Atom, N + 1}.
+          _ -> {
+            let arity = int.to_string(list.length(v.fields) + 1)
+            "        {"
+            <> bare_expr
+            <> ", "
+            <> arity
+            <> "} => "
+            <> qualified_expr
+          }
+        }
       })
     })
     |> string.join(",\n")

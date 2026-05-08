@@ -1,8 +1,6 @@
 ---
 version: 2.0.0
 title: tagged union typed decoder
-file: ./test/libero/typed_decoder_codegen_test.gleam
-test_name: tagged_union_snapshot_test
 ---
 export function decode_shared_notification_notification(term) {
   const tag = Array.isArray(term) ? term[0] : term;
@@ -20,10 +18,10 @@ export function decode_shared_notification_notification(term) {
   }
 }
 
-registerAtomDecoder("items_loaded", "decode_shared_notification_notification", decode_shared_notification_notification);
-registerAtomDecoder("status_changed", "decode_shared_notification_notification", decode_shared_notification_notification);
-registerAtomDecoder("disconnected", "decode_shared_notification_notification", decode_shared_notification_notification);
-registerAtomDecoder("refreshed", "decode_shared_notification_notification", decode_shared_notification_notification);
+registerAtomDecoder("items_loaded", "decode_shared_notification_notification", decode_shared_notification_notification, "items_loaded");
+registerAtomDecoder("status_changed", "decode_shared_notification_notification", decode_shared_notification_notification, "status_changed");
+registerAtomDecoder("disconnected", "decode_shared_notification_notification", decode_shared_notification_notification, "disconnected");
+registerAtomDecoder("refreshed", "decode_shared_notification_notification", decode_shared_notification_notification, "refreshed");
 
 
 export function ensure_decoders() { return true; }

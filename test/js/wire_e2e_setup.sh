@@ -50,9 +50,9 @@ perl -0pi -e "s#libero = \\{ path = \"[^\"]+\" \\}#libero = { path = \"$ROOT_DIR
 
 printf '%s\n' "$STAGED_FIXTURE" > "$BUILD_ROOT_FILE"
 
-erl -noshell -eval "$(cat "$ROOT_DIR/test/js/wire_e2e_decode_manifest.escript")" > "$DECODE_MANIFEST"
-
 ERL_EBINS=$(find "$STAGED_FIXTURE/server/build/dev/erlang" -path '*/ebin' -type d | tr '\n' ' ')
+
+erl -noshell -pa $ERL_EBINS -eval "$(cat "$ROOT_DIR/test/js/wire_e2e_decode_manifest.escript")" > "$DECODE_MANIFEST"
 
 # Verify atom pre-registration enables binary_to_term([safe]) with custom atoms
 # before the dispatch handler loads them via ensure_atoms().

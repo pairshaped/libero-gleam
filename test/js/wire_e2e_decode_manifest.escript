@@ -3,10 +3,11 @@
 %% base64-encoded response term of shape {ok, {ok, Value}} that the
 %% JS decoder will unpack.
 %%
-%% Called from wire_e2e_setup.sh:
-%%   erl -noshell -eval "$(cat decode_manifest.erl)" > manifest.json
+%% Called from wire_e2e_setup.sh with libero ebins on the path:
+%%   erl -noshell -pa <ebin_dirs> -eval "$(cat decode_manifest.erl)" > manifest.json
 
-Encode = fun(Term) -> binary_to_list(base64:encode(erlang:term_to_binary(Term))) end,
+generated@rpc_atoms:ensure(),
+Encode = fun(Term) -> binary_to_list(base64:encode(libero_ffi:encode(Term))) end,
 
 Item = {item, 7, <<"wrench">>, 12.5, true},
 Item2 = {item, 8, <<"bolt">>, 1.25, false},

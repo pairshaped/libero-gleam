@@ -70,9 +70,18 @@ export function decodeTyped(value, decoderName) {
 // correctly where the caller knows the expected type.
 const _atomToDecoderName = new Map();
 
-export function registerAtomDecoder(atomName, decoderName, decoderFn) {
+// Bare snake_case constructor name → qualified wire atom. The encoder looks
+// here so a Gleam class instance is emitted with the same qualified atom the
+// server uses, and the field-type registry (also keyed by qualified atom) can
+// be looked up consistently.
+const _bareToQualifiedAtom = new Map();
+
+export function registerAtomDecoder(atomName, decoderName, decoderFn, bareName) {
   registerTypedDecoder(decoderName, decoderFn);
   _atomToDecoderName.set(atomName, decoderName);
+  if (bareName !== undefined && bareName !== atomName) {
+    _bareToQualifiedAtom.set(bareName, atomName);
+  }
 }
 
 export function lookupAtomDecoder(atomName) {
@@ -792,11 +801,12 @@ class ETFEncoder {
 
     // Gleam custom type instance
     if (value instanceof CustomType) {
-      const ctorName = snakeCase(value.constructor.name);
+      const bareName = snakeCase(value.constructor.name);
+      const wireAtom = _bareToQualifiedAtom.get(bareName) ?? bareName;
       const keys = Object.keys(value);
       if (keys.length === 0) {
         // 0-arity constructor → bare atom
-        this.writeAtom(ctorName);
+        this.writeAtom(wireAtom);
       } else {
         // N-arity constructor → tuple {atom, field1, field2, ...}
         const arity = keys.length + 1;
@@ -807,11 +817,11 @@ class ETFEncoder {
           this.writeUint8(105); // LARGE_TUPLE_EXT
           this.writeUint32(arity);
         }
-        this.writeAtom(ctorName);
-        const fieldTypes = fieldTypeRegistry.get(ctorName);
+        this.writeAtom(wireAtom);
+        const fieldTypes = fieldTypeRegistry.get(wireAtom);
         keys.forEach((k, i) => {
           const fieldValue = value[k];
-          const hintedField = hintForConstructorField(ctorName, i, typeHint)
+          const hintedField = hintForConstructorField(wireAtom, i, typeHint)
             ?? fieldTypes?.[i];
           this.encodeTerm(fieldValue, hintedField);
         });

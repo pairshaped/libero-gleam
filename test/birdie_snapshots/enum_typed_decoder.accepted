@@ -1,8 +1,6 @@
 ---
 version: 2.0.0
 title: enum typed decoder
-file: ./test/libero/typed_decoder_codegen_test.gleam
-test_name: enum_snapshot_test
 ---
 export function decode_shared_line_item_status(term) {
   if (term === "pending") return new _m_shared_line_item.Pending();
@@ -10,8 +8,8 @@ export function decode_shared_line_item_status(term) {
   throw new DecodeError("unknown variant: " + String(term));
 }
 
-registerAtomDecoder("pending", "decode_shared_line_item_status", decode_shared_line_item_status);
-registerAtomDecoder("paid", "decode_shared_line_item_status", decode_shared_line_item_status);
+registerAtomDecoder("pending", "decode_shared_line_item_status", decode_shared_line_item_status, "pending");
+registerAtomDecoder("paid", "decode_shared_line_item_status", decode_shared_line_item_status, "paid");
 
 
 export function ensure_decoders() { return true; }

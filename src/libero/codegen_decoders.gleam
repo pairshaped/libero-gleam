@@ -77,13 +77,16 @@ fn emit_typed_decoder_registrations(discovered: List(DiscoveredType)) -> String 
         list.flat_map(discovered, fn(t) {
           let fn_name = decoder_fn_name(t.module_path, t.type_name)
           list.map(t.variants, fn(v) {
+            let bare = walker.to_snake_case(v.variant_name)
             "registerAtomDecoder(\""
             <> v.atom_name
             <> "\", \""
             <> fn_name
             <> "\", "
             <> fn_name
-            <> ");"
+            <> ", \""
+            <> bare
+            <> "\");"
           })
         })
         |> string.join("\n")
