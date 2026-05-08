@@ -4,7 +4,7 @@
 
 **Goal:** Restore typed generated transforms at wire boundaries as the primary correctness mechanism, keeping centralized `encode_term/decode_term` as a fallback safety net.
 
-**Architecture:** Two layers. The primary layer is typed boundary transforms: a generated `decode_client_msg/1` that decodes ALL inbound ClientMsg variants in one function, and per-endpoint `encode_response_<fn>/1` functions that encode handler results. These go in the existing wire Erlang module and are called from the dispatch via FFI. The fallback layer is `encode_term/decode_term` in `wire.encode`/`wire.decode`, which catches incidental paths (SSR flags, future boundaries). The fallback is idempotent: already-hashed atoms pass through unchanged, so running both layers is safe.
+**Architecture:** Two layers. The primary layer is typed boundary transforms: a generated `decode_client_msg/1` that decodes ALL inbound ClientMsg variants in one function, and per-endpoint `encode_response_<fn>/1` functions that encode handler results. These go in the existing wire Erlang module and are called from the dispatch via FFI. SSR flags and page models also get typed transforms (Task 5). The fallback layer is `encode_term/decode_term` in `wire.encode`/`wire.decode`, which catches framework wrappers and any future untyped paths. The fallback is idempotent: `encode_term` explicitly preserves known hash atoms (they appear in a guard clause before the bare-atom matching), so a value that already went through a typed transform passes through unchanged. This makes running both layers safe.
 
 **Tech Stack:** Gleam, Erlang FFI, codegen (`codegen_wire_erl.gleam`, `codegen_dispatch.gleam`, `libero_ffi.erl`)
 
