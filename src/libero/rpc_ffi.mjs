@@ -460,6 +460,8 @@ class ETFDecoder {
       if (name === "none") return new None();
       const reg = constructorRegistry.get(name);
       if (reg && reg.fieldCount === 0) return new reg.ctor();
+      const decoderFn = lookupAtomDecoder(name);
+      if (decoderFn) return decoderFn(name);
     }
     // Return atom as string - unknown constructors are resolved
     // by the generated typed decoders in a second pass.
