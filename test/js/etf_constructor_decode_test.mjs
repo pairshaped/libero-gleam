@@ -120,9 +120,50 @@ class ETFEncoder {
 // ---------- Constructor registry (matches rpc_ffi.mjs) ----------
 const constructorRegistry = new Map();
 
+// ---------- Typed decoder registry (matches rpc_ffi.mjs) ----------
+// Atom → decoder-name reverse mapping so non-raw decode_value can
+// reconstruct custom types without the deprecated constructorRegistry.
+const _typedDecoderRegistry = new Map();
+const _atomToDecoderName = new Map();
+
+function registerTypedDecoder(name, fn) {
+  _typedDecoderRegistry.set(name, fn);
+}
+function registerAtomDecoder(atomName, decoderName, decoderFn) {
+  registerTypedDecoder(decoderName, decoderFn);
+  _atomToDecoderName.set(atomName, decoderName);
+}
+function lookupAtomDecoder(atomName) {
+  const decoderName = _atomToDecoderName.get(atomName);
+  if (!decoderName) return undefined;
+  return _typedDecoderRegistry.get(decoderName);
+}
+
+// Convert a decoded value to raw ETF shape for typed decoder consumption.
+// Gleam linked lists → JS arrays, Some/None/Ok/Error → raw tagged arrays.
+function toRawShape(value) {
+  if (value === undefined || value === null) return value;
+  if (value instanceof Empty) return [];
+  if (value instanceof NonEmpty) {
+    const arr = [];
+    let cur = value;
+    while (cur instanceof NonEmpty) {
+      arr.push(cur.head);
+      cur = cur.tail;
+    }
+    return arr;
+  }
+  if (value instanceof Some) return ["some", value[0]];
+  if (value instanceof None) return "none";
+  if (value instanceof Ok) return ["ok", value[0]];
+  if (value instanceof ResultError) return ["error", value[0]];
+  return value;
+}
+
 // ---------- Minimal ETFDecoder with constructor reconstruction ----------
-// Inlined from rpc_ffi.mjs - just enough to test the decodeTuple and
-// decodeAtom paths for Ok, Error, Some, None, and custom types.
+// Inlined from rpc_ffi.mjs - mirrors the real decodeTuple and
+// decodeAtom paths for Ok, Error, Some, None, constructorRegistry,
+// and the atom→typed-decoder reverse mapping.
 
 const utf8Decoder = new TextDecoder();
 
@@ -203,6 +244,8 @@ class MiniETFDecoder {
       if (name === "none") return new None();
       const reg = constructorRegistry.get(name);
       if (reg && reg.fieldCount === 0) return new reg.ctor();
+      const decoderFn = lookupAtomDecoder(name);
+      if (decoderFn) return decoderFn(name);
     }
     return name;
   }
@@ -248,7 +291,7 @@ class MiniETFDecoder {
         }
       }
 
-      // Custom type reconstruction via registry
+      // Custom type reconstruction via constructorRegistry
       if (!this.raw) {
         const reg = constructorRegistry.get(atomName);
         if (reg) {
@@ -257,6 +300,21 @@ class MiniETFDecoder {
           while (fields.length < reg.fieldCount) fields.push(undefined);
           fields.length = reg.fieldCount;
           return new reg.ctor(...fields);
+        }
+      }
+
+      // Typed decoder reconstruction: atom→decoder reverse mapping.
+      // Decode fields in non-raw mode so nested custom types are resolved
+      // through lookupAtomDecoder, then convert Gleam collection instances
+      // back to raw ETF shapes for typed decoder primitives.
+      if (!this.raw) {
+        const decoderFn = lookupAtomDecoder(atomName);
+        if (decoderFn) {
+          const elements = [atomName];
+          for (let i = 1; i < arity; i++) {
+            elements.push(toRawShape(this.decodeTerm()));
+          }
+          return decoderFn(elements);
         }
       }
 
@@ -517,6 +575,99 @@ function makeStringBytes(str) {
   console.log("PASS: unregistered custom type falls through to raw array");
 }
 
+// ================================================================
+// Tests: atom→typed-decoder reverse mapping
+// These exercise the registerAtomDecoder + lookupAtomDecoder path
+// (non-raw decode_value → typed decoder). The raw mode toggle ensures
+// typed decoder primitives receive raw shapes for List/Dict/Option fields.
+// ================================================================
+
+// ---- Atom→decoder: custom type with List field ----
+// The raw mode toggle ensures the List field is decoded as a raw JS array
+// (not a Gleam linked list), so typed decoder primitives like decode_list_of
+// receive arrays they can consume.
+{
+  class ItemList extends CustomType {
+    constructor(items) { super(); this.items = items; this[0] = items; }
+  }
+  function decode_item_list(term) {
+    if (!Array.isArray(term) || term[0] !== "item_list") throw new Error("expected item_list");
+    // term[1] is a raw JS array because the atom→decoder path toggled raw mode
+    const items = term[1];
+    assert.ok(Array.isArray(items), "List field should be raw JS array, not Gleam linked list");
+    return new ItemList(items);
+  }
+  registerAtomDecoder("item_list", "decode_item_list", decode_item_list);
+
+  // Encode: {item_list, [1, 2, 3]}
+  const ilAtom = [119, 9, 105, 116, 101, 109, 95, 108, 105, 115, 116]; // "item_list"
+  const list = [108, 0, 0, 0, 3, 97, 1, 97, 2, 97, 3, 106]; // [1, 2, 3]
+  const bytes = new Uint8Array([131, 104, 2, ...ilAtom, ...list]);
+  const decoded = new MiniETFDecoder(bytes).decode();
+  assert.ok(decoded instanceof ItemList, "atom→decoder: List field reconstructed");
+  assert.deepEqual(decoded[0], [1, 2, 3], "atom→decoder: List values preserved");
+  console.log("PASS: atom→decoder with List field (raw mode toggle)");
+  _atomToDecoderName.delete("item_list");
+  _typedDecoderRegistry.delete("decode_item_list");
+}
+
+// ---- Atom→decoder: 0-arity enum variant (bare atom) ----
+{
+  class Pending extends CustomType { constructor() { super(); } }
+  class Active extends CustomType { constructor() { super(); } }
+  function decode_status(term) {
+    if (term === "pending") return new Pending();
+    if (term === "active") return new Active();
+    throw new Error("unknown variant: " + term);
+  }
+  registerAtomDecoder("pending", "decode_status", decode_status);
+  registerAtomDecoder("active", "decode_status", decode_status);
+
+  // Encode Pending as a bare atom
+  const bytes = new Uint8Array([131, 119, 7, 112, 101, 110, 100, 105, 110, 103]); // "pending"
+  const decoded = new MiniETFDecoder(bytes).decode();
+  assert.ok(decoded instanceof Pending, "atom→decoder: 0-arity enum reconstructed");
+  console.log("PASS: atom→decoder 0-arity enum (bare atom)");
+  _atomToDecoderName.delete("pending");
+  _atomToDecoderName.delete("active");
+  _typedDecoderRegistry.delete("decode_status");
+}
+
+// ---- Atom→decoder: nested custom types (A contains B) ----
+{
+  class Inner extends CustomType {
+    constructor(x) { super(); this.x = x; this[0] = x; }
+  }
+  class Outer extends CustomType {
+    constructor(inner) { super(); this.inner = inner; this[0] = inner; }
+  }
+  function decode_inner(term) {
+    if (!Array.isArray(term) || term[0] !== "inner") throw new Error("expected inner");
+    return new Inner(term[1]);
+  }
+  function decode_outer(term) {
+    if (!Array.isArray(term) || term[0] !== "outer") throw new Error("expected outer");
+    return new Outer(term[1]); // term[1] is the Inner instance
+  }
+  registerAtomDecoder("inner", "decode_inner", decode_inner);
+  registerAtomDecoder("outer", "decode_outer", decode_outer);
+
+  // Encode: {outer, {inner, 42}}
+  const outerAtom = [119, 5, 111, 117, 116, 101, 114]; // "outer"
+  const innerAtom = [119, 5, 105, 110, 110, 101, 114]; // "inner"
+  const innerInt = [97, 42]; // small int 42
+  const bytes = new Uint8Array([131, 104, 2, ...outerAtom, 104, 2, ...innerAtom, ...innerInt]);
+  const decoded = new MiniETFDecoder(bytes).decode();
+  assert.ok(decoded instanceof Outer, "atom→decoder: outer via typed decoder");
+  assert.ok(decoded[0] instanceof Inner, "atom→decoder: nested inner via typed decoder");
+  assert.equal(decoded[0][0], 42, "atom→decoder: nested value preserved");
+  console.log("PASS: atom→decoder nested custom types");
+  _atomToDecoderName.delete("inner");
+  _atomToDecoderName.delete("outer");
+  _typedDecoderRegistry.delete("decode_inner");
+  _typedDecoderRegistry.delete("decode_outer");
+}
+
 {
   // Clean up: remove test registrations so they don't leak
   constructorRegistry.delete("sponsor");
@@ -530,3 +681,4 @@ console.log("\nAll ETF constructor decode tests passed.");
 console.log("decode_value (raw=false) -> Ok/Error/Some/None instances.");
 console.log("decode_value_raw (raw=true) -> raw arrays with string atoms.");
 console.log("Custom types via constructorRegistry -> proper CustomType instances.");
+console.log("Custom types via registerAtomDecoder -> typed decoder reconstruction.");

@@ -534,21 +534,16 @@ class ETFDecoder {
 
       // Typed decoder reconstruction: when not in raw mode, check the
       // atom→decoder reverse mapping populated by generated codec_ffi.mjs.
-      // The typed decoder primitives (decode_list_of, decode_dict_of, etc.)
-      // expect raw ETF shapes — arrays of pairs, tagged arrays — not
-      // reconstructed Gleam instances. Toggle raw mode while decoding
-      // fields so the typed decoder receives raw shapes it can consume.
+      // Decode fields in non-raw mode so nested custom types are resolved
+      // through lookupAtomDecoder, then convert Gleam collection instances
+      // (linked lists, Dicts, Some/None) back to raw ETF shapes that the
+      // typed decoder primitives expect.
       if (!this.raw) {
         const decoderFn = lookupAtomDecoder(atomName);
         if (decoderFn) {
           const elements = [atomName];
-          this.raw = true;
-          try {
-            for (let i = 1; i < arity; i++) {
-              elements.push(this.decodeTerm());
-            }
-          } finally {
-            this.raw = false;
+          for (let i = 1; i < arity; i++) {
+            elements.push(toRawShape(this.decodeTerm()));
           }
           return decoderFn(elements);
         }
@@ -935,6 +930,37 @@ class ETFEncoder {
       this.encodeTerm(val, valueHint);
     });
   }
+}
+
+/**
+ * Convert a decoded Gleam value to its raw ETF shape for typed decoder
+ * consumption. Gleam linked lists become JS arrays, Some/None/Ok/Error
+ * instances become raw tagged arrays. Nested custom types (already
+ * reconstructed via lookupAtomDecoder) pass through as-is.
+ * @param {any} value
+ * @returns {any}
+ */
+function toRawShape(value) {
+  if (value === undefined || value === null) return value;
+  // Gleam linked list → JS array
+  if (value instanceof Empty) return [];
+  if (value instanceof NonEmpty) {
+    const arr = [];
+    let cur = value;
+    while (cur instanceof NonEmpty) {
+      arr.push(cur.head);
+      cur = cur.tail;
+    }
+    return arr;
+  }
+  // Gleam Dict (duck-typed by HAMT internals) → leave as-is;
+  // the typed decoder's decode_dict_of handles both Map and pair arrays.
+  // Framework constructors → raw tagged shapes
+  if (value instanceof Some) return ["some", value[0]];
+  if (value instanceof None) return "none";
+  if (value instanceof Ok) return ["ok", value[0]];
+  if (value instanceof ResultError) return ["error", value[0]];
+  return value;
 }
 
 function hintForConstructorField(ctorName, index, typeHint) {
