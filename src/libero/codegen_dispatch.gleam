@@ -212,10 +212,11 @@ fn emit_case_arm(
   let param_destructure =
     codegen.variant_pattern(variant_name:, params: e.params)
 
-  // Param decode: convert wire-shape (hashed atoms) to BEAM-shape (bare)
-  let param_decode_lets = case wire_transforms {
-    False -> ""
-    True ->
+  // Param decode: convert wire-shape (hashed atoms) to BEAM-shape (bare).
+  // Skipped for msg_type handlers since the whole-message decoder handles
+  // nested fields, and the destructured params use _ patterns.
+  let param_decode_lets = case wire_transforms, e.msg_type {
+    True, option.None ->
       e.params
       |> list.filter_map(fn(p) {
         let #(label, ft) = p
@@ -226,6 +227,7 @@ fn emit_case_arm(
         }
       })
       |> string.concat()
+    _, _ -> ""
   }
 
   let handler_args = case e.msg_type {
