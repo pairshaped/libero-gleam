@@ -168,7 +168,7 @@ fn contains_float(ft: FieldType) -> Bool {
   })
 }
 
-fn emit_float_type_registrations(
+pub fn emit_float_type_registrations(
   discovered discovered: List(DiscoveredType),
   endpoints endpoints: List(scanner.HandlerEndpoint),
 ) -> String {
