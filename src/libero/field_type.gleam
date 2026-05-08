@@ -190,6 +190,68 @@ pub fn contains(ft: FieldType, predicate: fn(FieldType) -> Bool) -> Bool {
   }
 }
 
+/// Render a FieldType to its canonical hash-basis token. Used by
+/// `wire_identity.canonical_signature` to build the deterministic string
+/// that feeds the wire-identity hash.
+///
+/// The canonical token is purely structural: it captures the type's shape
+/// in a form that is stable across compilations and across tooling. A
+/// renamed field preserves the token (only types appear), but a retyped
+/// field changes it. UserType references render as `<type:module|name>`
+/// with no transitive hash, which keeps recursive and mutually-recursive
+/// types finite and side-steps cycle resolution entirely.
+///
+/// Format reference (excerpt from the wire-type-identity spec):
+///   IntField        -> "int"
+///   FloatField      -> "float"
+///   ListOf(t)       -> "list<<token-of-t>>"
+///   ResultOf(o, e)  -> "result<<token-of-o>,<token-of-e>>"
+///   UserType(m,n,_) -> "<type:m|n>" (zero-arg)
+///   UserType(m,n,a) -> "<type:m|n<<token-of-each-arg>>>" (applied generic)
+///
+/// TypeVars survive to runtime as encoding errors in real wire types;
+/// rendered here as "<typevar:name>" so the canonical signature stays
+/// well-formed even for in-progress type definitions.
+pub fn to_canonical_token(ft: FieldType) -> String {
+  case ft {
+    IntField -> "int"
+    FloatField -> "float"
+    StringField -> "string"
+    BoolField -> "bool"
+    BitArrayField -> "bit_array"
+    NilField -> "nil"
+    TypeVar(name:) -> "<typevar:" <> name <> ">"
+    ListOf(element:) -> "list<" <> to_canonical_token(element) <> ">"
+    OptionOf(inner:) -> "option<" <> to_canonical_token(inner) <> ">"
+    ResultOf(ok:, err:) ->
+      "result<"
+      <> to_canonical_token(ok)
+      <> ","
+      <> to_canonical_token(err)
+      <> ">"
+    DictOf(key:, value:) ->
+      "dict<"
+      <> to_canonical_token(key)
+      <> ","
+      <> to_canonical_token(value)
+      <> ">"
+    TupleOf(elements:) ->
+      "tuple<"
+      <> string.join(list.map(elements, to_canonical_token), ",")
+      <> ">"
+    UserType(module_path:, type_name:, args: []) ->
+      "<type:" <> module_path <> "|" <> type_name <> ">"
+    UserType(module_path:, type_name:, args:) ->
+      "<type:"
+      <> module_path
+      <> "|"
+      <> type_name
+      <> "<"
+      <> string.join(list.map(args, to_canonical_token), ",")
+      <> ">>"
+  }
+}
+
 /// Last `/`-separated segment of a module path, or the path itself if
 /// no separator is present. Used wherever codegen needs the "short"
 /// module name for aliases or display.

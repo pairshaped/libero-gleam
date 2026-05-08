@@ -106,8 +106,8 @@ fn ffi_decode_safe(data: BitArray) -> Result(a, DecodeError) {
 /// On Erlang, ETF is BEAM-native so the decoder_name is ignored;
 /// `binary_to_term` already reconstructs all types correctly.
 pub fn decode_typed(
-  data: BitArray,
-  decoder_name: String,
+  data data: BitArray,
+  decoder_name decoder_name: String,
 ) -> Result(a, DecodeError) {
   ffi_decode_typed(data, decoder_name)
 }

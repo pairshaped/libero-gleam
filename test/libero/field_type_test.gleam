@@ -231,3 +231,96 @@ pub fn last_segment_returns_last_part_of_path_test() {
 pub fn last_segment_returns_whole_string_when_no_separator_test() {
   let assert "hello" = field_type.last_segment("hello")
 }
+
+// -- to_canonical_token ----------------------------------------------------
+//
+// These tokens feed wire_identity.canonical_signature; their format is
+// part of the wire-identity spec contract. Changes here change every
+// type's wire hash.
+
+pub fn to_canonical_token_int_test() {
+  let assert "int" = field_type.to_canonical_token(IntField)
+}
+
+pub fn to_canonical_token_float_test() {
+  let assert "float" = field_type.to_canonical_token(FloatField)
+}
+
+pub fn to_canonical_token_string_test() {
+  let assert "string" = field_type.to_canonical_token(StringField)
+}
+
+pub fn to_canonical_token_bool_test() {
+  let assert "bool" = field_type.to_canonical_token(BoolField)
+}
+
+pub fn to_canonical_token_bitarray_test() {
+  let assert "bit_array" = field_type.to_canonical_token(BitArrayField)
+}
+
+pub fn to_canonical_token_nil_test() {
+  let assert "nil" = field_type.to_canonical_token(NilField)
+}
+
+pub fn to_canonical_token_list_of_int_test() {
+  let assert "list<int>" = field_type.to_canonical_token(ListOf(IntField))
+}
+
+pub fn to_canonical_token_option_of_string_test() {
+  let assert "option<string>" =
+    field_type.to_canonical_token(OptionOf(StringField))
+}
+
+pub fn to_canonical_token_result_test() {
+  let assert "result<int,string>" =
+    field_type.to_canonical_token(ResultOf(ok: IntField, err: StringField))
+}
+
+pub fn to_canonical_token_dict_test() {
+  let assert "dict<string,int>" =
+    field_type.to_canonical_token(DictOf(key: StringField, value: IntField))
+}
+
+pub fn to_canonical_token_tuple_test() {
+  let assert "tuple<int,string>" =
+    field_type.to_canonical_token(TupleOf(elements: [IntField, StringField]))
+}
+
+pub fn to_canonical_token_empty_tuple_test() {
+  let assert "tuple<>" =
+    field_type.to_canonical_token(TupleOf(elements: []))
+}
+
+pub fn to_canonical_token_user_type_zero_arg_test() {
+  let assert "<type:admin/discounts|Discount>" =
+    field_type.to_canonical_token(UserType(
+      module_path: "admin/discounts",
+      type_name: "Discount",
+      args: [],
+    ))
+}
+
+pub fn to_canonical_token_user_type_applied_generic_test() {
+  let assert "<type:m|Box<int>>" =
+    field_type.to_canonical_token(UserType(
+      module_path: "m",
+      type_name: "Box",
+      args: [IntField],
+    ))
+}
+
+pub fn to_canonical_token_nested_list_of_user_type_test() {
+  let assert "list<<type:admin/discounts|Discount>>" =
+    field_type.to_canonical_token(
+      ListOf(UserType(
+        module_path: "admin/discounts",
+        type_name: "Discount",
+        args: [],
+      )),
+    )
+}
+
+pub fn to_canonical_token_typevar_test() {
+  let assert "<typevar:a>" =
+    field_type.to_canonical_token(field_type.TypeVar(name: "a"))
+}

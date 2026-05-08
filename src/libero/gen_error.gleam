@@ -15,6 +15,15 @@ pub type GenError {
   UnresolvedTypeModule(module_path: String, type_name: String)
   TypeNotFound(module_path: String, type_name: String)
   DuplicateEndpoint(fn_name: String, modules: List(String))
+  /// Two distinct canonical type signatures hashed to the same wire
+  /// identity. Detected by `wire_identity.check_uniqueness` at codegen
+  /// time. Vanishingly rare in practice (truncated SHA-256 birthday
+  /// resistance), but the cost of catching it is small.
+  TypeIdentityHashCollision(
+    hash: String,
+    signature_a: String,
+    signature_b: String,
+  )
 }
 
 pub fn print_error(err: GenError) -> Nil {
@@ -114,6 +123,21 @@ fn to_string(err: GenError) -> String {
         ],
         hint: Some(
           "Handler function names must be unique across the server source\n        tree, since each one becomes a ClientMsg variant.",
+        ),
+      )
+
+    TypeIdentityHashCollision(hash, signature_a, signature_b) ->
+      error_box(
+        title: "Type identity hash collision",
+        path: "wire-identity",
+        body_lines: [
+          "Two distinct canonical type signatures hash to the same value:",
+          "  Signature A: " <> signature_a,
+          "  Signature B: " <> signature_b,
+          "  Both hash to: " <> hash,
+        ],
+        hint: Some(
+          "This is an extremely rare birthday collision. File a libero\n        issue with both canonical signatures so the hash algorithm\n        can be adjusted.",
         ),
       )
   }

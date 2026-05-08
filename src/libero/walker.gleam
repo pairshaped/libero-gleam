@@ -290,7 +290,10 @@ fn process_type_ast_custom(
             DiscoveredVariant(
               module_path: module_path,
               variant_name: variant.name,
-              atom_name: qualified_atom_name(module_path, variant.name),
+              atom_name: qualified_atom_name(
+                module_path: module_path,
+                variant_name: variant.name,
+              ),
               float_field_indices: float_indices,
               fields:,
             )
@@ -580,7 +583,10 @@ fn build_type_resolver(
 /// "shared/discount" + "Discount" → "shared_discount__discount".
 /// Two modules with the same variant name produce distinct atoms, so the
 /// atom→decoder reverse mapping cannot collide.
-pub fn qualified_atom_name(module_path: String, variant_name: String) -> String {
+pub fn qualified_atom_name(
+  module_path module_path: String,
+  variant_name variant_name: String,
+) -> String {
   string.replace(module_path, "/", "_") <> "__" <> to_snake_case(variant_name)
 }
 
