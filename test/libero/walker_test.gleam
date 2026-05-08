@@ -74,7 +74,8 @@ pub fn detects_float_field_indices_test() {
 
   let assert Ok(types) = walk_all_public_types(dir)
 
-  let assert Ok(mixed) = find_type(types, "Mixed")
+  let result: Result(DiscoveredType, Nil) = find_type(types, "Mixed")
+  let assert Ok(mixed) = result
   let assert [variant] = mixed.variants
   let assert [1, 3] = list.sort(variant.float_field_indices, by: int.compare)
 
@@ -140,9 +141,72 @@ fn count_type(types: List(DiscoveredType), name: String) -> Int {
   list.length(list.filter(types, fn(t) { t.type_name == name }))
 }
 
+pub fn qualified_atoms_for_colliding_variants_test() {
+  let dir = fixture_root <> "/atom_collision/shared/src/shared"
+  let assert Ok(Nil) = simplifile.create_directory_all(dir)
+
+  // Module A and B both define Discount but with different fields.
+  // The walker must produce different atom names for each.
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/a.gleam",
+      "pub type Discount {
+  Discount(id: Int, name: String)
+}
+",
+    )
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/b.gleam",
+      "pub type Discount {
+  Discount(id: Int, name: String, percent: Float)
+}
+",
+    )
+
+  let assert Ok(files) = scanner.walk_directory(path: dir)
+  let assert Ok(types) =
+    walker.walk(
+      seeds: [#("shared/a", "Discount"), #("shared/b", "Discount")],
+      file_paths: files,
+    )
+
+  let assert True = has_type(types, "Discount")
+  // Both variants discovered
+  let discount_types = list.filter(types, fn(t) { t.type_name == "Discount" })
+  let assert 2 = list.length(discount_types)
+
+  let a_type = find_type_in_module(types, "Discount", "shared/a")
+  let b_type = find_type_in_module(types, "Discount", "shared/b")
+  let assert Ok(a) = a_type
+  let assert Ok(b) = b_type
+
+  // Variant count differs across modules
+  let assert 1 = list.length(a.variants)
+  let assert 1 = list.length(b.variants)
+
+  let assert [av] = a.variants
+  let assert [bv] = b.variants
+
+  // Different qualified atom names → no collision
+  let assert "shared_a__discount" = av.atom_name
+  let assert "shared_b__discount" = bv.atom_name
+  let assert True = av.atom_name != bv.atom_name
+
+  let assert Ok(Nil) = simplifile.delete_all([fixture_root <> "/atom_collision"])
+}
+
 fn find_type(
   types: List(DiscoveredType),
   name: String,
 ) -> Result(DiscoveredType, Nil) {
   list.find(types, fn(t) { t.type_name == name })
+}
+
+fn find_type_in_module(
+  types: List(DiscoveredType),
+  name: String,
+  module_path: String,
+) -> Result(DiscoveredType, Nil) {
+  list.find(types, fn(t) { t.type_name == name && t.module_path == module_path })
 }
