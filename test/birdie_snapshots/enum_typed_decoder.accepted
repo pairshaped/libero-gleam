@@ -1,6 +1,8 @@
 ---
 version: 2.0.0
 title: enum typed decoder
+file: ./test/libero/typed_decoder_codegen_test.gleam
+test_name: enum_snapshot_test
 ---
 export function decode_shared_line_item_status(term) {
   if (term === "e50a687284") return new _m_shared_line_item.Pending(); // Pending @ shared/line_item

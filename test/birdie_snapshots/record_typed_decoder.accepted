@@ -1,6 +1,8 @@
 ---
 version: 2.0.0
 title: record typed decoder
+file: ./test/libero/typed_decoder_codegen_test.gleam
+test_name: record_snapshot_test
 ---
 export function decode_shared_item_item(term) {
   if (!Array.isArray(term) || term[0] !== "a9192bf366") throw new DecodeError("expected a9192bf366 (Item @ shared/item), got " + (Array.isArray(term) ? String(term[0]) : typeof term));

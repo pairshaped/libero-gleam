@@ -54,11 +54,7 @@ pub fn main() -> Nil {
   let atoms_module = default_atoms_module
   let wire_module = default_wire_module
   let dispatch_src =
-    generate_dispatch(
-      endpoints:,
-      atoms_module: option.Some(atoms_module),
-      wire_module: option.Some(wire_module),
-    )
+    generate_dispatch(endpoints:, atoms_module: option.Some(atoms_module))
   let atoms_erl =
     generate_atoms(
       endpoints:,
@@ -153,7 +149,6 @@ pub fn walk(
 pub fn generate_dispatch(
   endpoints endpoints: List(HandlerEndpoint),
   atoms_module atoms_module: option.Option(String),
-  wire_module wire_module: option.Option(String),
 ) -> String {
   codegen_dispatch.generate(
     endpoints,
@@ -161,7 +156,6 @@ pub fn generate_dispatch(
     "ServerContext",
     "rpc",
     atoms_module,
-    wire_module,
   )
 }
 
