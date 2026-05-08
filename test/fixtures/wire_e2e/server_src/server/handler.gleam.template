@@ -1,6 +1,7 @@
 import gleam/dict.{type Dict}
 import gleam/option.{type Option}
 import server/server_context.{type ServerContext}
+import shared/collision
 import shared/types.{
   type DictAndListEnvelope, type FormPrefill, type Item, type ItemError,
   type ItemListData, type ItemSummaryData, type NestedEnvelope,
@@ -204,3 +205,18 @@ pub fn server_echo_dict_and_list_envelope(
 ) -> #(Result(DictAndListEnvelope, Nil), ServerContext) {
   #(Ok(value), server_context)
 }
+
+pub fn server_echo_types_tag(
+  value value: types.Tag,
+  server_context server_context: ServerContext,
+) -> #(Result(types.Tag, Nil), ServerContext) {
+  #(Ok(value), server_context)
+}
+
+pub fn server_echo_collision_tag(
+  value value: collision.Tag,
+  server_context server_context: ServerContext,
+) -> #(Result(collision.Tag, Nil), ServerContext) {
+  #(Ok(value), server_context)
+}
+

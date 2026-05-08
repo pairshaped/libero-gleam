@@ -1,0 +1,7 @@
+/// Same-name collision test: this `Tag` has 1 field.
+/// shared/types.gleam defines another `Tag` with 2 fields.
+/// Both must coexist on the wire without collision because
+/// wire identity hashes include the module path.
+pub type Tag {
+  Tag(label: String)
+}

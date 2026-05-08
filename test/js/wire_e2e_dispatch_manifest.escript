@@ -20,6 +20,8 @@ EncItemSummaryData = W(fun 'generated@rpc_wire':encode_shared_types__item_summar
 EncFormPrefill = W(fun 'generated@rpc_wire':encode_shared_types__form_prefill/1),
 EncNestedEnvelope = W(fun 'generated@rpc_wire':encode_shared_types__nested_envelope/1),
 EncDictAndList = W(fun 'generated@rpc_wire':encode_shared_types__dict_and_list_envelope/1),
+EncTypesTag = W(fun 'generated@rpc_wire':encode_shared_types__tag/1),
+EncCollisionTag = W(fun 'generated@rpc_wire':encode_shared_collision__tag/1),
 
 EncodeCall = fun(RequestId, Msg) ->
   libero_ffi:encode({<<"rpc">>, RequestId, Msg})
@@ -61,6 +63,8 @@ Cases = [
   {"echo_form_prefill/basic", 73, {server_echo_form_prefill, EncFormPrefill({form_prefill, {some, Item}, pending})}},
   {"echo_nested_envelope/basic", 74, {server_echo_nested_envelope, EncNestedEnvelope({nested_envelope, {item_list_data, [Item]}, {some, <<"hello">>}})}},
   {"echo_dict_and_list_envelope/basic", 75, {server_echo_dict_and_list_envelope, EncDictAndList({dict_and_list_envelope, #{<<"one">> => Item}, [Item2]})}},
+  {"echo_types_tag/basic", 76, {server_echo_types_tag, EncTypesTag({tag, <<"sale">>, <<"red">>})}},
+  {"echo_collision_tag/basic", 77, {server_echo_collision_tag, EncCollisionTag({tag, <<"promo">>})}},
   {"dispatch/unknown_module", 64, {<<"other/module">>, 64, {server_echo_int, 5}}},
   {"dispatch/malformed_envelope", 0, malformed},
   {"dispatch/handler_panic", 65, {server_echo_panic, 0}},

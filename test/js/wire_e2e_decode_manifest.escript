@@ -23,6 +23,8 @@ EncItemSummaryData = fun(V) -> 'generated@rpc_wire':encode_shared_types__item_su
 EncFormPrefill = fun(V) -> 'generated@rpc_wire':encode_shared_types__form_prefill(V) end,
 EncNestedEnvelope = fun(V) -> 'generated@rpc_wire':encode_shared_types__nested_envelope(V) end,
 EncDictAndList = fun(V) -> 'generated@rpc_wire':encode_shared_types__dict_and_list_envelope(V) end,
+EncTypesTag = fun(V) -> 'generated@rpc_wire':encode_shared_types__tag(V) end,
+EncCollisionTag = fun(V) -> 'generated@rpc_wire':encode_shared_collision__tag(V) end,
 
 Encode = fun(Term) -> binary_to_list(base64:encode(libero_ffi:encode(Term))) end,
 
@@ -94,7 +96,9 @@ Cases = [
   {"echo_form_prefill/without_item", {ok, {ok, EncFormPrefill(FormPrefillNone)}}},
   {"echo_nested_envelope/with_message", {ok, {ok, EncNestedEnvelope(NestedEnv)}}},
   {"echo_nested_envelope/no_message", {ok, {ok, EncNestedEnvelope(NestedEnvNone)}}},
-  {"echo_dict_and_list_envelope/basic", {ok, {ok, EncDictAndList(DictAndList)}}}
+  {"echo_dict_and_list_envelope/basic", {ok, {ok, EncDictAndList(DictAndList)}}},
+  {"echo_types_tag/basic", {ok, {ok, EncTypesTag({tag, <<"sale">>, <<"red">>})}}},
+  {"echo_collision_tag/basic", {ok, {ok, EncCollisionTag({tag, <<"promo">>})}}}
 ],
 
 Print = fun

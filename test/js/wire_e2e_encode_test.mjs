@@ -10,6 +10,7 @@ const webRoot = join(buildRoot, "clients/web/build/dev/javascript");
 await import(pathToFileURL(join(webRoot, "web/generated/libero/rpc_decoders_ffi.mjs")).href);
 const wire = await import(pathToFileURL(join(webRoot, "libero/libero/wire.mjs")).href);
 const types = await import(pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href);
+const collision = await import(pathToFileURL(join(webRoot, "shared/shared/collision.mjs")).href);
 const gleam = await import(pathToFileURL(join(webRoot, "gleam_stdlib/gleam.mjs")).href);
 const option = await import(
   pathToFileURL(join(webRoot, "gleam_stdlib/gleam/option.mjs")).href
@@ -98,6 +99,8 @@ const cases = [
     nested,
     "{'985b6a7d71',[{'0cf13587b9',7,<<119,114,101,110,99,104>>,12.5,true},{'0cf13587b9',9,<<102,108,111,97,116,121>>,2.0,true}],{some,{'0cf13587b9',8,<<98,111,108,116>>,1.25,false}},['0916eb3b7c',c9650d0ff8,a28fb8d228],#{<<111,110,101>> => {'0cf13587b9',7,<<119,114,101,110,99,104>>,12.5,true},<<116,119,111>> => {'0cf13587b9',9,<<102,108,111,97,116,121>>,2.0,true}}}",
   ],
+  ["types_tag", new types.Tag("sale", "red"), "{'7ef65065df',<<115,97,108,101>>,<<114,101,100>>}"],
+  ["collision_tag", new collision.Tag("promo"), "{'1cb1af7603',<<112,114,111,109,111>>}"],
 ];
 
 const erlangCases = cases.map(([name, msg]) => {

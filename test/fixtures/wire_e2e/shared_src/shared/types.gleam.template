@@ -63,3 +63,11 @@ pub type NestedEnvelope {
 pub type DictAndListEnvelope {
   DictAndListEnvelope(by_id: Dict(String, Item), ordered: List(Item))
 }
+
+/// Same-name collision test: this `Tag` has 2 fields.
+/// shared/collision.gleam defines another `Tag` with 1 field.
+/// Both must coexist on the wire without collision.
+pub type Tag {
+  Tag(label: String, color: String)
+}
+
