@@ -70,18 +70,9 @@ export function decodeTyped(value, decoderName) {
 // correctly where the caller knows the expected type.
 const _atomToDecoderName = new Map();
 
-// Bare snake_case constructor name → qualified wire atom. The encoder looks
-// here so a Gleam class instance is emitted with the same qualified atom the
-// server uses, and the field-type registry (also keyed by qualified atom) can
-// be looked up consistently.
-const _bareToQualifiedAtom = new Map();
-
-export function registerAtomDecoder(atomName, decoderName, decoderFn, bareName) {
+export function registerAtomDecoder(atomName, decoderName, decoderFn) {
   registerTypedDecoder(decoderName, decoderFn);
   _atomToDecoderName.set(atomName, decoderName);
-  if (bareName !== undefined && bareName !== atomName) {
-    _bareToQualifiedAtom.set(bareName, atomName);
-  }
 }
 
 export function lookupAtomDecoder(atomName) {
@@ -142,33 +133,18 @@ export function identity(x) {
   return x;
 }
 
-// ---------- Field type registry ----------
+// ---------- Field type hints ----------
 //
 // JS has no int/float distinction - `2.0 === 2` and
 // `Number.isInteger(2.0) === true`. But ETF does distinguish them,
 // and Gleam's BEAM runtime treats Int and Float as different types.
 //
-// The generator emits registerFieldTypes() calls with enough type
-// information for direct fields and container elements typed as Float
-// to be encoded as NEW_FLOAT_EXT (tag 70), even when the JS value is a
-// whole number.
-//
-// This is ETF-specific metadata - a JSON encoder would ignore it
-// since JSON has only one number type.
-
-/** @type {Map<string, any[]>} */
-const fieldTypeRegistry = new Map();
-
-/**
- * Register field type hints for a custom-type atom. Hints are generated
- * from Gleam signatures so container elements typed as Float can still be
- * encoded as ETF floats after JavaScript erases `2.0` to `2`.
- * @param {string} atomName snake_case constructor name
- * @param {any[]} fieldTypes 0-based field type hints
- */
-export function registerFieldTypes(atomName, fieldTypes) {
-  fieldTypeRegistry.set(atomName, fieldTypes);
-}
+// Under the wire-identity scheme, codegen attaches an `__fieldTypes`
+// static array to each Gleam custom-type class. The encoder reads
+// `value.constructor.__fieldTypes[i]` for the i-th field's hint.
+// This replaces the prior global `fieldTypeRegistry` map keyed by
+// (qualified) atom name; the per-class static can never collide and
+// requires no runtime registration step.
 
 /**
  * Build a Gleam linked list from a plain JS array.
@@ -801,8 +777,13 @@ class ETFEncoder {
 
     // Gleam custom type instance
     if (value instanceof CustomType) {
-      const bareName = snakeCase(value.constructor.name);
-      const wireAtom = _bareToQualifiedAtom.get(bareName) ?? bareName;
+      // Wire identity: prefer the codegen-baked `__wireAtom` static.
+      // Fall back to a snake-cased class name for framework types
+      // (Some, None, Ok, ResultError, Empty, NonEmpty) and any user
+      // class that hasn't been processed by libero's codegen.
+      const wireAtom =
+        value.constructor.__wireAtom ?? snakeCase(value.constructor.name);
+      const fieldTypes = value.constructor.__fieldTypes;
       const keys = Object.keys(value);
       if (keys.length === 0) {
         // 0-arity constructor → bare atom
@@ -818,7 +799,6 @@ class ETFEncoder {
           this.writeUint32(arity);
         }
         this.writeAtom(wireAtom);
-        const fieldTypes = fieldTypeRegistry.get(wireAtom);
         keys.forEach((k, i) => {
           const fieldValue = value[k];
           const hintedField = hintForConstructorField(wireAtom, i, typeHint)
@@ -988,8 +968,8 @@ function toRawShape(value) {
   // checks `term === "atom"`); N-arity variants encode as tagged
   // arrays (the decoder body checks `term[0] === "atom"`).
   if (value instanceof CustomType) {
-    const bareName = snakeCase(value.constructor.name);
-    const wireAtom = _bareToQualifiedAtom.get(bareName) ?? bareName;
+    const wireAtom =
+      value.constructor.__wireAtom ?? snakeCase(value.constructor.name);
     const keys = Object.keys(value);
     if (keys.length === 0) return wireAtom;
     const fields = keys.map(k => toRawShape(value[k]));
