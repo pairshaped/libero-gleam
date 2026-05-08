@@ -137,9 +137,10 @@ pub fn server_set_theme(
   let assert Ok(set_theme) =
     list.find(endpoints, fn(e) { e.fn_name == "set_theme" })
 
-  let assert option.Some("SetDarkMode") = set_dark_mode.msg_type_name
+  let assert option.Some(#("shared/messages", "SetDarkMode")) =
+    set_dark_mode.msg_type
   let assert [#("enabled", field_type.BoolField)] = set_dark_mode.params
-  let assert option.Some("SetTheme") = set_theme.msg_type_name
+  let assert option.Some(#("shared/settings", "SetTheme")) = set_theme.msg_type
   let assert [#("name", field_type.StringField)] = set_theme.params
 
   let assert Ok(Nil) = simplifile.delete_all([dir])

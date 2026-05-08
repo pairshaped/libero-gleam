@@ -12,6 +12,7 @@
 //// FFI functions (from `<wire_module>.erl`) to convert between wire-shape
 //// (hashed atoms) and BEAM-shape (bare atoms) at the dispatch boundary.
 
+import gleam/int
 import gleam/list
 import gleam/option
 import gleam/string
@@ -227,8 +228,18 @@ fn emit_case_arm(
       |> string.concat()
   }
 
-  let handler_args = case e.msg_type_name {
-    option.Some(_) -> "msg: wire.coerce(typed_msg), server_context:"
+  let handler_args = case e.msg_type {
+    option.Some(#(module_path, type_name)) ->
+      case wire_transforms {
+        True -> {
+          let qualified =
+            walker.qualified_atom_name(module_path:, variant_name: type_name)
+          "msg: wire_decode_"
+          <> qualified
+          <> "(wire.coerce(typed_msg)), server_context:"
+        }
+        False -> "msg: wire.coerce(typed_msg), server_context:"
+      }
     option.None -> {
       let labeled = list.map(e.params, fn(p) { p.0 <> ":" })
       string.join(list.append(labeled, ["server_context:"]), ", ")
@@ -320,7 +331,11 @@ fn collect_wire_user_types(
         field_type.collect_user_types(e.return_ok),
         field_type.collect_user_types(e.return_err),
       )
-    list.append(param_types, return_types)
+    let msg_types = case e.msg_type {
+      option.Some(#(mp, tn)) -> [#(mp, tn)]
+      option.None -> []
+    }
+    list.flatten([param_types, return_types, msg_types])
   })
   |> list.unique()
 }
@@ -438,14 +453,54 @@ fn wire_transform_expr(
           )
       }
     }
-    TupleOf(_)
-    | IntField
+    TupleOf(elements) -> wire_transform_tuple_expr(elements:, var:, direction:)
+    IntField
     | FloatField
     | StringField
     | BoolField
     | BitArrayField
     | NilField
     | TypeVar(_) -> option.None
+  }
+}
+
+fn wire_transform_tuple_expr(
+  elements elements: List(FieldType),
+  var var: String,
+  direction direction: String,
+) -> option.Option(String) {
+  case tuple_transform_parts(elements, direction) {
+    option.None -> option.None
+    option.Some(#(pattern, body)) ->
+      option.Some("{ let " <> pattern <> " = " <> var <> " " <> body <> " }")
+  }
+}
+
+fn tuple_transform_parts(
+  elements: List(FieldType),
+  direction: String,
+) -> option.Option(#(String, String)) {
+  let indexed = list.index_map(elements, fn(ft, i) { #(ft, i) })
+  let any_needs =
+    list.any(indexed, fn(pair) {
+      option.is_some(wire_transform_fn_ref(pair.0, direction))
+    })
+  case any_needs {
+    False -> option.None
+    True -> {
+      let vars = list.map(indexed, fn(pair) { "t" <> int.to_string(pair.1) })
+      let pattern = "#(" <> string.join(vars, ", ") <> ")"
+      let body_terms =
+        list.map(indexed, fn(pair) {
+          let #(ft, i) = pair
+          let elem_var = "t" <> int.to_string(i)
+          case wire_transform_fn_ref(ft, direction) {
+            option.None -> elem_var
+            option.Some(fn_ref) -> fn_ref <> "(" <> elem_var <> ")"
+          }
+        })
+      option.Some(#(pattern, "#(" <> string.join(body_terms, ", ") <> ")"))
+    }
   }
 }
 
@@ -477,6 +532,39 @@ fn wire_transform_fn_ref(
           option.Some(
             "fn(d) { dict.map_values(d, fn(_, v) { " <> inner_fn <> "(v) }) }",
           )
+      }
+    ResultOf(ok, err) -> {
+      let ok_fn = wire_transform_fn_ref(ok, direction)
+      let err_fn = wire_transform_fn_ref(err, direction)
+      case ok_fn, err_fn {
+        option.None, option.None -> option.None
+        option.Some(ok_f), option.None ->
+          option.Some(
+            "fn(r) { case r { Ok(v) -> Ok("
+            <> ok_f
+            <> "(v)) Error(e) -> Error(e) } }",
+          )
+        option.None, option.Some(err_f) ->
+          option.Some(
+            "fn(r) { case r { Ok(v) -> Ok(v) Error(e) -> Error("
+            <> err_f
+            <> "(e)) } }",
+          )
+        option.Some(ok_f), option.Some(err_f) ->
+          option.Some(
+            "fn(r) { case r { Ok(v) -> Ok("
+            <> ok_f
+            <> "(v)) Error(e) -> Error("
+            <> err_f
+            <> "(e)) } }",
+          )
+      }
+    }
+    TupleOf(elements) ->
+      case tuple_transform_parts(elements, direction) {
+        option.None -> option.None
+        option.Some(#(pattern, body)) ->
+          option.Some("fn(tup) { let " <> pattern <> " = tup " <> body <> " }")
       }
     _ -> option.None
   }

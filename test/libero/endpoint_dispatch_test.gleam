@@ -19,7 +19,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -28,7 +28,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       return_err: field_type.NilField,
       params: [#("params", item_params)],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -37,7 +37,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       return_err: field_type.NilField,
       params: [#("id", field_type.IntField)],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -46,7 +46,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       return_err: field_type.NilField,
       params: [#("id", field_type.IntField)],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let content =
@@ -70,7 +70,7 @@ pub fn endpoint_dispatch_wraps_read_only_handler_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: False,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -79,7 +79,7 @@ pub fn endpoint_dispatch_wraps_read_only_handler_test() {
       return_err: field_type.NilField,
       params: [#("id", field_type.IntField)],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let content =
@@ -103,10 +103,11 @@ pub fn endpoint_dispatch_passes_whole_msg_type_to_handler_test() {
       return_err: field_type.NilField,
       params: [#("enabled", field_type.BoolField)],
       mutates_context: True,
-      msg_type_name: option.Some("SetDarkMode"),
+      msg_type: option.Some(#("server/handler", "SetDarkMode")),
     ),
   ]
-  let content =
+  // Without wire_module: passes raw coerced msg
+  let content_no_wire =
     codegen_dispatch.generate(
       endpoints: endpoints,
       context_module: "server_context",
@@ -116,11 +117,29 @@ pub fn endpoint_dispatch_passes_whole_msg_type_to_handler_test() {
       wire_module: option.None,
     )
 
-  let assert True = string.contains(content, "ServerSetDarkMode(enabled: Bool)")
+  let assert True =
+    string.contains(content_no_wire, "ServerSetDarkMode(enabled: Bool)")
   let assert True =
     string.contains(
-      content,
+      content_no_wire,
       "handler.server_set_dark_mode(msg: wire.coerce(typed_msg), server_context:)",
+    )
+
+  // With wire_module: wraps coerced msg in the wire decode transformer
+  let content_wire =
+    codegen_dispatch.generate(
+      endpoints: endpoints,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.Some("test@wire"),
+    )
+
+  let assert True =
+    string.contains(
+      content_wire,
+      "handler.server_set_dark_mode(msg: wire_decode_server_handler__set_dark_mode(wire.coerce(typed_msg)), server_context:)",
     )
 }
 
@@ -133,7 +152,7 @@ pub fn dispatch_known_tags_call_shared_helper_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -142,7 +161,7 @@ pub fn dispatch_known_tags_call_shared_helper_test() {
       return_err: field_type.NilField,
       params: [#("id", field_type.IntField)],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let content =
@@ -188,7 +207,7 @@ pub fn endpoint_dispatch_imports_qualified_param_types_test() {
         #("filters", field_type.UserType("shared/widgets", "WidgetFilters", [])),
       ],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/notifier",
@@ -199,7 +218,7 @@ pub fn endpoint_dispatch_imports_qualified_param_types_test() {
         #("params", field_type.UserType("shared/alerts", "AlertParams", [])),
       ],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/store",
@@ -208,7 +227,7 @@ pub fn endpoint_dispatch_imports_qualified_param_types_test() {
       return_err: field_type.NilField,
       params: [#("id", field_type.IntField)],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let content =
@@ -237,7 +256,7 @@ pub fn endpoint_dispatch_imports_stdlib_param_types_test() {
         ),
       ],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let content =
@@ -261,7 +280,7 @@ pub fn dispatch_includes_ensure_atoms_when_module_set_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let content =
@@ -290,7 +309,7 @@ pub fn dispatch_omits_ensure_atoms_when_module_is_none_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let content =
@@ -315,7 +334,7 @@ pub fn generate_atoms_erl_produces_valid_erlang_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -324,7 +343,7 @@ pub fn generate_atoms_erl_produces_valid_erlang_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let content =
@@ -361,7 +380,7 @@ pub fn generate_atoms_erl_deduplicates_atoms_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
     scanner.HandlerEndpoint(
       module_path: "server/b",
@@ -370,7 +389,7 @@ pub fn generate_atoms_erl_deduplicates_atoms_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let content = codegen_dispatch.generate_atoms_erl(endpoints, [], "mod")
@@ -389,7 +408,7 @@ pub fn dispatch_variant_names_include_server_prefix_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let content =
@@ -418,7 +437,7 @@ pub fn generate_atoms_erl_includes_variant_constructor_atoms_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let discovered = [
@@ -463,7 +482,7 @@ pub fn generate_atoms_erl_no_duplicate_end_of_function_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
   let discovered = [

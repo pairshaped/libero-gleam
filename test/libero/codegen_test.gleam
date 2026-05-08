@@ -92,7 +92,7 @@ fn single_endpoint(return_ok: field_type.FieldType) -> scanner.HandlerEndpoint {
     return_err: field_type.NilField,
     params: [],
     mutates_context: True,
-    msg_type_name: option.None,
+    msg_type: option.None,
   )
 }
 
@@ -117,7 +117,7 @@ pub fn endpoints_contain_finds_option_in_params_test() {
       return_err: field_type.NilField,
       params: [#("opt", field_type.OptionOf(field_type.StringField))],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     )
   let assert True =
     codegen.endpoints_contain(endpoints: [ep], predicate: codegen.is_option)
@@ -132,7 +132,7 @@ pub fn endpoints_contain_finds_option_in_return_err_test() {
       return_err: field_type.OptionOf(field_type.StringField),
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     )
   let assert True =
     codegen.endpoints_contain(endpoints: [ep], predicate: codegen.is_option)
@@ -149,7 +149,7 @@ pub fn import_if_emits_import_when_predicate_true_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     )
   let result =
     codegen.import_if(
@@ -182,7 +182,7 @@ pub fn emit_client_msg_variants_zero_param_test() {
       return_err: field_type.NilField,
       params: [],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     )
   let lines =
     codegen.emit_client_msg_variants(
@@ -204,7 +204,7 @@ pub fn emit_client_msg_variants_with_params_test() {
         #("id", field_type.IntField),
       ],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     )
   let lines =
     codegen.emit_client_msg_variants(
@@ -227,7 +227,7 @@ pub fn collect_endpoint_type_imports_params_only_test() {
         #("item", field_type.UserType("shared/types", "Item", [])),
       ],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     )
   let imports =
     codegen.collect_endpoint_type_imports(
@@ -249,7 +249,7 @@ pub fn collect_endpoint_type_imports_includes_return_test() {
         #("item", field_type.UserType("shared/types", "Item", [])),
       ],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     )
   let imports =
     codegen.collect_endpoint_type_imports(
@@ -273,7 +273,7 @@ pub fn collect_endpoint_type_imports_deduplicates_test() {
         #("item", field_type.UserType("shared/types", "Item", [])),
       ],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     )
   let ep2 =
     scanner.HandlerEndpoint(
@@ -285,7 +285,7 @@ pub fn collect_endpoint_type_imports_deduplicates_test() {
         #("item", field_type.UserType("shared/types", "Item", [])),
       ],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     )
   let imports =
     codegen.collect_endpoint_type_imports(

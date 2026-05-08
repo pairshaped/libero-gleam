@@ -312,7 +312,7 @@ pub fn float_type_hint_registration_test() {
         ),
       ],
       mutates_context: True,
-      msg_type_name: option.None,
+      msg_type: option.None,
     ),
   ]
 

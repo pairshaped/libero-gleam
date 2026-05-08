@@ -41,7 +41,7 @@ pub type HandlerEndpoint {
     /// When set, the handler takes a single message type param instead of
     /// individual params. Dispatch passes the whole coerced message.
     /// The params list still contains the type's fields (for wire contract).
-    msg_type_name: option.Option(String),
+    msg_type: option.Option(#(String, String)),
   )
 }
 
@@ -317,7 +317,7 @@ fn parse_single_endpoint(
     )
   }
 
-  let #(params_typed, msg_type_name) =
+  let #(params_typed, msg_type) =
     try_resolve_msg_type(
       payload_params,
       module_path,
@@ -333,7 +333,7 @@ fn parse_single_endpoint(
     return_err: to_ft(err_type),
     params: params_typed,
     mutates_context: mutates_context,
-    msg_type_name: msg_type_name,
+    msg_type: msg_type,
   ))
 }
 
@@ -343,7 +343,7 @@ fn try_resolve_msg_type(
   custom_types: List(glance.Definition(glance.CustomType)),
   module_files: dict.Dict(String, String),
   to_ft: fn(glance.Type) -> field_type.FieldType,
-) -> #(List(#(String, field_type.FieldType)), option.Option(String)) {
+) -> #(List(#(String, field_type.FieldType)), option.Option(#(String, String))) {
   let fallback = #(
     resolve_individual_params(payload_params, to_ft),
     option.None,
@@ -361,7 +361,9 @@ fn try_resolve_msg_type(
             module_files:,
             current_to_ft: to_ft,
           )
-          |> result.map(fn(fields) { #(fields, option.Some(type_name)) })
+          |> result.map(fn(fields) {
+            #(fields, option.Some(#(module_path, type_name)))
+          })
           |> result.unwrap(or: fallback)
         _ -> fallback
       }
