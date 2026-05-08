@@ -192,6 +192,54 @@ pub fn dict_and_tuple_field_snapshot_test() {
   birdie.snap(js, title: "dict tuple field typed decoder")
 }
 
+pub fn qualified_atoms_prevent_collision_in_registry_test() {
+  // Two types in different modules with the same variant name must
+  // produce different atom names so the atom→decoder reverse mapping
+  // doesn't collide.
+  let types = [
+    walker.DiscoveredType(
+      module_path: "pages/discounts",
+      type_name: "Discount",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "pages/discounts",
+          variant_name: "Discount",
+          atom_name: "pages_discounts__discount",
+          float_field_indices: [],
+          fields: [field_type.IntField],
+        ),
+      ],
+    ),
+    walker.DiscoveredType(
+      module_path: "pages/admin_discounts",
+      type_name: "Discount",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "pages/admin_discounts",
+          variant_name: "Discount",
+          atom_name: "pages_admin_discounts__discount",
+          float_field_indices: [],
+          fields: [field_type.IntField, field_type.StringField],
+        ),
+      ],
+    ),
+  ]
+  let js = codegen_decoders.emit_typed_decoders(types)
+
+  // Both variants register under distinct qualified atoms
+  let assert True =
+    string.contains(js, "registerAtomDecoder(\"pages_discounts__discount\"")
+  let assert True =
+    string.contains(js, "registerAtomDecoder(\"pages_admin_discounts__discount\"")
+  // The typed decoders match on qualified atoms
+  let assert True =
+    string.contains(js, "term[0] !== \"pages_discounts__discount\"")
+  let assert True =
+    string.contains(js, "term[0] !== \"pages_admin_discounts__discount\"")
+}
+
 pub fn decode_typed_dispatch_in_output_test() {
   let js = codegen_decoders.emit_typed_decoders(sample_record_type())
 

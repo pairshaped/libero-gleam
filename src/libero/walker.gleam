@@ -290,7 +290,7 @@ fn process_type_ast_custom(
             DiscoveredVariant(
               module_path: module_path,
               variant_name: variant.name,
-              atom_name: to_snake_case(variant.name),
+              atom_name: qualified_atom_name(module_path, variant.name),
               float_field_indices: float_indices,
               fields:,
             )
@@ -574,6 +574,14 @@ fn build_type_resolver(
     aliased: scanner.build_alias_resolution_map(imports),
     original_names: scanner.build_type_alias_originals(imports),
   )
+}
+
+/// Build a module-qualified atom name from a module path and variant name.
+/// "shared/discount" + "Discount" → "shared_discount__discount".
+/// Two modules with the same variant name produce distinct atoms, so the
+/// atom→decoder reverse mapping cannot collide.
+pub fn qualified_atom_name(module_path: String, variant_name: String) -> String {
+  string.replace(module_path, "/", "_") <> "__" <> to_snake_case(variant_name)
 }
 
 /// Convert a PascalCase variant name to snake_case for the wire atom.

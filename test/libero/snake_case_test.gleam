@@ -39,3 +39,22 @@ pub fn leading_acronym_then_word_test() {
 pub fn number_in_name_test() {
   let assert "v3_mode" = walker.to_snake_case("V3Mode")
 }
+
+pub fn qualified_atom_simple_test() {
+  let assert "shared_discount__discount" =
+    walker.qualified_atom_name("shared/discount", "Discount")
+}
+
+pub fn qualified_atom_collision_prevention_test() {
+  // Two modules with the same variant name → different qualified atoms
+  let a = walker.qualified_atom_name("pages/discounts", "Discount")
+  let b = walker.qualified_atom_name("pages/admin_discounts", "Discount")
+  let assert "pages_discounts__discount" = a
+  let assert "pages_admin_discounts__discount" = b
+  let assert True = a != b
+}
+
+pub fn qualified_atom_nested_module_test() {
+  let assert "pages_registration_discounts__discount" =
+    walker.qualified_atom_name("pages/registration/discounts", "Discount")
+}

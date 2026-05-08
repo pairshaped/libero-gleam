@@ -15,7 +15,27 @@
 identity(X) -> X.
 
 encode(Term) ->
-    erlang:term_to_binary(Term).
+    QTerm = qualify_atoms(Term),
+    erlang:term_to_binary(QTerm).
+
+qualify_atoms({Atom, _} = Tuple) when is_atom(Atom) ->
+    case persistent_term:get({libero, atom_map}, #{}) of
+        #{Atom := Qualified} -> setelement(1, Tuple, Qualified);
+        #{} -> Tuple
+    end;
+qualify_atoms(Atom) when is_atom(Atom) ->
+    case persistent_term:get({libero, atom_map}, #{}) of
+        #{Atom := Qualified} -> Qualified;
+        #{} -> Atom
+    end;
+qualify_atoms(List) when is_list(List) ->
+    [qualify_atoms(Item) || Item <- List];
+qualify_atoms(Tuple) when is_tuple(Tuple) ->
+    list_to_tuple([qualify_atoms(Item) || Item <- tuple_to_list(Tuple)]);
+qualify_atoms(Map) when is_map(Map) ->
+    maps:from_list([{qualify_atoms(K), qualify_atoms(V)} || {K, V} <- maps:to_list(Map)]);
+qualify_atoms(Term) ->
+    Term.
 
 decode(Bin) ->
     erlang:binary_to_term(Bin, [safe]).
