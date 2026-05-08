@@ -1,6 +1,6 @@
 # Wire-Format Type Identity via Codegen
 
-**Status:** Implementation in progress (libero steps 1-8 complete, pending commit)
+**Status:** Implementation in progress (libero steps 1-10 complete, v3 cutover pending)
 **Created:** 2026-05-08
 **Scope:** libero (primary), rally (consumer), v3 (smoke target)
 
@@ -15,7 +15,7 @@
 | 4-5 | Per-class `__wireAtom`/`__fieldTypes` in JS codegen | Done (this session) |
 | 7 | JS runtime cleanup (`_bareToQualifiedAtom`, `fieldTypeRegistry` removed) | Done (this session) |
 | 8 | Erlang runtime cleanup (`qualify_atoms` removed, `encode/1` = `term_to_binary`) | Done (this session) |
-| 9 | Same-name collision E2E fixture | Not yet |
+| 9 | Same-name collision E2E fixture | Done (139d979, 452d241) |
 | 10 | `gleam test` + `gleam run -m glinter` clean | Done |
 | 11 | v3 cutover (`bin/regen`, smoke test) | Not yet |
 
