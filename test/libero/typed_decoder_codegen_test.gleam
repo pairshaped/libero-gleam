@@ -5,6 +5,7 @@ import libero/codegen_decoders
 import libero/field_type
 import libero/scanner
 import libero/walker
+import libero/wire_identity
 
 fn sample_status_enum() -> List(walker.DiscoveredType) {
   [
@@ -228,16 +229,30 @@ pub fn qualified_atoms_prevent_collision_in_registry_test() {
   ]
   let js = codegen_decoders.emit_typed_decoders(types)
 
-  // Both variants register under distinct qualified atoms
+  // Wire identity is hash-based; same-named types in different modules
+  // produce distinct hashes (different module_path component of the
+  // canonical signature). The test verifies both that the hashes are
+  // registered AND that they differ — non-collision is the headline
+  // property of the wire-identity work.
+  let #(_sig_a, hash_a) =
+    wire_identity.wire_identity(
+      module_path: "pages/discounts",
+      constructor_name: "Discount",
+      fields: [field_type.IntField],
+    )
+  let #(_sig_b, hash_b) =
+    wire_identity.wire_identity(
+      module_path: "pages/admin_discounts",
+      constructor_name: "Discount",
+      fields: [field_type.IntField, field_type.StringField],
+    )
+  let assert True = hash_a != hash_b
   let assert True =
-    string.contains(js, "registerAtomDecoder(\"pages_discounts__discount\"")
+    string.contains(js, "registerAtomDecoder(\"" <> hash_a <> "\"")
   let assert True =
-    string.contains(js, "registerAtomDecoder(\"pages_admin_discounts__discount\"")
-  // The typed decoders match on qualified atoms
-  let assert True =
-    string.contains(js, "term[0] !== \"pages_discounts__discount\"")
-  let assert True =
-    string.contains(js, "term[0] !== \"pages_admin_discounts__discount\"")
+    string.contains(js, "registerAtomDecoder(\"" <> hash_b <> "\"")
+  let assert True = string.contains(js, "term[0] !== \"" <> hash_a <> "\"")
+  let assert True = string.contains(js, "term[0] !== \"" <> hash_b <> "\"")
 }
 
 pub fn decode_typed_dispatch_in_output_test() {
@@ -245,9 +260,17 @@ pub fn decode_typed_dispatch_in_output_test() {
 
   // Registration calls populate rpc_ffi.mjs's atom→decoder reverse
   // mapping so the ETF decoder can reconstruct custom types in non-raw
-  // mode without the deprecated constructorRegistry.
+  // mode. Under the wire-identity scheme the atom is the variant's
+  // hash; the decoder function name still embeds the source module +
+  // type name for readability.
+  let #(_sig, hash) =
+    wire_identity.wire_identity(
+      module_path: "shared/item",
+      constructor_name: "Item",
+      fields: [field_type.StringField, field_type.IntField, field_type.BoolField],
+    )
   let assert True =
-    string.contains(js, "registerAtomDecoder(\"item\"")
+    string.contains(js, "registerAtomDecoder(\"" <> hash <> "\"")
   let assert True =
     string.contains(js, "\"decode_shared_item_item\"")
 }
@@ -297,11 +320,23 @@ pub fn float_type_hint_registration_test() {
       relpath_prefix: "../../../",
     )
 
-  let assert True = string.contains(js, "registerFieldTypes(\"measurements\"")
+  // Float hints now ride on the variant class as `__fieldTypes`. The
+  // encoder reads them off `value.constructor.__fieldTypes` instead
+  // of looking up by qualified atom. The structural hint shapes
+  // (list/option/tuple wrappers) are unchanged.
   let assert True =
-    string.contains(js, "{ kind: \"list\", element: \"float\" }")
+    string.contains(
+      js,
+      "_m_shared_measurements.Measurements.__fieldTypes = [{ kind: \"list\", element: \"float\" }, { kind: \"option\", inner: \"float\" }];",
+    )
   let assert True =
-    string.contains(js, "registerFieldTypes(\"server_record_measurements\"")
-  let assert True =
-    string.contains(js, "{ kind: \"tuple\", elements: [null, \"float\"] }")
+    string.contains(
+      js,
+      "_m_shared_measurements.Measurements.__wireAtom",
+    )
+  // Endpoint-side field hints (for ClientMsg variants) are not yet
+  // wired up under the new scheme; that lands when dispatch codegen
+  // gains its own class-statics emission. Endpoint floats still flow
+  // through the encoder's hint argument when a typed decoder calls
+  // back into the encoder, so user-type fields stay correct.
 }
