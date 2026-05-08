@@ -1,5 +1,5 @@
 ---
-version: 1.5.5
+version: 2.0.0
 title: enum typed decoder
 file: ./test/libero/typed_decoder_codegen_test.gleam
 test_name: enum_snapshot_test
@@ -9,5 +9,8 @@ export function decode_shared_line_item_status(term) {
   if (term === "paid") return new _m_shared_line_item.Paid();
   throw new DecodeError("unknown variant: " + String(term));
 }
+
+registerTypedDecoder("decode_shared_line_item_status", decode_shared_line_item_status);
+
 
 export function ensure_decoders() { return true; }

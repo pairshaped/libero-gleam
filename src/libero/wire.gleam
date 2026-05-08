@@ -94,6 +94,35 @@ fn ffi_decode_safe(data: BitArray) -> Result(a, DecodeError) {
   panic as "libero/wire.ffi_decode_safe: external is missing for this target. This indicates a libero packaging bug; the function should be resolved by the @external attributes."
 }
 
+// ---------- Typed decoder (two-pass) ----------
+
+/// Decode an ETF binary and apply a typed decoder by name.
+///
+/// On JavaScript, this does the two-pass decode: raw ETF → typed decoder
+/// lookup via the registry populated by generated codec_ffi.mjs. The
+/// `decoder_name` is the full function name, e.g.
+/// `"decode_pages_home__model"`.
+///
+/// On Erlang, ETF is BEAM-native so the decoder_name is ignored;
+/// `binary_to_term` already reconstructs all types correctly.
+pub fn decode_typed(
+  data: BitArray,
+  decoder_name: String,
+) -> Result(a, DecodeError) {
+  ffi_decode_typed(data, decoder_name)
+}
+
+@external(erlang, "libero_ffi", "decode_typed")
+@external(javascript, "./rpc_ffi.mjs", "decodeTypedWire")
+fn ffi_decode_typed(
+  data: BitArray,
+  decoder_name: String,
+) -> Result(a, DecodeError) {
+  let _ = data
+  let _ = decoder_name
+  panic as "libero/wire.ffi_decode_typed: external is missing for this target."
+}
+
 // ---------- Decoder (incoming call envelope) ----------
 
 /// Parse a `{<<"module_name">>, request_id, toserver_value}` tuple from an ETF binary.

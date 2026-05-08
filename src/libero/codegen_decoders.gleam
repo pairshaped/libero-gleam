@@ -54,14 +54,34 @@ pub fn generate_decoders_ffi(
 " <> imports <> "\n\n" <> ctor_setters <> float_type_registrations <> "\n" <> body <> "\n" <> response_decoders
 }
 
-/// Emit a JS string with one decoder function per discovered type and an
-/// `ensure_decoders` entry point.
+/// Emit a JS string with one decoder function per discovered type,
+/// registration calls that populate rpc_ffi.mjs's typed decoder registry,
+/// and an `ensure_decoders` entry point.
 pub fn emit_typed_decoders(discovered: List(DiscoveredType)) -> String {
   let type_decoders = list.map(discovered, fn(t) { emit_type_decoder(t) })
+  let registrations = emit_typed_decoder_registrations(discovered)
   let entry = emit_ensure_decoders()
   let parts =
-    list.filter([string.join(type_decoders, "\n\n"), entry], fn(s) { s != "" })
+    list.filter(
+      [string.join(type_decoders, "\n\n"), registrations, entry],
+      fn(s) { s != "" },
+    )
   string.join(parts, "\n\n")
+}
+
+fn emit_typed_decoder_registrations(discovered: List(DiscoveredType)) -> String {
+  case discovered {
+    [] -> ""
+    _ -> {
+      let calls =
+        list.map(discovered, fn(t) {
+          let fn_name = decoder_fn_name(t.module_path, t.type_name)
+          "registerTypedDecoder(\"" <> fn_name <> "\", " <> fn_name <> ");"
+        })
+        |> string.join("\n")
+      calls <> "\n"
+    }
+  }
 }
 
 fn emit_decoder_imports(
@@ -100,12 +120,24 @@ fn emit_decoder_imports(
     <> "import { from_list as dictFromList } from \""
     <> relpath_prefix
     <> "gleam_stdlib/gleam/dict.mjs\";"
-  let float_import = case needs_float_type_hints(discovered:, endpoints:) {
-    True ->
-      "\nimport { registerFieldTypes } from \""
-      <> relpath_prefix
-      <> "libero/libero/rpc_ffi.mjs\";"
-    False -> ""
+  let rpc_ffi_import = {
+    let needs_typed = !list.is_empty(discovered)
+    let needs_float = needs_float_type_hints(discovered:, endpoints:)
+    case needs_typed, needs_float {
+      True, True ->
+        "\nimport { registerTypedDecoder, registerFieldTypes } from \""
+        <> relpath_prefix
+        <> "libero/libero/rpc_ffi.mjs\";"
+      True, False ->
+        "\nimport { registerTypedDecoder } from \""
+        <> relpath_prefix
+        <> "libero/libero/rpc_ffi.mjs\";"
+      False, True ->
+        "\nimport { registerFieldTypes } from \""
+        <> relpath_prefix
+        <> "libero/libero/rpc_ffi.mjs\";"
+      False, False -> ""
+    }
   }
   let module_imports =
     list.map(module_paths, fn(mp) {
@@ -136,7 +168,7 @@ fn emit_decoder_imports(
   string.join(
     [
       prelude_import,
-      stdlib_imports <> float_import <> remote_data_import <> rpc_error_import,
+      stdlib_imports <> rpc_ffi_import <> remote_data_import <> rpc_error_import,
       ..module_imports
     ],
     "\n",

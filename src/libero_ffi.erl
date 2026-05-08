@@ -8,9 +8,9 @@
 %% trace_id without pattern-matching on arbitrary Erlang term shapes.
 
 -module(libero_ffi).
--export([try_call/1, encode/1, decode/1, decode_safe/1, identity/1, unique_id/0,
-         run_executable_capturing/2, find_executable/1, get_env/1, halt/1,
-         ensure_decoders/0]).
+-export([try_call/1, encode/1, decode/1, decode_safe/1, decode_typed/2,
+         identity/1, unique_id/0, run_executable_capturing/2,
+         find_executable/1, get_env/1, halt/1, ensure_decoders/0]).
 
 identity(X) -> X.
 
@@ -30,6 +30,11 @@ decode_safe(Bin) ->
             ),
             {error, {decode_error, Msg}}
     end.
+
+%% On BEAM, ETF is native — the decoder_name is ignored since
+%% binary_to_term already reconstructs all types correctly.
+decode_typed(Bin, _DecoderName) ->
+    decode_safe(Bin).
 
 try_call(F) ->
     try F() of

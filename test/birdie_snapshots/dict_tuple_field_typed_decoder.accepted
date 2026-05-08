@@ -12,4 +12,7 @@ export function decode_shared_compound_compound(term) {
   );
 }
 
+registerTypedDecoder("decode_shared_compound_compound", decode_shared_compound_compound);
+
+
 export function ensure_decoders() { return true; }

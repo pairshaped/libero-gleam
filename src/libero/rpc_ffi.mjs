@@ -22,6 +22,10 @@ import { DecodeError as WireDecodeError } from "./error.mjs";
 // time. The ETF decoder (decodeTuple) looks up this registry when it
 // encounters an atom-tagged tuple for a custom type like {sponsor, ...}
 // and reconstructs the proper Gleam constructor instance.
+//
+// DEPRECATED: keyed by bare atom name, which causes collisions when
+// two modules define types with the same variant name. Use
+// registerTypedDecoder + decodeTyped instead.
 
 const constructorRegistry = new Map();
 
@@ -34,6 +38,26 @@ const constructorRegistry = new Map();
  */
 export function registerConstructor(atomName, ctor, fieldCount) {
   constructorRegistry.set(atomName, { ctor, fieldCount });
+}
+
+// ---------- Typed decoder registry ----------
+// Generated codec_ffi.mjs registers per-type decoder functions here so
+// callers (e.g. SSR flag decoding) can apply the two-pass decode:
+// raw ETF decode → typed decoder.
+//
+// Keyed by full decoder name (e.g. "decode_pages_home__item"), which
+// includes the module path and cannot collide across modules.
+
+const _typedDecoderRegistry = new Map();
+
+export function registerTypedDecoder(name, fn) {
+  _typedDecoderRegistry.set(name, fn);
+}
+
+export function decodeTyped(value, decoderName) {
+  const fn = _typedDecoderRegistry.get(decoderName);
+  if (!fn) throw new Error("Unknown typed decoder: " + decoderName);
+  return fn(value);
 }
 
 // ---------- Error names ----------
@@ -977,6 +1001,24 @@ export function decode_safe(buffer) {
     const decoder = new ETFDecoder(buffer);
     const value = decoder.decode();
     return new Ok(value);
+  } catch (e) {
+    const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);
+    return new ResultError(new WireDecodeError(msg));
+  }
+}
+
+/**
+ * Two-pass decode: raw ETF → typed decoder lookup.
+ * Used by wire.decode_typed for SSR flags and other non-RPC paths
+ * where the caller knows the expected type at codegen time.
+ * @param {DecoderInput} buffer
+ * @param {string} decoderName e.g. "decode_pages_home__model"
+ * @returns {any} Ok(typed_value) or Error(DecodeError)
+ */
+export function decodeTypedWire(buffer, decoderName) {
+  try {
+    const raw = new ETFDecoder(buffer, true).decode();
+    return new Ok(decodeTyped(raw, decoderName));
   } catch (e) {
     const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);
     return new ResultError(new WireDecodeError(msg));
