@@ -1,19 +1,19 @@
-//// ETF (Erlang Term Format) wire codec for Libero RPC.
+//// Wire codec for Libero RPC.
 ////
-//// Encoding walks any Gleam value through `erlang:term_to_binary/1`,
-//// which preserves the full Erlang type structure (atoms, tuples,
-//// maps, lists) natively. Decoding uses `erlang:binary_to_term/1`
-//// to reconstruct the original terms. No manual walk or rebuild is
-//// needed because ETF is the BEAM's native serialization format.
+//// Libero owns the protocol boundary. Consumers should use the
+//// high-level frame API (encode_response, decode_response_frame,
+//// encode_push, decode_push_frame) and not depend on the wire shape.
+////
+//// The current wire format is ETF (Erlang Term Format). Encoding
+//// walks any Gleam value through `erlang:term_to_binary/1`, which
+//// preserves the full Erlang type structure natively. Decoding
+//// uses `erlang:binary_to_term/1` to reconstruct the original terms.
 ////
 //// **Wire shape:**
-//// - The call envelope is `{module_name_binary, request_id, client_msg_value}` -
-////   a 3-tuple where the first element is a UTF-8 binary (Gleam String)
-////   carrying the wire envelope, the second is an integer request ID for
-////   correlating responses, and the third is the generated `ClientMsg`
-////   value serialized as a native ETF term.
-//// - The response is the Gleam value directly (e.g. `Ok(value)` or
-////   `Error(MalformedRequest)`), serialized as ETF.
+//// - Call envelope: `{module_name_binary, request_id, client_msg_value}` -
+////   a 3-tuple ETF payload wrapped in a request frame.
+//// - Response frame: tag byte 0, 32-bit request ID, ETF payload.
+//// - Push frame: tag byte 1, ETF payload (`{module, value}` tuple).
 ////
 //// **Cross-target:** `encode` and `decode` work on both Erlang and
 //// JavaScript targets. The Erlang path uses the BEAM's native
@@ -27,6 +27,21 @@
 
 import gleam/dynamic.{type Dynamic}
 import libero/error.{type DecodeError}
+
+// ---------- Frame abstraction ----------
+
+/// A decoded server-to-client frame.
+///
+/// Consumers use this to handle incoming server messages without
+/// knowing the frame wire shape (tag bytes, request ID layout, etc.).
+///
+/// The `value` type parameter is typically `Dynamic` at the boundary
+/// and narrowed by the consumer with a typed decoder or `coerce`.
+///
+pub type ServerFrame(value) {
+  Response(request_id: Int, value: value)
+  Push(module: String, value: value)
+}
 
 // ---------- Encoder ----------
 
@@ -176,6 +191,88 @@ pub fn tag_response(
 /// request ID, since there is no originating call to correlate.
 pub fn tag_push(data: BitArray) -> BitArray {
   <<1, data:bits>>
+}
+
+// ---------- High-level frame API ----------
+
+/// Encode a value and wrap it in a response frame (tag byte 0, 32-bit
+/// request ID). This is the combined version of `encode` + `tag_response`.
+/// Prefer this over calling the two functions separately.
+pub fn encode_response(request_id request_id: Int, value value: a) -> BitArray {
+  tag_response(request_id:, data: encode(value))
+}
+
+/// Encode a push message as a frame (tag byte 1, {module, value} tuple
+/// as ETF payload). This is the combined version of `encode` + `tag_push`.
+/// Prefer this over assembling the tuple and frame by hand.
+pub fn encode_push(module module: String, value value: a) -> BitArray {
+  tag_push(encode(#(module, value)))
+}
+
+/// Decode a response frame into its request ID and payload value.
+/// Strips the frame tag byte and request ID header, then ETF-decodes
+/// the payload. Returns the result as a `ServerFrame`.
+///
+/// Prefer `decode_server_frame` unless you know the frame is a
+/// response and want to skip the tag-byte dispatch.
+pub fn decode_response_frame(
+  data: BitArray,
+) -> Result(ServerFrame(Dynamic), DecodeError) {
+  case ffi_decode_response_frame(data) {
+    Ok(#(request_id, value)) -> Ok(Response(request_id:, value:))
+    Error(err) -> Error(err)
+  }
+}
+
+/// Decode a push frame into its module and payload value.
+/// Strips the frame tag byte, then ETF-decodes the {module, value}
+/// tuple from the payload. Returns the result as a `ServerFrame`.
+///
+/// Prefer `decode_server_frame` unless you know the frame is a
+/// push and want to skip the tag-byte dispatch.
+pub fn decode_push_frame(
+  data: BitArray,
+) -> Result(ServerFrame(Dynamic), DecodeError) {
+  case ffi_decode_push_frame(data) {
+    Ok(#(module, value)) -> Ok(Push(module:, value:))
+    Error(err) -> Error(err)
+  }
+}
+
+/// Decode any server-to-client frame (response or push) into a
+/// `ServerFrame`. This is the primary entry point for consumers: hand
+/// Libero the raw bytes and pattern-match on the result.
+///
+/// The tag byte (0 = response, 1 = push) is read and dispatched
+/// internally. Consumers never inspect frame bytes.
+///
+pub fn decode_server_frame(
+  data: BitArray,
+) -> Result(ServerFrame(Dynamic), DecodeError) {
+  case data {
+    <<0, _:bits>> -> decode_response_frame(data)
+    <<1, _:bits>> -> decode_push_frame(data)
+    _ ->
+      Error(error.DecodeError(message: "invalid server frame: unknown tag byte"))
+  }
+}
+
+@external(erlang, "libero_wire_ffi", "decode_response_frame")
+@external(javascript, "./rpc_ffi.mjs", "decode_response_frame")
+fn ffi_decode_response_frame(
+  data: BitArray,
+) -> Result(#(Int, Dynamic), DecodeError) {
+  let _ = data
+  panic as "libero/wire.ffi_decode_response_frame: external is missing for this target."
+}
+
+@external(erlang, "libero_wire_ffi", "decode_push_frame")
+@external(javascript, "./rpc_ffi.mjs", "decode_push_frame")
+fn ffi_decode_push_frame(
+  data: BitArray,
+) -> Result(#(String, Dynamic), DecodeError) {
+  let _ = data
+  panic as "libero/wire.ffi_decode_push_frame: external is missing for this target."
 }
 
 // ---------- Variant tag ----------

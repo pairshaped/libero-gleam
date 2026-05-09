@@ -107,7 +107,7 @@ pub type RpcFailure(err)   // DomainError(err) | TransportError(RpcError)
 - `src/libero/format.gleam` (91 lines) - gleam format runner
 - `src/libero_ffi.erl` - signal trapping, try_call, unique_id, ETF encode
 - `src/libero_wire_ffi.erl` - wire codec FFI (decode_call, variant_tag)
-- `src/libero/rpc_ffi.mjs` - JS ETF codec + WebSocket client
+- `src/libero/rpc_ffi.mjs` - JS ETF codec and typed decode helpers
 - `src/libero/decoders_prelude.mjs` - JS type registration
 - `src/libero/libero_ffi.mjs` - JS unique_id
 

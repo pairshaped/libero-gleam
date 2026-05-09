@@ -1,5 +1,5 @@
 -module(libero_wire_ffi).
--export([decode_call/1, variant_tag/1]).
+-export([decode_call/1, variant_tag/1, decode_response_frame/1, decode_push_frame/1]).
 
 %% Decode an ETF binary, validate it's a {Binary, Integer, Value} call envelope,
 %% and return a Gleam-shaped Result: {ok, {Name, RequestId, Value}} or
@@ -43,3 +43,31 @@ variant_tag(Value) when is_tuple(Value), tuple_size(Value) >= 1 ->
     end;
 variant_tag(_) ->
     {error, nil}.
+
+%% Decode a response frame: tag byte 0, 32-bit request ID, ETF payload.
+%% Returns {ok, {RequestId, Value}} or {error, {decode_error, Message}}.
+decode_response_frame(Bin) when is_binary(Bin) ->
+    try
+        <<0, RequestId:32, Payload/binary>> = Bin,
+        Term = erlang:binary_to_term(Payload, [safe]),
+        {ok, {RequestId, Term}}
+    catch
+        _:_ ->
+            {error, {decode_error, <<"invalid response frame">>}}
+    end;
+decode_response_frame(_) ->
+    {error, {decode_error, <<"expected a binary (BitArray)">>}}.
+
+%% Decode a push frame: tag byte 1, ETF payload ({Module, Value} tuple).
+%% Returns {ok, {Module, Value}} or {error, {decode_error, Message}}.
+decode_push_frame(Bin) when is_binary(Bin) ->
+    try
+        <<1, Payload/binary>> = Bin,
+        {Module, Value} = erlang:binary_to_term(Payload, [safe]),
+        {ok, {Module, Value}}
+    catch
+        _:_ ->
+            {error, {decode_error, <<"invalid push frame">>}}
+    end;
+decode_push_frame(_) ->
+    {error, {decode_error, <<"expected a binary (BitArray)">>}}.

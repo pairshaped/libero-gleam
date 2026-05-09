@@ -39,3 +39,4 @@ gleeunit = { version = "~> 1.0" }
 glexer = { version = ">= 2.4.0 and < 3.0.0" }
 glinter = { version = "~> 2.17" }
 simplifile = { version = "~> 2.0" }
+tom = { version = ">= 2.0.0 and < 3.0.0" }

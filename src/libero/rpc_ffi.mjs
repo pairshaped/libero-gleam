@@ -1155,3 +1155,111 @@ export function encode_call(module, requestId, msg) {
   encoder.encodeTerm(msg);
   return encoder.result();
 }
+
+/**
+ * Decode a response frame: tag byte 0, 32-bit request ID, ETF payload.
+ * Returns Ok([requestId, value]) or Error(DecodeError).
+ * @param {DecoderInput} buffer
+ * @returns {any} Gleam Result
+ */
+export function decode_response_frame(buffer) {
+  try {
+    const bytes = new Uint8Array(buffer);
+    if (bytes.length < 5) {
+      return new ResultError(new WireDecodeError("invalid response frame: too short"));
+    }
+    if (bytes[0] !== 0) {
+      return new ResultError(new WireDecodeError("invalid response frame: expected tag byte 0"));
+    }
+    const requestId = (bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4];
+    const payloadResult = decode_safe(bytes.subarray(5));
+    if (payloadResult instanceof Ok) {
+      return new Ok([requestId, payloadResult[0]]);
+    }
+    return payloadResult;
+  } catch (e) {
+    const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);
+    return new ResultError(new WireDecodeError(msg));
+  }
+}
+
+/**
+ * Decode a push frame: tag byte 1, ETF {module, value} tuple payload.
+ * Returns Ok([module, value]) or Error(DecodeError).
+ * @param {DecoderInput} buffer
+ * @returns {any} Gleam Result
+ */
+export function decode_push_frame(buffer) {
+  try {
+    const bytes = new Uint8Array(buffer);
+    if (bytes.length < 2) {
+      return new ResultError(new WireDecodeError("invalid push frame: too short"));
+    }
+    if (bytes[0] !== 1) {
+      return new ResultError(new WireDecodeError("invalid push frame: expected tag byte 1"));
+    }
+    const payloadResult = decode_safe(bytes.subarray(1));
+    if (payloadResult instanceof Ok) {
+      const value = payloadResult[0];
+      if (Array.isArray(value) && value.length >= 2) {
+        return new Ok([value[0], value[1]]);
+      }
+      return new ResultError(new WireDecodeError("invalid push frame payload: expected [module, value] tuple"));
+    }
+    return payloadResult;
+  } catch (e) {
+    const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);
+    return new ResultError(new WireDecodeError(msg));
+  }
+}
+
+/**
+ * Decode any server-to-client frame into a tagged object.
+ * This is the primary JS entry point for consumers: hand Libero the raw
+ * WebSocket bytes and switch on frame.kind. Callers never inspect tag bytes.
+ *
+ * Returns Ok({ kind: "response", requestId, value }) for response frames,
+ * Ok({ kind: "push", module, value }) for push frames,
+ * or Error(DecodeError) on malformed input.
+ *
+ * @param {DecoderInput} buffer
+ * @returns {any} Gleam Result
+ */
+export function decode_server_frame(buffer) {
+  try {
+    const bytes = new Uint8Array(buffer);
+    if (bytes.length < 1) {
+      return new ResultError(new WireDecodeError("invalid server frame: empty"));
+    }
+    const tag = bytes[0];
+
+    if (tag === 0) {
+      if (bytes.length < 5) {
+        return new ResultError(new WireDecodeError("invalid response frame: too short"));
+      }
+      const requestId = (bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4];
+      const payloadResult = decode_safe(bytes.subarray(5));
+      if (payloadResult instanceof Ok) {
+        return new Ok({ kind: "response", requestId, value: payloadResult[0] });
+      }
+      return payloadResult;
+    }
+
+    if (tag === 1) {
+      const payloadResult = decode_safe(bytes.subarray(1));
+      if (payloadResult instanceof Ok) {
+        const tuple = payloadResult[0];
+        if (Array.isArray(tuple) && tuple.length >= 2) {
+          return new Ok({ kind: "push", module: tuple[0], value: tuple[1] });
+        }
+        return new ResultError(new WireDecodeError("invalid push frame payload: expected [module, value] tuple"));
+      }
+      return payloadResult;
+    }
+
+    return new ResultError(new WireDecodeError("invalid server frame: unknown tag byte " + tag));
+  } catch (e) {
+    const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);
+    return new ResultError(new WireDecodeError(msg));
+  }
+}

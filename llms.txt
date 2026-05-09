@@ -2,6 +2,8 @@
 
 Libero is an RPC plumbing library for Gleam (6.0.0). It scans Gleam source for handler function signatures and generates typed server dispatch, JavaScript decoders, Erlang atom pre-registration, and ETF wire protocol code. Most users run `gleam run -m libero` to generate server files into `src/generated/libero/` and `src/generated@rpc_atoms.erl`. Frameworks call the library API programmatically.
 
+Target boundary: Libero owns the typed client/server contract derived from handler signatures. Consumers should use generated modules and protocol helpers instead of knowing the wire shape. A good boundary test is that Libero can add JSON RPC as a configured protocol while ETF stays available. Consumers should only regenerate Libero-owned modules or update facade imports. They should not rewrite transport lifecycle, response handling, push handling, or hydration logic because the configured protocol changed. See `docs/contract-boundary-spec.md`.
+
 ## Conventions
 
 Libero is opinionated: context type is `ServerContext` in the `server_context` module, wire tag is `"rpc"`, source is always `src/`, server output is always `src/generated/libero/`, atoms output is always `src/generated@rpc_atoms.erl`, and `src/generated/` is skipped during scanning.

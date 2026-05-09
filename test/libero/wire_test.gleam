@@ -111,6 +111,85 @@ pub fn variant_tag_rejects_plain_tuple_test() {
   let assert Error(Nil) = wire.variant_tag(coerce(#("not_an_atom", 1)))
 }
 
+// ---------- High-level frame API ----------
+
+pub fn encode_response_decode_response_frame_roundtrip_test() {
+  let frame = wire.encode_response(request_id: 42, value: "hello")
+  let assert Ok(wire.Response(request_id: 42, value:)) =
+    wire.decode_response_frame(frame)
+  let decoded: String = wire.coerce(value)
+  let assert "hello" = decoded
+}
+
+pub fn encode_response_decode_response_frame_int_test() {
+  let frame = wire.encode_response(request_id: 7, value: 99)
+  let assert Ok(wire.Response(request_id: 7, value:)) =
+    wire.decode_response_frame(frame)
+  let decoded: Int = wire.coerce(value)
+  let assert 99 = decoded
+}
+
+pub fn encode_push_decode_push_frame_roundtrip_test() {
+  let frame = wire.encode_push(module: "pages/home", value: "hello push")
+  let assert Ok(wire.Push(module: "pages/home", value:)) =
+    wire.decode_push_frame(frame)
+  let decoded: String = wire.coerce(value)
+  let assert "hello push" = decoded
+}
+
+pub fn encode_push_decode_push_frame_int_test() {
+  let frame = wire.encode_push(module: "core/topic", value: 123)
+  let assert Ok(wire.Push(module: "core/topic", value:)) =
+    wire.decode_push_frame(frame)
+  let decoded: Int = wire.coerce(value)
+  let assert 123 = decoded
+}
+
+pub fn decode_response_frame_garbage_test() {
+  let assert Error(_) = wire.decode_response_frame(<<0, 1, 2, 3>>)
+}
+
+pub fn decode_push_frame_garbage_test() {
+  let assert Error(_) = wire.decode_push_frame(<<1, 2, 3, 4>>)
+}
+
+pub fn decode_response_frame_wrong_tag_test() {
+  let frame = wire.tag_push(wire.encode("not a response"))
+  let assert Error(_) = wire.decode_response_frame(frame)
+}
+
+pub fn decode_push_frame_wrong_tag_test() {
+  let frame = wire.tag_response(request_id: 0, data: wire.encode("not a push"))
+  let assert Error(_) = wire.decode_push_frame(frame)
+}
+
+// ---------- Unified server frame decode ----------
+
+pub fn decode_server_frame_response_test() {
+  let frame = wire.encode_response(request_id: 42, value: "hello")
+  let assert Ok(wire.Response(request_id: 42, value:)) =
+    wire.decode_server_frame(frame)
+  let decoded: String = wire.coerce(value)
+  let assert "hello" = decoded
+}
+
+pub fn decode_server_frame_push_test() {
+  let frame = wire.encode_push(module: "pages/home", value: 99)
+  let assert Ok(wire.Push(module: "pages/home", value:)) =
+    wire.decode_server_frame(frame)
+  let decoded: Int = wire.coerce(value)
+  let assert 99 = decoded
+}
+
+pub fn decode_server_frame_unknown_tag_test() {
+  // A frame with tag byte 2 is not a valid server frame
+  let assert Error(_) = wire.decode_server_frame(<<2, 0, 0, 0, 1>>)
+}
+
+pub fn decode_server_frame_empty_test() {
+  let assert Error(_) = wire.decode_server_frame(<<>>)
+}
+
 // ---------- Helpers ----------
 
 fn encode_call_envelope(

@@ -2,6 +2,10 @@
 
 RPC plumbing library for Gleam. Run `gleam run -m libero` to generate a typed RPC pipeline from handler function signatures. Or call the library API directly from your own codegen tool.
 
+Libero's boundary is the typed client/server contract. Consumers should use
+generated modules and protocol helpers rather than depending on the current wire
+shape. See [Contract Boundary Spec](docs/contract-boundary-spec.md).
+
 ## Quickstart
 
 ```sh

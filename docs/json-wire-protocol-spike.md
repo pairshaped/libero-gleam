@@ -5,21 +5,27 @@ Date: 2026-05-09
 
 ## Current Belief
 
-Replacing ETF only makes sense if JSON becomes an interop-friendly public
-protocol. Swapping ETF bytes for JSON while preserving BEAM term shapes would
-keep most of the hard parts: constructor identity, tuple/list distinctions,
-`Nil` vs `None`, `Dict`, `Float` handling, typed reconstruction, and hostile
-input checks.
+Adding JSON only makes sense if JSON becomes an interop-friendly public
+protocol. ETF should stay: the existing ETF work is valuable, fast, and already
+fits BEAM-shaped deployments. Swapping ETF bytes for JSON while preserving BEAM
+term shapes would keep most of the hard parts: constructor identity, tuple/list
+distinctions, `Nil` vs `None`, `Dict`, `Float` handling, typed reconstruction,
+and hostile input checks.
 
 The win is not likely to be raw simplicity inside Libero. The win would be that
 non-Gleam clients can understand and produce the protocol without implementing
 ETF or knowing BEAM runtime shapes.
 
+The intended product shape is multiple Libero-owned protocols. Gleam and Lustre
+clients can keep using ETF and benefit from the existing native path. A Rust
+CLI, Go tool, or hand-written JavaScript client can choose JSON for interop.
+Both protocols should be generated from the same handler-derived contract.
+
 ## Why Consider JSON
 
 ETF has strong performance and maps naturally to BEAM terms, but it makes Libero
-harder to use outside the Gleam and Rally world. A public JSON protocol could
-make these consumers realistic:
+harder to use outside the Gleam and Rally world. A configured JSON protocol
+could make these consumers realistic:
 
 - JavaScript clients that do not use generated Gleam output.
 - Rust or Go command-line clients.
@@ -87,6 +93,23 @@ The exact shape is still open. The branch should compare at least two shapes:
 
 Given the interop goal, field-name objects are the default recommendation unless
 they create too much code or ambiguity.
+
+If JSON lands, Libero should expose protocol selection in config. ETF remains a
+valid protocol. JSON may also need an explicit output mode:
+
+- `protocol = "etf"`: current binary protocol, optimized for Gleam/Rally and
+  BEAM-shaped deployments.
+- `protocol = "json"`: public JSON protocol, optimized for interop.
+- `verbose`: readable field-name objects intended for third-party clients,
+  debugging, and public documentation.
+- `condensed`: smaller generated JSON, likely using positional fields and the
+  contract artifact as the map.
+
+This should not be tied to dev/prod environment. A production API may need
+verbose JSON for external clients, and a development system may want condensed
+JSON to test the production wire shape. Because Libero generates both sides of
+the Gleam/Rally boundary, protocol and output mode can stay opaque to user
+handler code.
 
 ## Security And Stability
 
@@ -193,6 +216,10 @@ The branch is worth keeping only if it can show:
 - A documented JSON protocol that a non-Gleam client author could implement.
 - Generated server-side validation with good error messages.
 - Generated JS client encode/decode behavior matching the server contract.
+- Existing consumers keep using Libero-generated modules and protocol helpers
+  rather than learning the JSON shape.
+- Gleam and Lustre clients can keep using ETF while a non-Gleam client uses
+  JSON against the same handler contract.
 - Rally realworld running through RPC, push, SSR flags, client context, and page
   init.
 - A contract artifact that can be inspected and snapshot-tested.
@@ -205,7 +232,7 @@ JSON code that only Libero understands, it failed the reason for doing JSON.
 ## Non-Goals For The First Branch
 
 - Prove JSON is faster than ETF.
-- Support ETF and JSON as permanent peer protocols.
+- Remove ETF or treat it as legacy.
 - Generate Rust or Go clients immediately.
 - Preserve wire compatibility with current ETF frames.
 - Move Libero to a separate schema language.
@@ -213,7 +240,10 @@ JSON code that only Libero understands, it failed the reason for doing JSON.
 ## Open Questions
 
 - Should unknown fields be rejected or ignored?
+- Should protocol config be project-wide, client-specific, or endpoint-specific?
 - Should field names or stable field numbers be the compatibility anchor?
+- Should JSON output mode be a single project-level config, or can individual
+  generated surfaces choose `verbose` vs `condensed`?
 - How should Gleam `Dict` encode when its lookup terms are not strings?
 - How should `BitArray` encode: base64 string, hex string, or tagged object?
 - Should custom types include both module path and variant name in every value?
