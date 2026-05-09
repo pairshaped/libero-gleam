@@ -25,6 +25,7 @@
 //// registration for every type reachable from a handler's params or
 //// return type.
 
+import gleam/bit_array
 import gleam/dynamic.{type Dynamic}
 import libero/error.{type DecodeError}
 
@@ -167,12 +168,27 @@ fn ffi_decode_call(
 /// Encode a call envelope: `{module_name, request_id, msg}` as ETF binary.
 /// Used by generated client stub functions to pack a `ClientMsg` value
 /// for transport to the server.
+///
+/// Prefer `encode_request` which names the protocol concept rather than
+/// the implementation detail.
 pub fn encode_call(
   module module: String,
   request_id request_id: Int,
   msg msg: a,
 ) -> BitArray {
   encode(#(module, request_id, msg))
+}
+
+/// Encode an outbound RPC request as a wire frame.
+/// This is the preferred name for the request encoding boundary.
+/// Identical to `encode_call`; exists so consumers name the protocol
+/// concept ("request") rather than the mechanism ("call envelope").
+pub fn encode_request(
+  module module: String,
+  request_id request_id: Int,
+  msg msg: a,
+) -> BitArray {
+  encode_call(module:, request_id:, msg:)
 }
 
 // ---------- Frame tagging ----------
@@ -273,6 +289,36 @@ fn ffi_decode_push_frame(
 ) -> Result(#(String, Dynamic), DecodeError) {
   let _ = data
   panic as "libero/wire.ffi_decode_push_frame: external is missing for this target."
+}
+
+// ---------- SSR flags ----------
+
+/// Encode a value to a base64 ETF string for embedding in HTML.
+/// Used server-side during SSR to serialize the page model or client
+/// context into `<script>` tags for client hydration.
+pub fn encode_flags(value: a) -> String {
+  value
+  |> encode
+  |> bit_array.base64_encode(True)
+}
+
+/// Decode a base64 ETF flags string and apply a typed decoder.
+/// Combines base64 decode, ETF decode, and typed decoder application
+/// into a single call. Used client-side during hydration to reconstruct
+/// typed values from SSR flags without touching raw decode helpers.
+///
+/// The `decoder_name` is the function name in the generated decoder
+/// registry, e.g. `"decode_pages_home__model"`.
+///
+pub fn decode_flags_typed(
+  flags flags: String,
+  decoder_name decoder_name: String,
+) -> Result(a, DecodeError) {
+  case bit_array.base64_decode(flags) {
+    Ok(bits) -> decode_typed(bits, decoder_name)
+    Error(_) ->
+      Error(error.DecodeError(message: "Failed to base64-decode flags"))
+  }
 }
 
 // ---------- Variant tag ----------

@@ -1157,6 +1157,18 @@ export function encode_call(module, requestId, msg) {
 }
 
 /**
+ * Encode an outbound RPC request as a wire frame.
+ * Preferred name; delegates to encode_call.
+ * @param {string} module
+ * @param {number} requestId
+ * @param {any} msg
+ * @returns {ArrayBuffer}
+ */
+export function encode_request(module, requestId, msg) {
+  return encode_call(module, requestId, msg);
+}
+
+/**
  * Decode a response frame: tag byte 0, 32-bit request ID, ETF payload.
  * Returns Ok([requestId, value]) or Error(DecodeError).
  * @param {DecoderInput} buffer
