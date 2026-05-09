@@ -56,6 +56,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
   birdie.snap(content, title: "dispatch: four mutating endpoints")
 }
@@ -88,6 +89,7 @@ pub fn endpoint_dispatch_wraps_read_only_handler_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
   birdie.snap(content, title: "dispatch: read-only handler wrapper")
 }
@@ -111,6 +113,7 @@ pub fn endpoint_dispatch_passes_whole_msg_type_to_handler_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
 
   let assert True = string.contains(content, "ServerSetDarkMode(enabled: Bool)")
@@ -149,6 +152,7 @@ pub fn dispatch_known_tags_call_shared_helper_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
 
   let assert True =
@@ -214,6 +218,7 @@ pub fn endpoint_dispatch_imports_qualified_param_types_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "shared/types",
       atoms_module: option.None,
+      wire_module: option.None,
     )
   birdie.snap(content, title: "dispatch: qualified param type imports")
 }
@@ -242,6 +247,7 @@ pub fn endpoint_dispatch_imports_stdlib_param_types_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "shared/types",
       atoms_module: option.None,
+      wire_module: option.None,
     )
   birdie.snap(content, title: "dispatch: stdlib param type imports")
 }
@@ -265,6 +271,7 @@ pub fn dispatch_includes_ensure_atoms_when_module_set_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.Some("generated@rpc_atoms"),
+      wire_module: option.None,
     )
   let assert True = string.contains(content, "ensure_atoms()")
   let assert True =
@@ -293,6 +300,7 @@ pub fn dispatch_omits_ensure_atoms_when_module_is_none_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
   let assert False = string.contains(content, "ensure_atoms")
   let assert False = string.contains(content, "@external(erlang")
@@ -397,6 +405,7 @@ pub fn dispatch_variant_names_include_server_prefix_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
 
   // ClientMsg variant uses Server prefix
@@ -541,6 +550,7 @@ pub fn empty_endpoints_generates_valid_dispatch_test() {
       context_type_name: "ServerContext",
       wire_module_tag: "rpc",
       atoms_module: option.None,
+      wire_module: option.None,
     )
 
   // Must not produce a naked `->` (syntax error when known_tag_guards is empty)
@@ -624,6 +634,98 @@ fn run_gleam(cwd: String, args: List(String)) -> #(Int, String) {
     _, option.None -> #(-1, "gleam executable not found on PATH")
     option.None, _ -> #(-1, "sh executable not found on PATH")
   }
+}
+
+pub fn dispatch_wire_module_emits_decode_and_encode_externals_test() {
+  let item_type = field_type.UserType("shared/items", "Item", [])
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "echo_item",
+      return_ok: item_type,
+      return_err: field_type.NilField,
+      params: [#("item", item_type)],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "load_items",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: True,
+      msg_type: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate(
+      endpoints: endpoints,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.Some("generated@rpc_wire"),
+    )
+
+  let assert True =
+    string.contains(
+      content,
+      "@external(erlang, \"generated@rpc_wire\", \"decode_client_msg\")",
+    )
+  let assert True =
+    string.contains(content, "fn wire_decode_client_msg(msg: a) -> b")
+
+  let assert True =
+    string.contains(
+      content,
+      "@external(erlang, \"generated@rpc_wire\", \"encode_response_echo_item\")",
+    )
+  let assert True =
+    string.contains(
+      content,
+      "@external(erlang, \"generated@rpc_wire\", \"encode_response_load_items\")",
+    )
+
+  let assert True =
+    string.contains(content, "let msg = wire_decode_client_msg(msg)")
+
+  let assert True =
+    string.contains(
+      content,
+      "let result = wire_encode_response_echo_item(result)",
+    )
+  let assert True =
+    string.contains(
+      content,
+      "let result = wire_encode_response_load_items(result)",
+    )
+}
+
+pub fn dispatch_no_wire_externals_when_wire_module_none_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "get_items",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: True,
+      msg_type: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate(
+      endpoints: endpoints,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+    )
+
+  let assert False = string.contains(content, "wire_decode_client_msg")
+  let assert False = string.contains(content, "wire_encode_response_")
 }
 
 @external(erlang, "libero_ffi", "find_executable")

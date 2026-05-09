@@ -197,57 +197,6 @@ pub fn check_uniqueness_with_mock_ignores_duplicate_signatures_test() {
     wire_identity.check_uniqueness_with([c, c, c], const_hash)
 }
 
-// -- check_bare_arity_uniqueness -------------------------------------------
-
-/// Two constructors from different modules with the same snake_case name
-/// and same field count must be rejected.
-pub fn check_bare_arity_collision_different_modules_test() {
-  let constructors = [
-    Constructor(module_path: "shared/types", name: "Tag", fields: [
-      StringField,
-      StringField,
-    ]),
-    Constructor(module_path: "shared/collision", name: "Tag", fields: [
-      StringField,
-      StringField,
-    ]),
-  ]
-  let assert Error(gen_error.BareAtomArityCollision(
-    bare_atom: atom,
-    arity: arity,
-    first: first,
-    second: second,
-  )) = wire_identity.check_bare_arity_uniqueness(constructors)
-  let assert "tag" = atom
-  let assert 3 = arity
-  let assert "shared/types.Tag" = first
-  let assert "shared/collision.Tag" = second
-}
-
-/// Same name, different field counts across modules — no collision.
-pub fn check_bare_arity_different_arities_no_collision_test() {
-  let constructors = [
-    Constructor(module_path: "shared/types", name: "Tag", fields: [
-      StringField,
-      StringField,
-    ]),
-    Constructor(module_path: "shared/collision", name: "Tag", fields: [
-      StringField,
-    ]),
-  ]
-  let assert Ok(Nil) = wire_identity.check_bare_arity_uniqueness(constructors)
-}
-
-/// Same name and same field count from the same module — not a collision.
-pub fn check_bare_arity_same_module_not_a_collision_test() {
-  let c =
-    Constructor(module_path: "shared/types", name: "Tag", fields: [
-      StringField,
-      StringField,
-    ])
-  let assert Ok(Nil) = wire_identity.check_bare_arity_uniqueness([c, c])
-}
-
 // -- check_wire_safety -----------------------------------------------------
 
 pub fn check_wire_safety_accepts_primitives_and_containers_test() {

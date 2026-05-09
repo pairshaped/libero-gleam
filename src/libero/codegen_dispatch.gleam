@@ -25,6 +25,7 @@ pub fn generate(
   context_type_name context_type_name: String,
   wire_module_tag wire_module_tag: String,
   atoms_module atoms_module: option.Option(String),
+  wire_module wire_module: option.Option(String),
 ) -> String {
   let handler_modules =
     endpoints
@@ -83,7 +84,7 @@ pub fn generate(
     })
     |> string.join("\n")
 
-  let case_arms = list.map(endpoints, emit_case_arm)
+  let case_arms = list.map(endpoints, emit_case_arm(_, wire_module))
 
   let atoms_external = case atoms_module {
     option.Some(mod) ->
@@ -121,11 +122,38 @@ fn ensure_atoms() -> Nil
       <> "          #(wire.tag_response(request_id:, data: wire.encode(Error(MalformedRequest))), server_context)"
   }
 
+  let wire_externals = case wire_module, endpoints {
+    option.Some(mod), [_, ..] -> {
+      let decode_ext =
+        "\n@external(erlang, \""
+        <> mod
+        <> "\", \"decode_client_msg\")\nfn wire_decode_client_msg(msg: a) -> b\n"
+      let response_exts =
+        list.map(endpoints, fn(e) {
+          "@external(erlang, \""
+          <> mod
+          <> "\", \"encode_response_"
+          <> e.fn_name
+          <> "\")\nfn wire_encode_response_"
+          <> e.fn_name
+          <> "(result: a) -> b\n"
+        })
+        |> string.join("\n")
+      decode_ext <> "\n" <> response_exts
+    }
+    _, _ -> ""
+  }
+
+  let decode_msg_call = case wire_module {
+    option.Some(_) -> "  let msg = wire_decode_client_msg(msg)\n"
+    option.None -> ""
+  }
+
   let dispatch_known = case endpoints {
     [] -> ""
     _ -> "
 fn dispatch_known(msg, request_id, server_context) {
-  let typed_msg: ClientMsg = wire.coerce(msg)
+" <> decode_msg_call <> "  let typed_msg: ClientMsg = wire.coerce(msg)
   case typed_msg {
 " <> string.join(case_arms, "\n") <> "
   }
@@ -142,7 +170,7 @@ import libero/wire" <> dict_import <> option_import <> "
 import " <> context_module <> ".{type " <> context_type_name <> "}
 " <> string.join(handler_imports, "\n") <> "
 " <> string.join(shared_type_imports, "\n") <> "
-" <> atoms_external <> "
+" <> atoms_external <> wire_externals <> "
 pub type ClientMsg {
 " <> string.join(client_msg_variants, "\n") <> "
 }
@@ -166,7 +194,10 @@ pub fn handle(
 " <> dispatch_known
 }
 
-fn emit_case_arm(e: scanner.HandlerEndpoint) -> String {
+fn emit_case_arm(
+  e: scanner.HandlerEndpoint,
+  wire_module: option.Option(String),
+) -> String {
   let variant_name = codegen.to_pascal_case("server_" <> e.fn_name)
   let alias = handler_alias(e.module_path)
   let param_destructure =
@@ -189,6 +220,13 @@ fn emit_case_arm(e: scanner.HandlerEndpoint) -> String {
     True -> "new_ctx"
     False -> "server_context"
   }
+  let encode_line = case wire_module {
+    option.Some(_) ->
+      "              let result = wire_encode_response_"
+      <> e.fn_name
+      <> "(result)\n"
+    option.None -> ""
+  }
 
   "        "
   <> param_destructure
@@ -199,6 +237,7 @@ fn emit_case_arm(e: scanner.HandlerEndpoint) -> String {
   <> "            Ok("
   <> ok_destructure
   <> ") -> {\n"
+  <> encode_line
   <> "              #(wire.tag_response(request_id:, data: wire.encode(Ok(result))), "
   <> ok_ctx
   <> ")\n"
