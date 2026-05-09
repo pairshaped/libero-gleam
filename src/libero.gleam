@@ -27,7 +27,7 @@ const default_atoms_module = "generated@rpc_atoms"
 
 const default_wire_module = "generated@rpc_wire"
 
-const default_context_module = "server/server_context"
+const default_context_module = "server_context"
 
 type WriteError {
   CannotCreateDir(path: String, cause: simplifile.FileError)

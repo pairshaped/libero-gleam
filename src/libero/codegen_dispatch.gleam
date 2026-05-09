@@ -153,9 +153,18 @@ fn ensure_atoms() -> Nil
     [] -> ""
     _ -> "
 fn dispatch_known(msg, request_id, server_context) {
+  case trace.try_call(fn() {
 " <> decode_msg_call <> "  let typed_msg: ClientMsg = wire.coerce(msg)
   case typed_msg {
 " <> string.join(case_arms, "\n") <> "
+  }
+  }) {
+    Ok(response) -> response
+    Error(reason) -> {
+      let trace_id = trace.new_trace_id()
+      io.println_error(\"[libero] \" <> trace_id <> \" malformed message: \" <> reason)
+      #(wire.tag_response(request_id:, data: wire.encode(Error(MalformedRequest))), server_context)
+    }
   }
 }
 "

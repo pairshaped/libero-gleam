@@ -1,6 +1,6 @@
 import gleam/dict.{type Dict}
 import gleam/option.{type Option}
-import server/server_context.{type ServerContext}
+import server_context.{type ServerContext}
 import shared/collision
 import shared/types.{
   type DictAndListEnvelope, type FormPrefill, type Item, type ItemError,

@@ -701,22 +701,18 @@ pub fn endpoint_param_with_bad_dict_key_rejected_test() {
   let bad_param = DictOf(UserType("m", "Item", []), IntField)
   let ep = endpoint("bad", [#("data", bad_param)], NilField, NilField)
   let assert Error(_) =
-    codegen_wire_erl.generate(
-      module_name: "x_wire",
-      discovered: [],
-      endpoints: [ep],
-    )
+    codegen_wire_erl.generate(module_name: "x_wire", discovered: [], endpoints: [
+      ep,
+    ])
 }
 
 pub fn endpoint_return_ok_with_bad_dict_key_rejected_test() {
   let bad_return = DictOf(UserType("m", "Item", []), IntField)
   let ep = endpoint("bad", [], bad_return, NilField)
   let assert Error(_) =
-    codegen_wire_erl.generate(
-      module_name: "x_wire",
-      discovered: [],
-      endpoints: [ep],
-    )
+    codegen_wire_erl.generate(module_name: "x_wire", discovered: [], endpoints: [
+      ep,
+    ])
 }
 
 pub fn encode_response_not_exported_when_no_endpoints_test() {
@@ -771,22 +767,20 @@ pub fn decode_client_msg_routes_to_correct_decoder_for_same_name_types_test() {
 
   let wire_msg_a: #(atom, #(atom, Int, String)) =
     erl_apply(mod, binary_to_atom("decode_client_msg"), [
-      #(binary_to_atom("server_use_waiver_a"), #(
-        binary_to_atom(hash_a),
-        1,
-        "name",
-      )),
+      #(
+        binary_to_atom("server_use_waiver_a"),
+        #(binary_to_atom(hash_a), 1, "name"),
+      ),
     ])
   let assert #(_, #(tag_a, 1, "name")) = wire_msg_a
   let assert True = tag_a == binary_to_atom("waiver")
 
   let wire_msg_b: #(atom, #(atom, Int, String)) =
     erl_apply(mod, binary_to_atom("decode_client_msg"), [
-      #(binary_to_atom("server_use_waiver_b"), #(
-        binary_to_atom(hash_b),
-        1,
-        "name",
-      )),
+      #(
+        binary_to_atom("server_use_waiver_b"),
+        #(binary_to_atom(hash_b), 1, "name"),
+      ),
     ])
   let assert #(_, #(tag_b, 1, "name")) = wire_msg_b
   let assert True = tag_b == binary_to_atom("waiver")
@@ -803,10 +797,8 @@ pub fn encode_response_uses_correct_encoder_for_same_name_types_test() {
     typ("waivers/id_", "Waiver", [
       variant("waivers/id_", "Waiver", [IntField, StringField]),
     ])
-  let ep_a =
-    endpoint("get_waiver_a", [], waiver_a_type, NilField)
-  let ep_b =
-    endpoint("get_waiver_b", [], waiver_b_type, NilField)
+  let ep_a = endpoint("get_waiver_a", [], waiver_a_type, NilField)
+  let ep_b = endpoint("get_waiver_b", [], waiver_b_type, NilField)
 
   let assert Ok(source) =
     codegen_wire_erl.generate(

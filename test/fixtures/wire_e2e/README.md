@@ -12,8 +12,8 @@ During `wire_e2e_setup.sh`, the fixture sources are copied to an external stagin
 
 - `gleam.toml` — server package config (lands at `server/gleam.toml` after staging); libero as a path dependency, declares the `web` client
 - `shared_src/shared/types.gleam.template` — type coverage matrix (Status, Item, Tree, ItemError, WithFloats, NestedRecord)
-- `server_src/server/handler.gleam.template` — echo handlers, one per type, plus `echo_int_negated` and `echo_panic`
-- `server_src/server/server_context.gleam.template` — stub server context
+- `server_src/handler.gleam.template` — echo handlers, one per type, plus `echo_int_negated` and `echo_panic`
+- `server_src/server_context.gleam.template` — stub server context
 - `client_src/app.gleam.template` — minimal client app that imports generated modules
 - `shared/gleam.toml` — shared package definition
 - `clients/web/gleam.toml` — web client package definition

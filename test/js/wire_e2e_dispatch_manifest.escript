@@ -28,7 +28,7 @@ EncodeCall = fun(RequestId, Msg) ->
 end,
 EncodeFrame = fun(Frame) -> binary_to_list(base64:encode(Frame)) end,
 
-State0 = server@server_context:new(),
+State0 = server_context:new(),
 Item = {item, 7, <<"wrench">>, 12.5, true},
 Item2 = {item, 8, <<"bolt">>, 1.25, false},
 DeepTree = {node, 1, {node, 2, leaf, leaf}, {node, 3, leaf, {node, 4, leaf, leaf}}},
@@ -68,7 +68,8 @@ Cases = [
   {"dispatch/unknown_module", 64, {<<"other/module">>, 64, {server_echo_int, 5}}},
   {"dispatch/malformed_envelope", 0, malformed},
   {"dispatch/handler_panic", 65, {server_echo_panic, 0}},
-  {"dispatch/unknown_variant", 66, {bogus_function, 5}}
+  {"dispatch/unknown_variant", 66, {bogus_function, 5}},
+  {"dispatch/malformed_known_tag_wrong_arity", 81, server_echo_int}
 ],
 
 Run = fun

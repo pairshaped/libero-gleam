@@ -134,7 +134,7 @@ export function decode_option_of(innerDecoder, term) {
     if (_None === null) throw new DecodeError("setOptionCtors not called");
     return new _None();
   }
-  if (Array.isArray(term) && term[0] === "some") {
+  if (Array.isArray(term) && term.length === 2 && term[0] === "some") {
     if (_Some === null) throw new DecodeError("setOptionCtors not called");
     return new _Some(innerDecoder(term[1]));
   }
@@ -142,11 +142,11 @@ export function decode_option_of(innerDecoder, term) {
 }
 
 export function decode_result_of(okDecoder, errDecoder, term) {
-  if (Array.isArray(term) && term[0] === "ok") {
+  if (Array.isArray(term) && term.length === 2 && term[0] === "ok") {
     if (_Ok === null) throw new DecodeError("setResultCtors not called");
     return new _Ok(okDecoder(term[1]));
   }
-  if (Array.isArray(term) && term[0] === "error") {
+  if (Array.isArray(term) && term.length === 2 && term[0] === "error") {
     if (_ResultError === null) throw new DecodeError("setResultCtors not called");
     return new _ResultError(errDecoder(term[1]));
   }

@@ -320,7 +320,10 @@ fn emit_record_decoder(variant: DiscoveredVariant) -> String {
   let args = "\n" <> string.join(field_lines, ",\n") <> "\n  "
   let hash = variant_hash(variant)
   let label = variant_source_label(variant)
-  "  if (!Array.isArray(term) || term[0] !== \""
+  let expected_len = int.to_string(list.length(variant.fields) + 1)
+  "  if (!Array.isArray(term) || term.length !== "
+  <> expected_len
+  <> " || term[0] !== \""
   <> hash
   <> "\") throw new DecodeError(\"expected "
   <> hash
@@ -335,6 +338,7 @@ fn emit_record_decoder(variant: DiscoveredVariant) -> String {
 fn emit_tagged_union_decoder(variants: List(DiscoveredVariant)) -> String {
   let arms =
     list.map(variants, fn(v) {
+      let expected_len = int.to_string(list.length(v.fields) + 1)
       let args = case v.fields {
         [] -> ""
         fields ->
@@ -344,11 +348,31 @@ fn emit_tagged_union_decoder(variants: List(DiscoveredVariant)) -> String {
           })
           |> string.join(", ")
       }
+      let length_guard = case v.fields {
+        [] ->
+          "if (Array.isArray(term) && term.length !== "
+          <> expected_len
+          <> ") throw new DecodeError(\"expected "
+          <> variant_hash(v)
+          <> " arity "
+          <> expected_len
+          <> ", got \" + term.length);\n"
+        _ ->
+          "if (!Array.isArray(term) || term.length !== "
+          <> expected_len
+          <> ") throw new DecodeError(\"expected "
+          <> variant_hash(v)
+          <> " arity "
+          <> expected_len
+          <> ", got \" + (Array.isArray(term) ? term.length : typeof term));\n"
+      }
       "    case \""
       <> variant_hash(v)
       <> "\": // "
       <> variant_source_label(v)
-      <> "\n      return "
+      <> "\n      "
+      <> length_guard
+      <> "      return "
       <> emit_variant_constructor_call(v, args)
       <> ";"
     })

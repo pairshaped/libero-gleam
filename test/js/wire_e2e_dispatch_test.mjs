@@ -255,6 +255,13 @@ assert.equal(
   "rpc.bogus_function",
 );
 
+// Known module, known tag, malformed body (wrong arity). Must return
+// MalformedRequest with the request_id preserved, not crash dispatch.
+const wrongArity = decodeFrame(manifest["dispatch/malformed_known_tag_wrong_arity"]);
+assert.equal(wrongArity.requestId, 81);
+assert.equal(wrongArity.raw[0], "error");
+assert.equal(wrongArity.raw[1], "malformed_request");
+
 // ---- Regression: non-raw decode of a record-wrapper containing a list of nested records ----
 // Production path uses decode_value (non-raw) which triggers the
 // atom→decoder pipeline mid-decode. Inner custom-type instances must

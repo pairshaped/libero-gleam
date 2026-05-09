@@ -1,19 +1,21 @@
 ---
 version: 2.0.0
 title: tagged union typed decoder
-file: ./test/libero/typed_decoder_codegen_test.gleam
-test_name: tagged_union_snapshot_test
 ---
 export function decode_shared_notification_notification(term) {
   const tag = Array.isArray(term) ? term[0] : term;
   switch (tag) {
     case "b010c12384": // ItemsLoaded @ shared/notification
+      if (!Array.isArray(term) || term.length !== 2) throw new DecodeError("expected b010c12384 arity 2, got " + (Array.isArray(term) ? term.length : typeof term));
       return new _m_shared_notification.ItemsLoaded(decode_list_of((t0) => decode_shared_item_item(t0), term[1]));
     case "326bdc0db9": // StatusChanged @ shared/notification
+      if (!Array.isArray(term) || term.length !== 2) throw new DecodeError("expected 326bdc0db9 arity 2, got " + (Array.isArray(term) ? term.length : typeof term));
       return new _m_shared_notification.StatusChanged(decode_string(term[1]));
     case "affa55a329": // Disconnected @ shared/notification
+      if (Array.isArray(term) && term.length !== 1) throw new DecodeError("expected affa55a329 arity 1, got " + term.length);
       return new _m_shared_notification.Disconnected();
     case "113eb8ea33": // Refreshed @ shared/notification
+      if (Array.isArray(term) && term.length !== 1) throw new DecodeError("expected 113eb8ea33 arity 1, got " + term.length);
       return new _m_shared_notification.Refreshed();
     default:
       throw new DecodeError("unknown variant atom: " + String(tag));

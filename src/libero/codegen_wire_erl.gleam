@@ -118,16 +118,14 @@ fn check_endpoint_field_safety(
         )
       }),
     )
-    use _ <- result.try(
-      wire_identity.check_field_type_safety(
-        field_type: e.return_ok,
-        label: label <> " return_ok",
-      ),
-    )
+    use _ <- result.try(wire_identity.check_field_type_safety(
+      field_type: e.return_ok,
+      label: label <> " return_ok",
+    ))
     wire_identity.check_field_type_safety(
-        field_type: e.return_err,
-        label: label <> " return_err",
-      )
+      field_type: e.return_err,
+      label: label <> " return_err",
+    )
   })
 }
 
