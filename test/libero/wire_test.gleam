@@ -190,6 +190,32 @@ pub fn decode_server_frame_empty_test() {
   let assert Error(_) = wire.decode_server_frame(<<>>)
 }
 
+// ---------- SSR flags ----------
+
+pub fn encode_flags_decode_flags_typed_roundtrip_test() {
+  let flags = wire.encode_flags("hello")
+  let assert Ok("hello") = wire.decode_flags_typed(flags, "ignored_on_erlang")
+}
+
+pub fn encode_flags_decode_flags_typed_int_test() {
+  let flags = wire.encode_flags(42)
+  let assert Ok(42) = wire.decode_flags_typed(flags, "ignored_on_erlang")
+}
+
+pub fn encode_flags_decode_flags_typed_tuple_test() {
+  let flags = wire.encode_flags(#("a", 1, True))
+  let assert Ok(#("a", 1, True)) =
+    wire.decode_flags_typed(flags, "ignored_on_erlang")
+}
+
+pub fn decode_flags_typed_empty_string_test() {
+  let assert Error(_) = wire.decode_flags_typed("", "ignored_on_erlang")
+}
+
+pub fn decode_flags_typed_invalid_base64_test() {
+  let assert Error(_) = wire.decode_flags_typed("!!!not-base64", "ignored_on_erlang")
+}
+
 // ---------- Helpers ----------
 
 fn encode_call_envelope(
