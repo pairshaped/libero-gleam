@@ -321,6 +321,7 @@ pub fn float_type_hint_registration_test() {
       discovered: types,
       endpoints: endpoints,
       relpath_prefix: "../../../",
+      package: "myapp",
     )
 
   // Float hints now ride on the variant class as `__fieldTypes`. The

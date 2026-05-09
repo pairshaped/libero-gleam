@@ -36,8 +36,10 @@ pub fn generate_decoders_ffi(
   discovered discovered: List(DiscoveredType),
   endpoints endpoints: List(scanner.HandlerEndpoint),
   relpath_prefix relpath_prefix: String,
+  package package: String,
 ) -> String {
-  let imports = emit_decoder_imports(discovered:, endpoints:, relpath_prefix:)
+  let imports =
+    emit_decoder_imports(discovered:, endpoints:, relpath_prefix:, package:)
   let body = emit_typed_decoders(discovered)
   let response_decoders = emit_response_decoders(endpoints)
   let class_statics = emit_class_statics(discovered)
@@ -98,6 +100,7 @@ fn emit_decoder_imports(
   discovered discovered: List(DiscoveredType),
   endpoints endpoints: List(scanner.HandlerEndpoint),
   relpath_prefix relpath_prefix: String,
+  package package: String,
 ) -> String {
   let module_paths =
     list.fold(discovered, #([], set.new()), fn(acc, t) {
@@ -143,7 +146,7 @@ fn emit_decoder_imports(
       <> codegen.module_to_underscored(mp)
       <> " from \""
       <> relpath_prefix
-      <> codegen.module_to_mjs_path(mp)
+      <> codegen.module_to_mjs_path(module_path: mp, package:)
       <> "\";"
     })
   let remote_data_import = case endpoints {

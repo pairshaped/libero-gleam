@@ -31,14 +31,26 @@ pub fn derive_module_path_no_src_segment_test() {
 
 pub fn module_to_mjs_multi_segment_test() {
   let assert "core/core/messages.mjs" =
-    codegen.module_to_mjs_path("core/messages")
+    codegen.module_to_mjs_path(module_path: "core/messages", package: "core")
 }
 
 pub fn module_to_mjs_single_segment_test() {
-  let assert "shared/shared.mjs" = codegen.module_to_mjs_path("shared")
+  let assert "shared/shared.mjs" =
+    codegen.module_to_mjs_path(module_path: "shared", package: "shared")
 }
 
 pub fn module_to_mjs_deep_path_test() {
   let assert "shared/shared/admin/items.mjs" =
-    codegen.module_to_mjs_path("shared/admin/items")
+    codegen.module_to_mjs_path(
+      module_path: "shared/admin/items",
+      package: "shared",
+    )
+}
+
+pub fn module_to_mjs_different_package_test() {
+  let assert "client/admin/pages/index.mjs" =
+    codegen.module_to_mjs_path(
+      module_path: "admin/pages/index",
+      package: "client",
+    )
 }

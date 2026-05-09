@@ -31,11 +31,13 @@ pub fn to_pascal_case(name: String) -> String {
 }
 
 /// Convert a Gleam module path to its compiled .mjs bundle path.
-pub fn module_to_mjs_path(module_path: String) -> String {
-  case string.split_once(module_path, "/") {
-    Error(Nil) -> module_path <> "/" <> module_path <> ".mjs"
-    Ok(#(package, _)) -> package <> "/" <> module_path <> ".mjs"
-  }
+/// The package name is the Gleam package that owns the module (determines
+/// the top-level directory in the JS build output).
+pub fn module_to_mjs_path(
+  module_path module_path: String,
+  package package: String,
+) -> String {
+  package <> "/" <> module_path <> ".mjs"
 }
 
 // ---------- FieldType predicates over endpoints ----------

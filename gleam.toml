@@ -16,6 +16,7 @@ glance = "~> 6.0"
 simplifile = "~> 2.0"
 glexer = ">= 2.4.0 and < 3.0.0"
 gleam_crypto = ">= 1.6.0 and < 2.0.0"
+tom = ">= 2.0.0 and < 3.0.0"
 
 [dev-dependencies]
 glinter = "~> 2.17"

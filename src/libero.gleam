@@ -20,6 +20,7 @@ import libero/gen_error.{type GenError}
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType}
 import simplifile
+import tom
 
 const out_dir = "src/generated/libero"
 
@@ -73,7 +74,8 @@ pub fn main() -> Nil {
       halt(1)
     }
   }
-  let decoders_js = generate_decoders_ffi(discovered:, endpoints:)
+  let package = read_package_name()
+  let decoders_js = generate_decoders_ffi(discovered:, endpoints:, package:)
   let decoders_gleam = generate_decoders_gleam()
 
   let atoms_path = "src/" <> atoms_module <> ".erl"
@@ -191,11 +193,19 @@ pub fn generate_wire_erl(
 }
 
 /// Generate the JS typed decoder FFI source.
+/// `package` is the Gleam package name that owns the modules (determines
+/// the top-level directory in the JS build output).
 pub fn generate_decoders_ffi(
   discovered discovered: List(DiscoveredType),
   endpoints endpoints: List(HandlerEndpoint),
+  package package: String,
 ) -> String {
-  codegen_decoders.generate_decoders_ffi(discovered, endpoints, "../../../")
+  codegen_decoders.generate_decoders_ffi(
+    discovered,
+    endpoints,
+    "../../../",
+    package,
+  )
 }
 
 /// Generate the Gleam wrapper for the typed decoder FFI.
@@ -285,6 +295,13 @@ fn write_client_files(
   let _ =
     simplifile.write(out <> "/rpc_decoders.gleam", format.format_gleam(gleam))
   Nil
+}
+
+fn read_package_name() -> String {
+  let assert Ok(content) = simplifile.read("gleam.toml")
+  let assert Ok(parsed) = tom.parse(content)
+  let assert Ok(name) = tom.get_string(parsed, ["name"])
+  name
 }
 
 // nolint: avoid_panic, discarded_result -- Erlang-only @external; JS fallback is unreachable
