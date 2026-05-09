@@ -402,6 +402,12 @@ class ETFDecoder {
         // via bitSize, so no separate wrapper is needed.
         const len = this.checkBinaryLen(this.readUint32(), "bit_binary");
         const bitsInLastByte = this.readUint8();
+        if (bitsInLastByte < 1 || bitsInLastByte > 8) {
+          throw makeError(
+            `ETF decode: bit_binary bits-in-last-byte ${bitsInLastByte} out of range (0-8)`,
+            ERROR_BINARY_TOO_LARGE,
+          );
+        }
         const bytes = this.readBytes(len);
         const bitSize = len === 0 ? 0 : (len - 1) * 8 + bitsInLastByte;
         return new BitArray(bytes, bitSize, 0);
@@ -589,7 +595,7 @@ class ETFDecoder {
   }
 
   decodeMap() {
-    const arity = this.readUint32();
+    const arity = this.checkCollectionLen(this.readUint32(), "map arity");
     const pairs = [];
     for (let i = 0; i < arity; i++) {
       const key = this.decodeTerm();

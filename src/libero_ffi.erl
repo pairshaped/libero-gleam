@@ -26,8 +26,8 @@ decode(Bin) ->
     apply_decode_term(erlang:binary_to_term(Bin, [safe])).
 
 decode_safe(Bin) ->
-    try erlang:binary_to_term(Bin, [safe]) of
-        Term -> {ok, apply_decode_term(Term)}
+    try apply_decode_term(erlang:binary_to_term(Bin, [safe])) of
+        Term -> {ok, Term}
     catch
         _:Reason ->
             Msg = erlang:iolist_to_binary(

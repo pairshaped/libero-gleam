@@ -207,24 +207,28 @@ fn emit_encode_term(discovered: List(DiscoveredType)) -> String {
   let atom_case = case atom_clauses {
     [] -> ""
     _ ->
-      "encode_term(Atom) when is_atom(Atom) ->\n    case Atom of\n"
+      "encode_term(Atom, _Depth) when is_atom(Atom) ->\n    case Atom of\n"
       <> string.join(atom_clauses, ";\n")
       <> ";\n        Other -> Other\n    end;\n"
   }
   let tuple_case =
-    "encode_term(Tuple) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->\n"
+    "encode_term(Tuple, Depth) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->\n"
     <> case tuple_clauses {
       [] ->
-        "    list_to_tuple([encode_term(E) || E <- tuple_to_list(Tuple)]);\n"
+        "    list_to_tuple([encode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)]);\n"
       _ ->
         "    case {element(1, Tuple), tuple_size(Tuple)} of\n"
         <> string.join(tuple_clauses, ";\n")
-        <> ";\n        _ -> list_to_tuple([encode_term(E) || E <- tuple_to_list(Tuple)])\n    end;\n"
+        <> ";\n        _ -> list_to_tuple([encode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)])\n    end;\n"
     }
 
-  atom_case
+  "encode_term(Term) -> encode_term(Term, 0).\n\n"
+  <> "encode_term(_Term, Depth) when Depth >= 512 ->\n    error({wire_depth_exceeded, Depth});\n"
+  <> atom_case
   <> tuple_case
-  <> "encode_term(List) when is_list(List) ->\n    [encode_term(X) || X <- List];\nencode_term(Map) when is_map(Map) ->\n    maps:map(fun(_K, V) -> encode_term(V) end, Map);\nencode_term(Other) -> Other."
+  <> "encode_term(List, Depth) when is_list(List) ->\n    [encode_term(X, Depth + 1) || X <- List];\n"
+  <> "encode_term(Map, Depth) when is_map(Map) ->\n    maps:map(fun(_K, V) -> encode_term(V, Depth + 1) end, Map);\n"
+  <> "encode_term(Other, _Depth) -> Other."
 }
 
 fn emit_decode_term(discovered: List(DiscoveredType)) -> String {
@@ -267,24 +271,28 @@ fn emit_decode_term(discovered: List(DiscoveredType)) -> String {
   let atom_case = case atom_clauses {
     [] -> ""
     _ ->
-      "decode_term(Atom) when is_atom(Atom) ->\n    case Atom of\n"
+      "decode_term(Atom, _Depth) when is_atom(Atom) ->\n    case Atom of\n"
       <> string.join(atom_clauses, ";\n")
       <> ";\n        Other -> Other\n    end;\n"
   }
   let tuple_case =
-    "decode_term(Tuple) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->\n"
+    "decode_term(Tuple, Depth) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->\n"
     <> case tuple_clauses {
       [] ->
-        "    list_to_tuple([decode_term(E) || E <- tuple_to_list(Tuple)]);\n"
+        "    list_to_tuple([decode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)]);\n"
       _ ->
         "    case {element(1, Tuple), tuple_size(Tuple)} of\n"
         <> string.join(tuple_clauses, ";\n")
-        <> ";\n        _ -> list_to_tuple([decode_term(E) || E <- tuple_to_list(Tuple)])\n    end;\n"
+        <> ";\n        _ -> list_to_tuple([decode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)])\n    end;\n"
     }
 
-  atom_case
+  "decode_term(Term) -> decode_term(Term, 0).\n\n"
+  <> "decode_term(_Term, Depth) when Depth >= 512 ->\n    error({wire_depth_exceeded, Depth});\n"
+  <> atom_case
   <> tuple_case
-  <> "decode_term(List) when is_list(List) ->\n    [decode_term(X) || X <- List];\ndecode_term(Map) when is_map(Map) ->\n    maps:map(fun(_K, V) -> decode_term(V) end, Map);\ndecode_term(Other) -> Other."
+  <> "decode_term(List, Depth) when is_list(List) ->\n    [decode_term(X, Depth + 1) || X <- List];\n"
+  <> "decode_term(Map, Depth) when is_map(Map) ->\n    maps:map(fun(_K, V) -> decode_term(V, Depth + 1) end, Map);\n"
+  <> "decode_term(Other, _Depth) -> Other."
 }
 
 fn emit_decode_client_msg(endpoints: List(scanner.HandlerEndpoint)) -> String {

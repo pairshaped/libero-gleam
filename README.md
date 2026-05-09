@@ -89,7 +89,14 @@ On the BEAM side, `term_to_binary`/`binary_to_term` handle everything natively. 
 
 JavaScript does not preserve the distinction between `2` and `2.0`, but ETF and Gleam on the BEAM do. Generated decoders register field type hints so whole-number floats are encoded as ETF floats even when they appear inside containers such as `List(Float)`, `Option(Float)`, `Result(_, Float)`, `Dict(_, Float)`, or tuples.
 
-For safe decoding of untrusted ETF input, use `wire.decode_safe` which returns `Result(a, DecodeError)`.
+For safe decoding of untrusted ETF input, use `wire.decode_safe` which returns `Result(a, DecodeError)`. On Erlang, `binary_to_term([safe])` prevents atom and function-term injection, but does not limit the size or nesting depth of the decoded term. To guard against resource exhaustion, set a heap limit on the process that accepts RPC calls:
+
+```erlang
+% Before the dispatch loop, e.g. in the handler's init callback:
+erlang:process_flag(max_heap_size, 16 * 1024 * 1024),
+```
+
+The generated wire module also enforces a maximum nesting depth of 512 during term transformation, which catches deeply nested structures before they blow the stack.
 
 ## Panic catching
 
