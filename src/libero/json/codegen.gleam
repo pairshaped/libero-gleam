@@ -20,6 +20,10 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import libero/field_type.{
+  type FieldType, BitArrayField, BoolField, DictOf, FloatField, IntField, ListOf,
+  NilField, OptionOf, ResultOf, StringField, TupleOf, TypeVar, UserType,
+}
 import libero/json/error.{type JsonError, JsonError}
 import libero/walker.{type DiscoveredType, type DiscoveredVariant}
 
@@ -43,6 +47,9 @@ pub fn generate(
     <> "import gleam/json\n"
     <> "import libero/json/error.{type JsonError, JsonError}\n"
     <> "import gleam/result\n"
+    <> "import gleam/int\n"
+    <> "import gleam/list\n"
+    <> "import gleam/dict\n"
     <> "\n"
 
   let encoders = list.map(discovered, emit_type_encoder)
@@ -191,7 +198,7 @@ fn emit_type_decoder(dt: DiscoveredType) -> String {
   <> "  let check_type = fn() {\n"
   <> "    case decode.field(value, \"type\") {\n"
   <> "      Error(_) -> Error([JsonError(\"type\", \"missing\")])\n"
-  <> "      Ok(t) -> case decode.string(t) {\n"
+  <> "      Ok(t) -> case decode.run(t, decode.string) {\n"
   <> "        Error(_) -> Error([JsonError(\"type\", \"not a string\")])\n"
   <> "        Ok(s) if s == \""
   <> type_str
@@ -203,7 +210,7 @@ fn emit_type_decoder(dt: DiscoveredType) -> String {
   <> "  use _ <- result.try(check_type())\n"
   <> "  case decode.field(value, \"variant\") {\n"
   <> "    Error(_) -> Error([JsonError(\"variant\", \"missing\")])\n"
-  <> "    Ok(v) -> case decode.string(v) {\n"
+  <> "    Ok(v) -> case decode.run(v, decode.string) {\n"
   <> string.join(clauses, "\n")
   <> "      Error(_) -> Error([JsonError(\"variant\", \"not a string\")])\n"
   <> "      Ok(s) -> Error([JsonError(\"variant\", \"unknown: \" <> s)])\n"
@@ -212,12 +219,764 @@ fn emit_type_decoder(dt: DiscoveredType) -> String {
   <> "}"
 }
 
-/// Emit a single decode clause that matches a variant name string.
+/// Emit a single decode clause that matches a variant name string and
+/// decodes the variant's fields, constructing the Gleam value.
 fn emit_decode_clause(v: DiscoveredVariant) -> String {
-  "      Ok(\""
-  <> v.variant_name
-  <> "\") ->\n"
-  <> "        Error([JsonError(\"todo\", \"decode "
-  <> v.variant_name
-  <> "\")])\n"
+  let pad = "      "
+  case v.fields {
+    [] ->
+      pad
+      <> "Ok(\""
+      <> v.variant_name
+      <> "\") -> Ok("
+      <> v.variant_name
+      <> ")\n"
+
+    _ -> {
+      let all_labelled = list.all(v.field_labels, fn(l) { l != None })
+      let fields_extract =
+        pad
+        <> "  use fields <- result.try(\n"
+        <> pad
+        <> "    case decode.field(value, \"fields\") {\n"
+        <> pad
+        <> "      Error(_) -> Error([JsonError(\"fields\", \"missing\")])\n"
+        <> pad
+        <> "      Ok(f) -> Ok(f)\n"
+        <> pad
+        <> "    }\n"
+        <> pad
+        <> "  )\n"
+
+      let field_decodes = case all_labelled {
+        True -> emit_labelled_field_decodes(v, pad <> "  ")
+        False -> emit_unlabelled_field_decodes(v, pad <> "  ")
+      }
+
+      let field_names = case all_labelled {
+        True -> emit_variant_constructor_labels(v)
+        False -> emit_variant_constructor_positional(v)
+      }
+
+      pad
+      <> "Ok(\""
+      <> v.variant_name
+      <> "\") -> {\n"
+      <> fields_extract
+      <> field_decodes
+      <> pad
+      <> "  Ok("
+      <> v.variant_name
+      <> "("
+      <> field_names
+      <> "))\n"
+      <> pad
+      <> "}\n"
+    }
+  }
+}
+
+/// Generate field decode bindings for labelled fields (extracted by name).
+fn emit_labelled_field_decodes(v: DiscoveredVariant, pad: String) -> String {
+  let zipped = list.zip(v.fields, v.field_labels)
+  let entries =
+    list.index_map(zipped, fn(pair, _i) {
+      let #(ft, label) = pair
+      case label {
+        Some(name) -> {
+          let path = "fields." <> name
+          let result_var = name <> "_result"
+          pad
+          <> "let "
+          <> result_var
+          <> " = case decode.field(fields, \""
+          <> name
+          <> "\") {\n"
+          <> pad
+          <> "  Ok(raw) -> "
+          <> emit_raw_value_decode(ft, "raw", path, pad <> "  ")
+          <> "\n"
+          <> pad
+          <> "  Error(_) -> Error([JsonError(\""
+          <> path
+          <> "\", \"missing\")])\n"
+          <> pad
+          <> "}\n"
+          <> pad
+          <> "use "
+          <> name
+          <> " <- result.try("
+          <> result_var
+          <> ")\n"
+        }
+        None -> ""
+        // handled by check_no_mixed_fields
+      }
+    })
+  string.join(entries, "")
+}
+
+/// Generate field decode bindings for unlabelled fields (extracted by index).
+fn emit_unlabelled_field_decodes(v: DiscoveredVariant, pad: String) -> String {
+  let n = list.length(v.fields)
+  let n_str = int.to_string(n)
+
+  // Validate array length
+  let length_check =
+    pad
+    <> "use arr <- result.try(\n"
+    <> pad
+    <> "  case decode.run(fields, decode.list(of: decode.dynamic)) {\n"
+    <> pad
+    <> "    Ok(a) -> case list.length(a) {\n"
+    <> pad
+    <> "      "
+    <> n_str
+    <> " -> Ok(a)\n"
+    <> pad
+    <> "      n -> Error([JsonError(\"fields\", \"expected "
+    <> n_str
+    <> " elements, got \" <> int.to_string(n))])\n"
+    <> pad
+    <> "    }\n"
+    <> pad
+    <> "    Error(_) -> Error([JsonError(\"fields\", \"expected Array\")])\n"
+    <> pad
+    <> "  }\n"
+    <> pad
+    <> ")\n"
+
+  let entries =
+    list.index_map(v.fields, fn(ft, i) {
+      let idx_str = int.to_string(i)
+      let path = "fields[" <> idx_str <> "]"
+      let var_name = "f" <> idx_str
+      let result_var = var_name <> "_result"
+      pad
+      <> "let "
+      <> result_var
+      <> " = case list.at(arr, "
+      <> idx_str
+      <> ") {\n"
+      <> pad
+      <> "  Ok(raw) -> "
+      <> emit_raw_value_decode(ft, "raw", path, pad <> "  ")
+      <> "\n"
+      <> pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"missing\")])\n"
+      <> pad
+      <> "}\n"
+      <> pad
+      <> "use "
+      <> var_name
+      <> " <- result.try("
+      <> result_var
+      <> ")\n"
+    })
+
+  length_check <> string.join(entries, "")
+}
+
+/// Build labelled constructor field names e.g. `title:, body:`
+fn emit_variant_constructor_labels(v: DiscoveredVariant) -> String {
+  let names =
+    list.filter_map(v.field_labels, fn(l) {
+      case l {
+        Some(n) -> Ok(n <> ":")
+        None -> Error(Nil)
+      }
+    })
+  string.join(names, ", ")
+}
+
+/// Build positional constructor field names e.g. `f0, f1`
+fn emit_variant_constructor_positional(v: DiscoveredVariant) -> String {
+  let names = list.index_map(v.fields, fn(_, i) { "f" <> int.to_string(i) })
+  string.join(names, ", ")
+}
+
+/// Emit a decode expression for a raw Dynamic value according to FieldType.
+/// Returns a single expression evaluating to `Result(value, List(JsonError))`.
+fn emit_raw_value_decode(
+  ft: FieldType,
+  raw_var: String,
+  path: String,
+  pad: String,
+) -> String {
+  case ft {
+    StringField ->
+      pad
+      <> "case decode.run("
+      <> raw_var
+      <> ", decode.string) {\n"
+      <> pad
+      <> "  Ok(v) -> Ok(v)\n"
+      <> pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected String\")])\n"
+      <> pad
+      <> "}"
+
+    IntField ->
+      pad
+      <> "case decode.run("
+      <> raw_var
+      <> ", decode.int) {\n"
+      <> pad
+      <> "  Ok(v) -> if v >= -9007199254740992 && v <= 9007199254740992 {\n"
+      <> pad
+      <> "    Ok(v)\n"
+      <> pad
+      <> "  } else {\n"
+      <> pad
+      <> "    Error([JsonError(\""
+      <> path
+      <> "\", \"expected Int in safe JSON range\")])\n"
+      <> pad
+      <> "  }\n"
+      <> pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected Int\")])\n"
+      <> pad
+      <> "}"
+
+    FloatField ->
+      pad
+      <> "case decode.run("
+      <> raw_var
+      <> ", decode.float) {\n"
+      <> pad
+      <> "  Ok(v) -> Ok(v)\n"
+      <> pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected Float\")])\n"
+      <> pad
+      <> "}"
+
+    BoolField ->
+      pad
+      <> "case decode.run("
+      <> raw_var
+      <> ", decode.bool) {\n"
+      <> pad
+      <> "  Ok(v) -> Ok(v)\n"
+      <> pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected Bool\")])\n"
+      <> pad
+      <> "}"
+
+    NilField ->
+      pad
+      <> "case decode.run("
+      <> raw_var
+      <> ", decode.optional(decode.dynamic)) {\n"
+      <> pad
+      <> "  Ok(None) -> Ok(Nil)\n"
+      <> pad
+      <> "  Ok(Some(_)) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected null\")])\n"
+      <> pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected null\")])\n"
+      <> pad
+      <> "}"
+
+    BitArrayField ->
+      pad
+      <> "case decode.run("
+      <> raw_var
+      <> ", decode.bit_array) {\n"
+      <> pad
+      <> "  Ok(v) -> Ok(v)\n"
+      <> pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected BitArray\")])\n"
+      <> pad
+      <> "}"
+
+    UserType(module_path:, type_name:, ..) -> {
+      let qual =
+        walker.qualified_atom_name(
+          module_path: module_path,
+          variant_name: type_name,
+        )
+      pad <> "json_decode_" <> qual <> "(" <> raw_var <> ")"
+    }
+
+    ListOf(element) ->
+      pad
+      <> "case decode.run("
+      <> raw_var
+      <> ", decode.list(of: decode.dynamic)) {\n"
+      <> pad
+      <> "  Ok(items) -> list.try_map(items, fn(item_raw) {\n"
+      <> emit_raw_value_decode(element, "item_raw", path <> "[]", pad <> "    ")
+      <> "\n"
+      <> pad
+      <> "  })\n"
+      <> pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected Array\")])\n"
+      <> pad
+      <> "}"
+
+    OptionOf(inner) -> emit_option_decode(inner, raw_var, path, pad)
+
+    ResultOf(ok, err) -> emit_result_decode(ok, err, raw_var, path, pad)
+
+    DictOf(key, value) -> emit_dict_decode(key, value, raw_var, path, pad)
+
+    TupleOf(elements) -> emit_tuple_decode(elements, raw_var, path, pad)
+
+    TypeVar(name:) ->
+      pad
+      <> "Error([JsonError(\""
+      <> path
+      <> "\", \"cannot decode type variable "
+      <> name
+      <> "\")])"
+  }
+}
+
+/// Generate inline decode for Option types (Some/None).
+fn emit_option_decode(
+  inner: FieldType,
+  raw_var: String,
+  path: String,
+  pad: String,
+) -> String {
+  let inner_pad = pad <> "                    "
+  pad
+  <> "case decode.field("
+  <> raw_var
+  <> ", \"type\") {\n"
+  <> pad
+  <> "  Ok(t_raw) -> case decode.run(t_raw, decode.string) {\n"
+  <> pad
+  <> "    Ok(\"gleam/option.Option\") -> {\n"
+  <> pad
+  <> "      case decode.field("
+  <> raw_var
+  <> ", \"variant\") {\n"
+  <> pad
+  <> "        Ok(v_raw) -> case decode.run(v_raw, decode.string) {\n"
+  <> pad
+  <> "          Ok(\"None\") -> Ok(None)\n"
+  <> pad
+  <> "          Ok(\"Some\") -> {\n"
+  <> pad
+  <> "            case decode.field("
+  <> raw_var
+  <> ", \"fields\") {\n"
+  <> pad
+  <> "              Ok(f_raw) -> case decode.run(f_raw, decode.list(of: decode.dynamic)) {\n"
+  <> pad
+  <> "                Ok([inner_raw]) -> {\n"
+  <> pad
+  <> "                  use val <- result.try(\n"
+  <> emit_raw_value_decode(inner, "inner_raw", path <> ".value", inner_pad)
+  <> "\n"
+  <> pad
+  <> "                  )\n"
+  <> pad
+  <> "                  Ok(Some(val))\n"
+  <> pad
+  <> "                }\n"
+  <> pad
+  <> "                Ok(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected [value] for Some\")])\n"
+  <> pad
+  <> "                Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected array for Some\")])\n"
+  <> pad
+  <> "              }\n"
+  <> pad
+  <> "              Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"missing fields for Some\")])\n"
+  <> pad
+  <> "            }\n"
+  <> pad
+  <> "          }\n"
+  <> pad
+  <> "          Ok(other) -> Error([JsonError(\""
+  <> path
+  <> "\", \"unknown Option variant: \" <> other)])\n"
+  <> pad
+  <> "          Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected string variant\")])\n"
+  <> pad
+  <> "        }\n"
+  <> pad
+  <> "        Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"missing variant\")])\n"
+  <> pad
+  <> "      }\n"
+  <> pad
+  <> "    }\n"
+  <> pad
+  <> "    Ok(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected Option\")])\n"
+  <> pad
+  <> "    Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected string type\")])\n"
+  <> pad
+  <> "  }\n"
+  <> pad
+  <> "  Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"missing type\")])\n"
+  <> pad
+  <> "}"
+}
+
+/// Generate inline decode for Result types (Ok/Error).
+fn emit_result_decode(
+  ok: FieldType,
+  err: FieldType,
+  raw_var: String,
+  path: String,
+  pad: String,
+) -> String {
+  let inner_ok_pad = pad <> "                    "
+  let inner_err_pad = pad <> "                    "
+  pad
+  <> "case decode.field("
+  <> raw_var
+  <> ", \"type\") {\n"
+  <> pad
+  <> "  Ok(t_raw) -> case decode.run(t_raw, decode.string) {\n"
+  <> pad
+  <> "    Ok(\"gleam/result.Result\") -> {\n"
+  <> pad
+  <> "      case decode.field("
+  <> raw_var
+  <> ", \"variant\") {\n"
+  <> pad
+  <> "        Ok(v_raw) -> case decode.run(v_raw, decode.string) {\n"
+  <> pad
+  <> "          Ok(\"Ok\") -> {\n"
+  <> pad
+  <> "            case decode.field("
+  <> raw_var
+  <> ", \"fields\") {\n"
+  <> pad
+  <> "              Ok(f_raw) -> case decode.run(f_raw, decode.list(of: decode.dynamic)) {\n"
+  <> pad
+  <> "                Ok([inner_raw]) -> {\n"
+  <> pad
+  <> "                  use val <- result.try(\n"
+  <> emit_raw_value_decode(ok, "inner_raw", path <> ".ok", inner_ok_pad)
+  <> "\n"
+  <> pad
+  <> "                  )\n"
+  <> pad
+  <> "                  Ok(Ok(val))\n"
+  <> pad
+  <> "                }\n"
+  <> pad
+  <> "                Ok(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected [value] for Ok\")])\n"
+  <> pad
+  <> "                Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected array for Ok\")])\n"
+  <> pad
+  <> "              }\n"
+  <> pad
+  <> "              Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"missing fields for Ok\")])\n"
+  <> pad
+  <> "            }\n"
+  <> pad
+  <> "          }\n"
+  <> pad
+  <> "          Ok(\"Error\") -> {\n"
+  <> pad
+  <> "            case decode.field("
+  <> raw_var
+  <> ", \"fields\") {\n"
+  <> pad
+  <> "              Ok(f_raw) -> case decode.run(f_raw, decode.list(of: decode.dynamic)) {\n"
+  <> pad
+  <> "                Ok([inner_raw]) -> {\n"
+  <> pad
+  <> "                  use val <- result.try(\n"
+  <> emit_raw_value_decode(err, "inner_raw", path <> ".error", inner_err_pad)
+  <> "\n"
+  <> pad
+  <> "                  )\n"
+  <> pad
+  <> "                  Ok(Error(val))\n"
+  <> pad
+  <> "                }\n"
+  <> pad
+  <> "                Ok(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected [value] for Error\")])\n"
+  <> pad
+  <> "                Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected array for Error\")])\n"
+  <> pad
+  <> "              }\n"
+  <> pad
+  <> "              Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"missing fields for Error\")])\n"
+  <> pad
+  <> "            }\n"
+  <> pad
+  <> "          }\n"
+  <> pad
+  <> "          Ok(other) -> Error([JsonError(\""
+  <> path
+  <> "\", \"unknown Result variant: \" <> other)])\n"
+  <> pad
+  <> "          Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected string variant\")])\n"
+  <> pad
+  <> "        }\n"
+  <> pad
+  <> "        Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"missing variant\")])\n"
+  <> pad
+  <> "      }\n"
+  <> pad
+  <> "    }\n"
+  <> pad
+  <> "    Ok(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected Result\")])\n"
+  <> pad
+  <> "    Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected string type\")])\n"
+  <> pad
+  <> "  }\n"
+  <> pad
+  <> "  Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"missing type\")])\n"
+  <> pad
+  <> "}"
+}
+
+/// Generate inline decode for Dict types.
+fn emit_dict_decode(
+  key: FieldType,
+  value: FieldType,
+  raw_var: String,
+  path: String,
+  pad: String,
+) -> String {
+  case key {
+    // String-keyed dict: decode as JSON object
+    StringField ->
+      pad
+      <> "case decode.run("
+      <> raw_var
+      <> ", decode.dict(key: decode.string, value: decode.dynamic)) {\n"
+      <> pad
+      <> "  Ok(entries) -> dict.fold(entries, Ok(dict.new()), fn(acc, k, v_raw) {\n"
+      <> pad
+      <> "    use acc_dict <- result.try(acc)\n"
+      <> pad
+      <> "    use v <- result.try(\n"
+      <> emit_raw_value_decode(
+        value,
+        "v_raw",
+        path <> ".value",
+        pad <> "      ",
+      )
+      <> "\n"
+      <> pad
+      <> "    )\n"
+      <> pad
+      <> "    Ok(dict.insert(acc_dict, k, v))\n"
+      <> pad
+      <> "  })\n"
+      <> pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected Dict\")])\n"
+      <> pad
+      <> "}"
+
+    // Non-string key: decode as array of pairs [[k1, v1], [k2, v2], ...]
+    _ ->
+      pad
+      <> "case decode.run("
+      <> raw_var
+      <> ", decode.list(of: decode.dynamic)) {\n"
+      <> pad
+      <> "  Ok(pairs_raw) -> {\n"
+      <> pad
+      <> "    use pairs <- result.try(\n"
+      <> pad
+      <> "      list.try_map(pairs_raw, fn(pair_raw) {\n"
+      <> pad
+      <> "        case decode.run(pair_raw, decode.list(of: decode.dynamic)) {\n"
+      <> pad
+      <> "          Ok([k_raw, v_raw]) -> {\n"
+      <> pad
+      <> "            use k <- result.try(\n"
+      <> emit_raw_value_decode(
+        key,
+        "k_raw",
+        path <> ".key",
+        pad <> "              ",
+      )
+      <> "\n"
+      <> pad
+      <> "            )\n"
+      <> pad
+      <> "            use v <- result.try(\n"
+      <> emit_raw_value_decode(
+        value,
+        "v_raw",
+        path <> ".value",
+        pad <> "              ",
+      )
+      <> "\n"
+      <> pad
+      <> "            )\n"
+      <> pad
+      <> "            Ok(#(k, v))\n"
+      <> pad
+      <> "          }\n"
+      <> pad
+      <> "          Ok(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected [key, value] pair\")])\n"
+      <> pad
+      <> "          Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected Array pair\")])\n"
+      <> pad
+      <> "        }\n"
+      <> pad
+      <> "      })\n"
+      <> pad
+      <> "    )\n"
+      <> pad
+      <> "    Ok(dict.from_list(pairs))\n"
+      <> pad
+      <> "  }\n"
+      <> pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected Array of pairs\")])\n"
+      <> pad
+      <> "}"
+  }
+}
+
+/// Generate inline decode for Tuple types.
+fn emit_tuple_decode(
+  elements: List(FieldType),
+  raw_var: String,
+  path: String,
+  pad: String,
+) -> String {
+  let n = list.length(elements)
+  let n_str = int.to_string(n)
+
+  let fields_pad = pad <> "      "
+  let field_decodes =
+    list.index_map(elements, fn(ft, i) {
+      let idx_str = int.to_string(i)
+      let var_name = "t" <> idx_str
+      let result_var = var_name <> "_result"
+      fields_pad
+      <> "let "
+      <> result_var
+      <> " = case list.at(arr, "
+      <> idx_str
+      <> ") {\n"
+      <> fields_pad
+      <> "  Ok(raw) -> "
+      <> emit_raw_value_decode(
+        ft,
+        "raw",
+        path <> "[" <> idx_str <> "]",
+        fields_pad <> "  ",
+      )
+      <> "\n"
+      <> fields_pad
+      <> "  Error(_) -> Error([JsonError(\""
+      <> path
+      <> "["
+      <> idx_str
+      <> "\", \"missing\")])\n"
+      <> fields_pad
+      <> "}\n"
+      <> fields_pad
+      <> "use "
+      <> var_name
+      <> " <- result.try("
+      <> result_var
+      <> ")\n"
+    })
+
+  let tuple_expr =
+    "#("
+    <> string.join(
+      list.index_map(elements, fn(_, i) { "t" <> int.to_string(i) }),
+      ", ",
+    )
+    <> ")"
+
+  pad
+  <> "case decode.run("
+  <> raw_var
+  <> ", decode.list(of: decode.dynamic)) {\n"
+  <> pad
+  <> "  Ok(arr) -> case list.length(arr) {\n"
+  <> pad
+  <> "    "
+  <> n_str
+  <> " -> {\n"
+  <> string.join(field_decodes, "")
+  <> fields_pad
+  <> "Ok("
+  <> tuple_expr
+  <> ")\n"
+  <> pad
+  <> "    }\n"
+  <> pad
+  <> "    n -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected "
+  <> n_str
+  <> " elements, got \" <> int.to_string(n))])\n"
+  <> pad
+  <> "  }\n"
+  <> pad
+  <> "  Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected Array\")])\n"
+  <> pad
+  <> "}"
 }
