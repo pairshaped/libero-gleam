@@ -17,6 +17,7 @@ import libero/codegen_dispatch
 import libero/codegen_wire_erl
 import libero/format
 import libero/gen_error.{type GenError}
+import libero/protocol
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType}
 import simplifile
@@ -26,6 +27,10 @@ import tom
 /// reaching into `libero/codegen_wire_erl` directly.
 pub type PushDispatch =
   codegen_wire_erl.PushDispatch
+
+/// The wire protocol: ETF (Erlang Term Format) or JSON.
+pub type Protocol =
+  protocol.Protocol
 
 /// Re-export so consumers can build qualified atom names for push
 /// dispatch entries using the same logic as the codegen.
