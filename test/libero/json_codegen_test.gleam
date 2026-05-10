@@ -1,3 +1,4 @@
+import glance
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
@@ -176,6 +177,192 @@ pub fn zero_field_variant_encodes_empty_object_test() {
   // Zero-field variants should include "fields" key
   string.contains(source, "\"fields\"")
   |> should.be_true
+}
+
+pub fn generated_codec_includes_user_module_imports_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/article",
+      type_name: "Article",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/article",
+          variant_name: "Article",
+          atom_name: "shared_article__article",
+          float_field_indices: [],
+          field_labels: [Some("title")],
+          fields: [field_type.StringField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+
+  string.contains(source, "import shared/article")
+  |> should.be_true
+}
+
+pub fn generated_codec_uses_qualified_constructors_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/article",
+      type_name: "Article",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/article",
+          variant_name: "Article",
+          atom_name: "shared_article__article",
+          float_field_indices: [],
+          field_labels: [Some("title")],
+          fields: [field_type.StringField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+
+  // Encoder pattern uses qualified constructor (positional fields)
+  string.contains(source, "article.Article(f0)")
+  |> should.be_true
+
+  // Decoder construction uses qualified constructor
+  string.contains(source, "article.Article(title:)")
+  |> should.be_true
+}
+
+pub fn generated_codec_includes_option_result_builtins_test() {
+  let source = assert_generated(codegen.generate([], [], []))
+
+  string.contains(source, "json_encode_gleam_option__option")
+  |> should.be_true
+
+  string.contains(source, "json_decode_gleam_option__option")
+  |> should.be_true
+
+  string.contains(source, "json_encode_gleam_result__result")
+  |> should.be_true
+
+  string.contains(source, "json_decode_gleam_result__result")
+  |> should.be_true
+}
+
+pub fn generated_codec_option_field_uses_builtin_encoder_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/opt",
+      type_name: "Opt",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/opt",
+          variant_name: "Opt",
+          atom_name: "shared_opt__opt",
+          float_field_indices: [],
+          field_labels: [Some("value")],
+          fields: [field_type.OptionOf(field_type.StringField)],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+
+  // Encoder for Option field calls builtin with inner encoder
+  string.contains(
+    source,
+    "json_encode_gleam_option__option(f0, fn(x) { json.string(x) })",
+  )
+  |> should.be_true
+
+  // Decoder for Option field calls builtin with inner decoder
+  string.contains(source, "json_decode_gleam_option__option(raw, fn(inner_raw)")
+  |> should.be_true
+}
+
+pub fn duplicate_modules_use_full_underscored_aliases_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/article",
+      type_name: "A",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/article",
+          variant_name: "A",
+          atom_name: "shared_article__a",
+          float_field_indices: [],
+          field_labels: [],
+          fields: [],
+        ),
+      ],
+    ),
+    walker.DiscoveredType(
+      module_path: "pages/article",
+      type_name: "B",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "pages/article",
+          variant_name: "B",
+          atom_name: "pages_article__b",
+          float_field_indices: [],
+          field_labels: [],
+          fields: [],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+
+  // Both modules use underscored aliases since they share last segment
+  string.contains(source, "import shared/article as shared_article")
+  |> should.be_true
+  string.contains(source, "import pages/article as pages_article")
+  |> should.be_true
+
+  // Constructors use their respective aliases
+  string.contains(source, "shared_article.A")
+  |> should.be_true
+  string.contains(source, "pages_article.B")
+  |> should.be_true
+}
+
+pub fn generated_codec_is_syntactically_valid_gleam_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/article",
+      type_name: "Article",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/article",
+          variant_name: "Article",
+          atom_name: "shared_article__article",
+          float_field_indices: [],
+          field_labels: [Some("title"), Some("body")],
+          fields: [field_type.StringField, field_type.StringField],
+        ),
+        walker.DiscoveredVariant(
+          module_path: "shared/article",
+          variant_name: "Draft",
+          atom_name: "shared_article__draft",
+          float_field_indices: [],
+          field_labels: [],
+          fields: [],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+
+  // Verify the generated source is syntactically valid Gleam
+  let assert Ok(_module) = glance.module(source)
 }
 
 fn assert_generated(result: Result(String, List(a))) -> String {

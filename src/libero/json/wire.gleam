@@ -119,6 +119,7 @@ pub fn decode_server_frame(
   data data: String,
 ) -> Result(ServerFrame(Dynamic), List(JsonError)) {
   use parsed <- result.try(parse_json(data))
+  use _ <- result.try(validate_protocol_version(parsed))
 
   use kind <- result.try(required_string_field(parsed, "kind"))
 

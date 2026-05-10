@@ -105,7 +105,7 @@ pub fn protocol_version_mismatch_test() {
 }
 
 pub fn decode_server_frame_unknown_kind_test() {
-  let data = "{\"kind\":\"unknown\"}"
+  let data = "{\"kind\":\"unknown\",\"protocol_version\":\"json-rpc-v1\"}"
 
   case wire.decode_server_frame(data) {
     Error(errors) -> {
