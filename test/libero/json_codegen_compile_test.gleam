@@ -219,8 +219,8 @@ pub fn generated_encoder_checks_safe_int_range_test() {
   let assert Ok(source) = codegen.generate(types, [], [])
 
   // Must contain safe int range constants
-  string.contains(source, "-9007199254740992") |> should.be_true
-  string.contains(source, "9007199254740992") |> should.be_true
+  string.contains(source, "-9007199254740991") |> should.be_true
+  string.contains(source, "9007199254740991") |> should.be_true
   // Must contain the panic message
   string.contains(source, "Int outside JavaScript safe integer range")
   |> should.be_true

@@ -283,6 +283,37 @@ pub fn generated_codec_option_field_uses_builtin_encoder_test() {
   |> should.be_true
 }
 
+pub fn generated_codec_non_string_dict_encodes_as_pairs_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/indexed_lookup",
+      type_name: "IndexedLookup",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/indexed_lookup",
+          variant_name: "IndexedLookup",
+          atom_name: "shared_indexed_lookup__indexed_lookup",
+          float_field_indices: [],
+          field_labels: [Some("entries")],
+          fields: [
+            field_type.DictOf(field_type.IntField, field_type.StringField),
+          ],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+
+  string.contains(source, "json.array(dict.to_list(f0)")
+  |> should.be_true
+  string.contains(source, "json.int(")
+  |> should.be_true
+  string.contains(source, "json.string(v)")
+  |> should.be_true
+}
+
 pub fn duplicate_modules_use_full_underscored_aliases_test() {
   let types = [
     walker.DiscoveredType(

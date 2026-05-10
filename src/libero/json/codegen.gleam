@@ -181,9 +181,9 @@ fn build_module_alias_map(
 fn safe_int_check(var: String) -> String {
   "case "
   <> var
-  <> " >= -9007199254740992 && "
+  <> " >= -9007199254740991 && "
   <> var
-  <> " <= 9007199254740992 {\n"
+  <> " <= 9007199254740991 {\n"
   <> "    True -> "
   <> var
   <> "\n"
@@ -254,12 +254,25 @@ fn json_encode_expr(ft: FieldType, var: String) -> String {
       <> " })"
     }
 
-    DictOf(_, value) ->
-      "json.object(dict.to_list("
-      <> var
-      <> ") |> list.map(fn(kv) { let #(k, v) = kv #(k, "
-      <> json_encode_expr(value, "v")
-      <> ") }))"
+    DictOf(key, value) -> {
+      case key {
+        StringField ->
+          "json.object(dict.to_list("
+          <> var
+          <> ") |> list.map(fn(kv) { let #(k, v) = kv #(k, "
+          <> json_encode_expr(value, "v")
+          <> ") }))"
+
+        _ ->
+          "json.array(dict.to_list("
+          <> var
+          <> "), of: fn(kv) { let #(k, v) = kv json.array(["
+          <> json_encode_expr(key, "k")
+          <> ", "
+          <> json_encode_expr(value, "v")
+          <> "], of: fn(x) { x }) })"
+      }
+    }
 
     TupleOf(elements) -> {
       let encoded =
@@ -645,7 +658,7 @@ fn emit_raw_value_decode(
       <> raw_var
       <> ", decode.int) {\n"
       <> pad
-      <> "  Ok(v) -> case v >= -9007199254740992 && v <= 9007199254740992 {\n"
+      <> "  Ok(v) -> case v >= -9007199254740991 && v <= 9007199254740991 {\n"
       <> pad
       <> "    True -> Ok(v)\n"
       <> pad

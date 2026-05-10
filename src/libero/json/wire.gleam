@@ -247,7 +247,7 @@ fn required_int_field(
   let decoder = decode.field(name, decode.int, decode.success)
   case decode.run(parsed, decoder) {
     Ok(n) -> {
-      case n >= -9_007_199_254_740_992 && n <= 9_007_199_254_740_992 {
+      case n >= -9_007_199_254_740_991 && n <= 9_007_199_254_740_991 {
         True -> Ok(n)
         False ->
           Error([JsonError(name, "Int outside JavaScript safe integer range")])

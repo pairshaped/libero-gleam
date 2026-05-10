@@ -48,6 +48,7 @@ pub type Blob { Blob(data: BitArray) }
 
 // Dict (String-keyed)
 pub type Lookup { Lookup(entries: Dict(String, String)) }
+pub type IndexedLookup { IndexedLookup(entries: Dict(Int, String)) }
 
 // Nested user type
 pub type Wrapper { Wrapper(inner: Article) }
@@ -87,6 +88,7 @@ pub fn main() {
     #("fixture", "Article"),
     #("fixture", "Blob"),
     #("fixture", "Lookup"),
+    #("fixture", "IndexedLookup"),
     #("fixture", "Wrapper"),
     #("fixture", "Coords"),
     #("fixture", "Optional"),

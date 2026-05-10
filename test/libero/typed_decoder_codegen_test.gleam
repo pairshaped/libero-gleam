@@ -354,3 +354,36 @@ pub fn float_type_hint_registration_test() {
   // through the encoder's hint argument when a typed decoder calls
   // back into the encoder, so user-type fields stay correct.
 }
+
+pub fn decoder_codegen_imports_shared_modules_from_shared_package_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/collision",
+      type_name: "Tag",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/collision",
+          variant_name: "Tag",
+          atom_name: "shared_collision__tag",
+          float_field_indices: [],
+          field_labels: [option.None],
+          fields: [field_type.StringField],
+        ),
+      ],
+    ),
+  ]
+
+  let js =
+    codegen_decoders.generate_decoders_ffi(
+      discovered: types,
+      endpoints: [],
+      relpath_prefix: "../../../",
+      package: "server",
+    )
+
+  let assert True =
+    string.contains(js, "from \"../../../shared/shared/collision.mjs\";")
+  let assert False =
+    string.contains(js, "from \"../../../server/shared/collision.mjs\";")
+}
