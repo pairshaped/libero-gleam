@@ -824,7 +824,7 @@ pub fn dispatch_extra_params_threaded_to_handler_test() {
     )
 
   let assert True =
-    string.contains(content, "server_get_items(server_context:, identity:)")
+    string.contains(content, "server_get_items(server_context:, identity: identity)")
 }
 
 pub fn dispatch_extra_params_threaded_to_dispatch_known_test() {
@@ -919,7 +919,7 @@ pub fn dispatch_extra_params_two_params_test() {
   let assert True =
     string.contains(
       content,
-      "server_get_items(server_context:, identity:, org_id:)",
+      "server_get_items(server_context:, identity: identity, org_id: org_id)",
     )
 }
 

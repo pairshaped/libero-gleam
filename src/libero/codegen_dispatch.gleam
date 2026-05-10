@@ -69,7 +69,7 @@ pub fn generate_with_extra_params(
     |> string.join("")
   let extra_handler_args =
     extra_params
-    |> list.map(fn(p) { ", " <> p.name <> ":" })
+    |> list.map(fn(p) { ", " <> p.name <> ": " <> p.name })
     |> string.join("")
 
   let handler_modules =

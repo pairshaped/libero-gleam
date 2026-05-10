@@ -349,7 +349,7 @@ fn try_resolve_msg_type(
     option.None,
   )
   case payload_params {
-    [param] -> {
+    [param, ..] -> {
       use type_ <- try_msg_param_type(param, fallback)
       case to_ft(type_) {
         field_type.UserType(module_path:, type_name:, args: []) ->
