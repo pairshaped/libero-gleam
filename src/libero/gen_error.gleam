@@ -24,6 +24,12 @@ pub type GenError {
     signature_a: String,
     signature_b: String,
   )
+  /// The generic `encode_term` fallback would emit duplicate clauses
+  /// for the same BEAM-level key (bare atom for zero-arity variants,
+  /// {constructor, arity} for n-arity). This means two source types
+  /// share the same runtime shape but have different wire hashes, so
+  /// the fallback cannot choose correctly.
+  AmbiguousFallbackMapping(beam_key: String, sources: List(String))
   /// A field declares `Dict(K, V)` with K something other than Int,
   /// String, or Bool. Other key types have ambiguous JS-side identity
   /// or wire-encoding rules; the codegen rejects them upfront so
@@ -154,6 +160,22 @@ fn to_string(err: GenError) -> String {
         ],
         hint: Some(
           "This is an extremely rare birthday collision. File a libero\n        issue with both canonical signatures so the hash algorithm\n        can be adjusted.",
+        ),
+      )
+
+    AmbiguousFallbackMapping(beam_key, sources) ->
+      error_box(
+        title: "Ambiguous wire fallback mapping",
+        path: "encode_term / decode_term",
+        body_lines: [
+          "BEAM key `" <> beam_key <> "` maps to different wire hashes",
+          "from multiple source types:",
+          ..list.map(sources, fn(s) { "  " <> s })
+        ],
+        hint: Some(
+          "encode_term must not dispatch custom types by BEAM shape.\n"
+          <> "        All custom types must be encoded by generated typed\n"
+          <> "        encoders before reaching the generic container walker.",
         ),
       )
 

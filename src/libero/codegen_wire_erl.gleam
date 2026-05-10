@@ -167,65 +167,18 @@ fn type_function_atom(dt: DiscoveredType) -> String {
   )
 }
 
-fn emit_encode_term(discovered: List(DiscoveredType)) -> String {
-  let atom_clauses =
-    list.flat_map(discovered, fn(dt) {
-      list.filter_map(dt.variants, fn(v) {
-        case v.fields {
-          [] -> {
-            let bare = walker.to_snake_case(v.variant_name)
-            let hash = wire_hash_for_variant(v)
-            Ok("        " <> bare <> " -> '" <> hash <> "'")
-          }
-          _ -> Error(Nil)
-        }
-      })
-    })
-  let tuple_clauses =
-    list.flat_map(discovered, fn(dt) {
-      list.filter_map(dt.variants, fn(v) {
-        case v.fields {
-          [] -> Error(Nil)
-          fields -> {
-            let bare = walker.to_snake_case(v.variant_name)
-            let arity = int.to_string(list.length(fields) + 1)
-            let type_atom = type_function_atom(dt)
-            Ok(
-              "        {"
-              <> bare
-              <> ", "
-              <> arity
-              <> "} -> encode_"
-              <> type_atom
-              <> "(Tuple)",
-            )
-          }
-        }
-      })
-    })
-
-  let atom_case = case atom_clauses {
-    [] -> ""
-    _ ->
-      "encode_term(Atom, _Depth) when is_atom(Atom) ->\n    case Atom of\n"
-      <> string.join(atom_clauses, ";\n")
-      <> ";\n        Other -> Other\n    end;\n"
-  }
-  let tuple_case =
-    "encode_term(Tuple, Depth) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->\n"
-    <> case tuple_clauses {
-      [] ->
-        "    list_to_tuple([encode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)]);\n"
-      _ ->
-        "    case {element(1, Tuple), tuple_size(Tuple)} of\n"
-        <> string.join(tuple_clauses, ";\n")
-        <> ";\n        _ -> list_to_tuple([encode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)])\n    end;\n"
-    }
-
+fn emit_encode_term(_discovered: List(DiscoveredType)) -> String {
+  // encode_term is a container walker only. It recurses into lists,
+  // maps, and tuples, and passes through atoms and primitives unchanged.
+  // Custom types must be encoded by generated typed encoders (e.g.
+  // encode_response_*, per-type encode_* functions) BEFORE the value
+  // reaches encode_term. Dispatching custom types here by bare atom or
+  // {atom, arity} is wrong because BEAM values do not carry source
+  // module identity.
   "encode_term(Term) -> encode_term(Term, 0).\n\n"
   <> "encode_term(_Term, Depth) when Depth >= 512 ->\n    error({wire_depth_exceeded, Depth});\n"
-  <> atom_case
-  <> tuple_case
+  <> "encode_term(Tuple, Depth) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->\n"
+  <> "    list_to_tuple([encode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)]);\n"
   <> "encode_term(List, Depth) when is_list(List) ->\n    [encode_term(X, Depth + 1) || X <- List];\n"
   <> "encode_term(Map, Depth) when is_map(Map) ->\n    maps:map(fun(_K, V) -> encode_term(V, Depth + 1) end, Map);\n"
   <> "encode_term(Other, _Depth) -> Other."

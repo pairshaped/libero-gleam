@@ -443,9 +443,7 @@ pub fn encode_term_and_decode_term_exported_test() {
   let assert True = string.contains(out, "decode_term/1")
 }
 
-pub fn encode_term_maps_bare_atoms_for_zero_arity_variants_test() {
-  let pending_hash = hash_for("shared/types", "Pending", [])
-  let active_hash = hash_for("shared/types", "Active", [])
+pub fn encode_term_does_not_dispatch_zero_arity_variants_test() {
   let dt =
     typ("shared/types", "Status", [
       variant("shared/types", "Pending", []),
@@ -458,11 +456,12 @@ pub fn encode_term_maps_bare_atoms_for_zero_arity_variants_test() {
       endpoints: [],
     )
 
-  let assert True = string.contains(out, "pending -> '" <> pending_hash <> "'")
-  let assert True = string.contains(out, "active -> '" <> active_hash <> "'")
+  let assert False = string.contains(out, "pending -> '")
+  let assert False = string.contains(out, "active -> '")
+  let assert True = string.contains(out, "encode_term(Other, _Depth) -> Other")
 }
 
-pub fn encode_term_matches_bare_atom_and_arity_for_n_arity_variants_test() {
+pub fn encode_term_does_not_dispatch_n_arity_variants_test() {
   let dt =
     typ("m", "Item", [
       variant("m", "Item", [StringField, IntField, BoolField]),
@@ -474,8 +473,12 @@ pub fn encode_term_matches_bare_atom_and_arity_for_n_arity_variants_test() {
       endpoints: [],
     )
 
-  // 3 fields + 1 tag = tuple arity 4
-  let assert True = string.contains(out, "{item, 4} -> encode_m__item(Tuple)")
+  let assert False = string.contains(out, "{item, 4} -> encode_m__item(Tuple)")
+  let assert True =
+    string.contains(
+      out,
+      "encode_term(Tuple, Depth) when is_tuple(Tuple), tuple_size(Tuple) > 0",
+    )
 }
 
 pub fn decode_term_maps_hashed_atoms_for_zero_arity_variants_test() {
@@ -514,7 +517,7 @@ pub fn decode_term_matches_hash_and_arity_for_n_arity_variants_test() {
     string.contains(out, "{'" <> item_hash <> "', 4} -> decode_m__item(Tuple)")
 }
 
-pub fn encode_term_mixed_zero_and_n_arity_test() {
+pub fn encode_term_is_container_only_with_mixed_types_test() {
   let dt_status =
     typ("m", "Status", [
       variant("m", "Pending", []),
@@ -527,19 +530,111 @@ pub fn encode_term_mixed_zero_and_n_arity_test() {
   let assert Ok(out) =
     codegen_wire_erl.generate(
       module_name: "x_wire",
-      discovered: [
-        dt_status,
-        dt_item,
-      ],
+      discovered: [dt_status, dt_item],
       endpoints: [],
     )
 
-  // Atom clause has 0-arity variants
-  let pending_hash = hash_for("m", "Pending", [])
-  let assert True = string.contains(out, "pending -> '" <> pending_hash <> "'")
+  let assert False = string.contains(out, "pending -> '")
+  let assert False = string.contains(out, "{item, 3} -> encode_m__item(Tuple)")
+  let assert True =
+    string.contains(out, "encode_term(List, Depth) when is_list")
+  let assert True = string.contains(out, "encode_term(Map, Depth) when is_map")
+}
 
-  // Tuple clause has N-arity variants (2 fields + 1 tag = 3)
-  let assert True = string.contains(out, "{item, 3} -> encode_m__item(Tuple)")
+// -- duplicate variant regression -------------------------------------------
+
+pub fn duplicate_zero_arity_across_modules_typed_encoders_distinct_test() {
+  let dt_a =
+    typ("pages/a", "Category", [
+      variant("pages/a", "Identity", []),
+      variant("pages/a", "Contact", []),
+    ])
+  let dt_b =
+    typ("pages/b", "Category", [
+      variant("pages/b", "Identity", []),
+      variant("pages/b", "Contact", []),
+    ])
+  let hash_a = hash_for("pages/a", "Identity", [])
+  let hash_b = hash_for("pages/b", "Identity", [])
+  let assert True = hash_a != hash_b
+
+  let assert Ok(out) =
+    codegen_wire_erl.generate(
+      module_name: "x_wire",
+      discovered: [dt_a, dt_b],
+      endpoints: [],
+    )
+
+  // Per-type encoders produce distinct hashes for same constructor name
+  let assert True =
+    string.contains(
+      out,
+      "encode_pages_a__category(identity) ->\n    '" <> hash_a <> "'",
+    )
+  let assert True =
+    string.contains(
+      out,
+      "encode_pages_b__category(identity) ->\n    '" <> hash_b <> "'",
+    )
+
+  // encode_term does NOT contain any atom-to-hash dispatch
+  let assert False = string.contains(out, "identity -> '")
+}
+
+pub fn duplicate_zero_arity_decode_term_handles_both_hashes_test() {
+  let dt_a =
+    typ("pages/a", "Category", [
+      variant("pages/a", "Identity", []),
+    ])
+  let dt_b =
+    typ("pages/b", "Category", [
+      variant("pages/b", "Identity", []),
+    ])
+  let hash_a = hash_for("pages/a", "Identity", [])
+  let hash_b = hash_for("pages/b", "Identity", [])
+
+  let assert Ok(out) =
+    codegen_wire_erl.generate(
+      module_name: "x_wire",
+      discovered: [dt_a, dt_b],
+      endpoints: [],
+    )
+
+  // decode_term maps BOTH hashes back to the same bare atom
+  let assert True = string.contains(out, "'" <> hash_a <> "' -> identity")
+  let assert True = string.contains(out, "'" <> hash_b <> "' -> identity")
+}
+
+pub fn duplicate_n_arity_across_modules_no_encode_term_dispatch_test() {
+  let dt_a =
+    typ("pages/a", "Item", [
+      variant("pages/a", "Item", [StringField, IntField]),
+    ])
+  let dt_b =
+    typ("pages/b", "Item", [
+      variant("pages/b", "Item", [StringField, IntField]),
+    ])
+  let assert Ok(out) =
+    codegen_wire_erl.generate(
+      module_name: "x_wire",
+      discovered: [dt_a, dt_b],
+      endpoints: [],
+    )
+
+  // encode_term has no constructor dispatch at all
+  let assert False = string.contains(out, "{item, 3} -> encode_")
+
+  // But per-type encoders exist and are distinct
+  let assert True = string.contains(out, "encode_pages_a__item({item,")
+  let assert True = string.contains(out, "encode_pages_b__item({item,")
+
+  // decode_term routes by hash (unique), both present
+  let hash_a = hash_for("pages/a", "Item", [StringField, IntField])
+  let hash_b = hash_for("pages/b", "Item", [StringField, IntField])
+  let assert True =
+    string.contains(out, "{'" <> hash_a <> "', 3} -> decode_pages_a__item")
+  let assert True =
+    string.contains(out, "{'" <> hash_b <> "', 3} -> decode_pages_b__item")
 }
 
 // -- decode_client_msg -------------------------------------------------------
