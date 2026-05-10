@@ -137,35 +137,49 @@ pub fn main() -> Nil {
     option.None -> Nil
   }
 
-  // JSON contract artifact
+  // JSON contract artifact (always generated — public artifact,
+  // no dependency pressure).
   let json_contract =
     contract.generate(endpoints:, discovered:, push_types: [], ssr_models: [])
 
   // Write JSON contract artifact
   let _ = write_file(out_dir <> "/rpc_contract.json", json_contract)
 
-  // JSON codecs (only if we have discovered types)
-  case discovered {
-    [] -> Nil
-    _ -> {
-      case codegen.generate(discovered, [], []) {
-        Ok(json_codecs_src) -> {
-          let _ =
-            write_file(
-              out_dir <> "/json_codecs.gleam",
-              format.format_gleam(json_codecs_src),
-            )
-          Nil
-        }
-        Error(errors) -> {
-          io.println_error("[libero] JSON codec generation failed:")
-          list.each(errors, fn(e) {
-            io.println_error("  " <> e.path <> ": " <> e.message)
-          })
-          Nil
+  // JSON codecs — only when explicitly opted in via LIBERO_GEN_JSON_CODECS.
+  // Without this, ETF-only consumers would inherit a gleam_json dependency
+  // through the generated json_codecs.gleam.
+  case get_env("LIBERO_GEN_JSON_CODECS") {
+    option.Some(val) if val == "1" || val == "true" -> {
+      case discovered {
+        [] -> Nil
+        _ -> {
+          case codegen.generate(discovered, [], []) {
+            Ok(json_codecs_src) -> {
+              let _ =
+                write_file(
+                  out_dir <> "/json_codecs.gleam",
+                  format.format_gleam(json_codecs_src),
+                )
+              Nil
+            }
+            Error(errors) -> {
+              io.println_error("[libero] JSON codec generation failed:")
+              list.each(errors, fn(e) {
+                io.println_error("  " <> e.path <> ": " <> e.message)
+              })
+              Nil
+            }
+          }
         }
       }
     }
+    _ -> Nil
+  }
+
+  let json_codecs_msg = case get_env("LIBERO_GEN_JSON_CODECS") {
+    option.Some(val) if val == "1" || val == "true" ->
+      ", " <> out_dir <> "/json_codecs.gleam"
+    _ -> ""
   }
 
   io.println(
@@ -177,9 +191,8 @@ pub fn main() -> Nil {
     <> wire_path
     <> ", "
     <> out_dir
-    <> "/rpc_contract.json, "
-    <> out_dir
-    <> "/json_codecs.gleam",
+    <> "/rpc_contract.json"
+    <> json_codecs_msg,
   )
 }
 
