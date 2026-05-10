@@ -995,3 +995,80 @@ pub fn encode_response_uses_correct_encoder_for_same_name_types_test() {
   let assert True = wire_tag_b == binary_to_atom(hash_b)
   let assert True = wire_tag_a != wire_tag_b
 }
+
+pub fn encode_push_not_emitted_when_no_dispatches_test() {
+  let result =
+    codegen_wire_erl.generate(
+      module_name: "test_wire",
+      discovered: [],
+      endpoints: [],
+      push_dispatches: [],
+    )
+  let assert Ok(source) = result
+  let assert False = string.contains(source, "encode_push")
+}
+
+pub fn encode_push_dispatches_to_typed_encoder_test() {
+  let discovered = [
+    typ("pages/home", "ToClient", [
+      variant("pages/home", "DataLoaded", [StringField]),
+    ]),
+  ]
+  let result =
+    codegen_wire_erl.generate(
+      module_name: "test_wire",
+      discovered: discovered,
+      endpoints: [],
+      push_dispatches: [
+        codegen_wire_erl.PushDispatch(
+          page_tag: "Home",
+          type_atom: "pages_home__to_client",
+        ),
+      ],
+    )
+  let assert Ok(source) = result
+  let assert True = string.contains(source, "encode_push(<<\"Home\">>, Msg)")
+  let assert True = string.contains(source, "encode_pages_home__to_client(Msg)")
+  let assert True = string.contains(source, "encode_push/2")
+  let assert True = string.contains(source, "error({no_push_encoder, Page})")
+}
+
+pub fn encode_push_multiple_pages_and_client_context_test() {
+  let discovered = [
+    typ("pages/home", "ToClient", [variant("pages/home", "Refreshed", [])]),
+    typ("pages/settings", "ToClient", [
+      variant("pages/settings", "Saved", []),
+    ]),
+    typ("client_context", "ClientContextMsg", [
+      variant("client_context", "SignedIn", [StringField]),
+    ]),
+  ]
+  let result =
+    codegen_wire_erl.generate(
+      module_name: "test_wire",
+      discovered: discovered,
+      endpoints: [],
+      push_dispatches: [
+        codegen_wire_erl.PushDispatch(
+          page_tag: "Home",
+          type_atom: "pages_home__to_client",
+        ),
+        codegen_wire_erl.PushDispatch(
+          page_tag: "Settings",
+          type_atom: "pages_settings__to_client",
+        ),
+        codegen_wire_erl.PushDispatch(
+          page_tag: "__ClientContext__",
+          type_atom: "client_context__client_context_msg",
+        ),
+      ],
+    )
+  let assert Ok(source) = result
+  let assert True = string.contains(source, "encode_push(<<\"Home\">>, Msg)")
+  let assert True =
+    string.contains(source, "encode_push(<<\"Settings\">>, Msg)")
+  let assert True =
+    string.contains(source, "encode_push(<<\"__ClientContext__\">>, Msg)")
+  let assert True =
+    string.contains(source, "encode_client_context__client_context_msg(Msg)")
+}
