@@ -45,12 +45,17 @@ variant_tag(_) ->
     {error, nil}.
 
 %% Decode a response frame: tag byte 0, 32-bit request ID, ETF payload.
+%% Routes through libero_ffi:decode_safe so the configured wire module's
+%% decode_term transform is applied, reversing the encode_term transform
+%% that encode_response applies via libero_ffi:encode.
 %% Returns {ok, {RequestId, Value}} or {error, {decode_error, Message}}.
 decode_response_frame(Bin) when is_binary(Bin) ->
     try
         <<0, RequestId:32, Payload/binary>> = Bin,
-        Term = erlang:binary_to_term(Payload, [safe]),
-        {ok, {RequestId, Term}}
+        case libero_ffi:decode_safe(Payload) of
+            {ok, Term} -> {ok, {RequestId, Term}};
+            {error, _} = E -> E
+        end
     catch
         _:_ ->
             {error, {decode_error, <<"invalid response frame">>}}
@@ -59,12 +64,19 @@ decode_response_frame(_) ->
     {error, {decode_error, <<"expected a binary (BitArray)">>}}.
 
 %% Decode a push frame: tag byte 1, ETF payload ({Module, Value} tuple).
+%% Routes through libero_ffi:decode_safe for wire-module transform
+%% consistency with encode_push. Validates that the module is a binary.
 %% Returns {ok, {Module, Value}} or {error, {decode_error, Message}}.
 decode_push_frame(Bin) when is_binary(Bin) ->
     try
         <<1, Payload/binary>> = Bin,
-        {Module, Value} = erlang:binary_to_term(Payload, [safe]),
-        {ok, {Module, Value}}
+        case libero_ffi:decode_safe(Payload) of
+            {ok, {Module, Value}} when is_binary(Module) ->
+                {ok, {Module, Value}};
+            {ok, _} ->
+                {error, {decode_error, <<"invalid push frame payload: expected {binary, value} tuple">>}};
+            {error, _} = E -> E
+        end
     catch
         _:_ ->
             {error, {decode_error, <<"invalid push frame">>}}

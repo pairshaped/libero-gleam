@@ -1169,6 +1169,21 @@ export function encode_request(module, requestId, msg) {
 }
 
 /**
+ * Normalize libero decode input: Gleam BitArray ({rawBuffer}) or raw binary.
+ * Same normalization as ETFDecoder constructor.
+ * @param {DecoderInput} input
+ * @returns {Uint8Array}
+ */
+function normalizeInput(input) {
+  if (input instanceof Uint8Array) return input;
+  if (input instanceof ArrayBuffer) return new Uint8Array(input);
+  if (input && /** @type {any} */ (input).rawBuffer instanceof Uint8Array) {
+    return /** @type {any} */ (input).rawBuffer;
+  }
+  return new Uint8Array(/** @type {ArrayBuffer} */ (input));
+}
+
+/**
  * Decode a response frame: tag byte 0, 32-bit request ID, ETF payload.
  * Returns Ok([requestId, value]) or Error(DecodeError).
  * @param {DecoderInput} buffer
@@ -1176,14 +1191,15 @@ export function encode_request(module, requestId, msg) {
  */
 export function decode_response_frame(buffer) {
   try {
-    const bytes = new Uint8Array(buffer);
+    const bytes = normalizeInput(buffer);
     if (bytes.length < 5) {
       return new ResultError(new WireDecodeError("invalid response frame: too short"));
     }
     if (bytes[0] !== 0) {
       return new ResultError(new WireDecodeError("invalid response frame: expected tag byte 0"));
     }
-    const requestId = (bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4];
+    // Read 32-bit big-endian unsigned (use >>> 0 to avoid signed overflow).
+    const requestId = ((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4]) >>> 0;
     const payloadResult = decode_safe(bytes.subarray(5));
     if (payloadResult instanceof Ok) {
       return new Ok([requestId, payloadResult[0]]);
@@ -1203,7 +1219,7 @@ export function decode_response_frame(buffer) {
  */
 export function decode_push_frame(buffer) {
   try {
-    const bytes = new Uint8Array(buffer);
+    const bytes = normalizeInput(buffer);
     if (bytes.length < 2) {
       return new ResultError(new WireDecodeError("invalid push frame: too short"));
     }
@@ -1213,7 +1229,8 @@ export function decode_push_frame(buffer) {
     const payloadResult = decode_safe(bytes.subarray(1));
     if (payloadResult instanceof Ok) {
       const value = payloadResult[0];
-      if (Array.isArray(value) && value.length >= 2) {
+      if (Array.isArray(value) && value.length === 2
+          && typeof value[0] === "string") {
         return new Ok([value[0], value[1]]);
       }
       return new ResultError(new WireDecodeError("invalid push frame payload: expected [module, value] tuple"));
@@ -1239,7 +1256,7 @@ export function decode_push_frame(buffer) {
  */
 export function decode_server_frame(buffer) {
   try {
-    const bytes = new Uint8Array(buffer);
+    const bytes = normalizeInput(buffer);
     if (bytes.length < 1) {
       return new ResultError(new WireDecodeError("invalid server frame: empty"));
     }
@@ -1249,7 +1266,7 @@ export function decode_server_frame(buffer) {
       if (bytes.length < 5) {
         return new ResultError(new WireDecodeError("invalid response frame: too short"));
       }
-      const requestId = (bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4];
+      const requestId = ((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4]) >>> 0;
       const payloadResult = decode_safe(bytes.subarray(5));
       if (payloadResult instanceof Ok) {
         return new Ok({ kind: "response", requestId, value: payloadResult[0] });
@@ -1261,7 +1278,8 @@ export function decode_server_frame(buffer) {
       const payloadResult = decode_safe(bytes.subarray(1));
       if (payloadResult instanceof Ok) {
         const tuple = payloadResult[0];
-        if (Array.isArray(tuple) && tuple.length >= 2) {
+        if (Array.isArray(tuple) && tuple.length === 2
+            && typeof tuple[0] === "string") {
           return new Ok({ kind: "push", module: tuple[0], value: tuple[1] });
         }
         return new ResultError(new WireDecodeError("invalid push frame payload: expected [module, value] tuple"));
