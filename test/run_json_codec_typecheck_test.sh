@@ -1,9 +1,10 @@
 #!/bin/bash
 # Typecheck verification for generated JSON codecs.
 #
-# Creates a temp Gleam project with fixture types, generates JSON codecs
-# via libero/json/codegen, and runs gleam check to verify the generated
-# code is type-correct.
+# Creates a temp Gleam project with fixture types covering every FieldType
+# branch (Int, Float, String, Bool, BitArray, List, Dict, Option, Result,
+# Tuple, nested UserType), generates JSON codecs via libero/json/codegen,
+# and runs gleam check to verify the generated code is type-correct.
 #
 # Usage:
 #   bash test/run_json_codec_typecheck_test.sh
@@ -30,18 +31,41 @@ sed -i '' "s|LIBERO_PATH|$ROOT_DIR|" gleam.toml
 
 mkdir -p src
 
-# Fixture types covering various field kinds
+# Fixture types covering every FieldType branch
 cat > src/fixture.gleam <<'GLEAM'
-pub type IntFlag {
-  IntFlag(value: Int)
-}
+import gleam/dict.{type Dict}
+import gleam/option.{type Option}
 
-pub type FloatVal {
-  FloatVal(value: Float)
-}
-
+// Primitives + containers
+pub type IntFlag { IntFlag(value: Int) }
+pub type FloatVal { FloatVal(value: Float) }
 pub type Article {
   Article(title: String, body: String, tags: List(String), published: Bool)
+}
+
+// BitArray (prelude type, no import needed)
+pub type Blob { Blob(data: BitArray) }
+
+// Dict (String-keyed)
+pub type Lookup { Lookup(entries: Dict(String, String)) }
+
+// Nested user type
+pub type Wrapper { Wrapper(inner: Article) }
+
+// Tuple
+pub type Coords { Coords(point: #(Float, Float)) }
+
+// Option + Result (Option needs import, Result is prelude)
+pub type Optional { Optional(value: Option(Int)) }
+pub type Fallible { Fallible(result: Result(Int, String)) }
+
+// Unlabelled fields
+pub type Pair { Pair(String, Int) }
+
+// Zero-field variant (exercises empty-object case)
+pub type Status {
+  Draft
+  Published
 }
 GLEAM
 
@@ -61,6 +85,14 @@ pub fn main() {
     #("fixture", "IntFlag"),
     #("fixture", "FloatVal"),
     #("fixture", "Article"),
+    #("fixture", "Blob"),
+    #("fixture", "Lookup"),
+    #("fixture", "Wrapper"),
+    #("fixture", "Coords"),
+    #("fixture", "Optional"),
+    #("fixture", "Fallible"),
+    #("fixture", "Pair"),
+    #("fixture", "Status"),
   ]
   let assert Ok(types) = walker.walk(seeds, files)
   let assert Ok(source) = codegen.generate(types, [], [])

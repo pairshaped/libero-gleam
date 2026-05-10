@@ -82,6 +82,14 @@ pub fn generate(
     <> "import gleam/dict\n"
     <> user_imports
     <> "\n"
+    <> "/// Index into a list, returning Error if out of bounds.\n"
+    <> "fn list_at(items: List(a), index: Int) -> Result(a, List(JsonError)) {\n"
+    <> "  case list.drop(items, index) |> list.first {\n"
+    <> "    Ok(item) -> Ok(item)\n"
+    <> "    Error(_) -> Error([JsonError(\"fields[\" <> int.to_string(index) <> \"]\", \"missing\")])\n"
+    <> "  }\n"
+    <> "}\n"
+    <> "\n"
 
   let encoders = list.map(discovered, fn(dt) { emit_type_encoder(dt, aliases) })
   let decoders = list.map(discovered, fn(dt) { emit_type_decoder(dt, aliases) })
@@ -566,7 +574,7 @@ fn emit_unlabelled_field_decodes(v: DiscoveredVariant, pad: String) -> String {
       pad
       <> "let "
       <> result_var
-      <> " = case list.at(arr, "
+      <> " = case list_at(arr, "
       <> idx_str
       <> ") {\n"
       <> pad
@@ -703,13 +711,21 @@ fn emit_raw_value_decode(
       pad
       <> "case decode.run("
       <> raw_var
-      <> ", decode.bit_array) {\n"
+      <> ", decode.string) {\n"
       <> pad
-      <> "  Ok(v) -> Ok(v)\n"
+      <> "  Ok(s) -> case bit_array.base64_decode(s) {\n"
+      <> pad
+      <> "    Ok(bits) -> Ok(bits)\n"
+      <> pad
+      <> "    Error(_) -> Error([JsonError(\""
+      <> path
+      <> "\", \"expected valid base64 BitArray\")])\n"
+      <> pad
+      <> "  }\n"
       <> pad
       <> "  Error(_) -> Error([JsonError(\""
       <> path
-      <> "\", \"expected BitArray\")])\n"
+      <> "\", \"expected String (base64 BitArray)\")])\n"
       <> pad
       <> "}"
 
@@ -906,7 +922,7 @@ fn emit_dict_decode(
       pad
       <> "case decode.run("
       <> raw_var
-      <> ", decode.dict(key: decode.string, value: decode.dynamic)) {\n"
+      <> ", decode.dict(decode.string, decode.dynamic)) {\n"
       <> pad
       <> "  Ok(entries) -> dict.fold(entries, Ok(dict.new()), fn(acc, k, v_raw) {\n"
       <> pad
@@ -1021,7 +1037,7 @@ fn emit_tuple_decode(
       fields_pad
       <> "let "
       <> result_var
-      <> " = case list.at(arr, "
+      <> " = case list_at(arr, "
       <> idx_str
       <> ") {\n"
       <> fields_pad
