@@ -48,7 +48,7 @@ fn dispatch_known(msg, request_id, server_context) {
   let typed_msg: ClientMsg = wire.coerce(msg)
   case typed_msg {
         ServerListThings -> {
-          case trace.try_call(fn() { server_handler_handler.server_list_things(server_context:) }) {
+          case trace.try_call(fn() { server_handler_handler.server_list_things(server_context) }) {
             Ok(result) -> {
               #(wire.encode_response(request_id:, value:Ok(result)), server_context)
             }
@@ -60,7 +60,7 @@ fn dispatch_known(msg, request_id, server_context) {
           }
         }
         ServerRenameThing(id:) -> {
-          case trace.try_call(fn() { server_handler_handler.server_rename_thing(id:, server_context:) }) {
+          case trace.try_call(fn() { server_handler_handler.server_rename_thing(id, server_context) }) {
             Ok(#(result, new_ctx)) -> {
               #(wire.encode_response(request_id:, value:Ok(result)), new_ctx)
             }

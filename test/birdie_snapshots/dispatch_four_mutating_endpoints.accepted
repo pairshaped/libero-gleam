@@ -54,7 +54,7 @@ fn dispatch_known(msg, request_id, server_context) {
   let typed_msg: ClientMsg = wire.coerce(msg)
   case typed_msg {
         ServerGetItems -> {
-          case trace.try_call(fn() { server_handler_handler.server_get_items(server_context:) }) {
+          case trace.try_call(fn() { server_handler_handler.server_get_items(server_context) }) {
             Ok(#(result, new_ctx)) -> {
               #(wire.encode_response(request_id:, value:Ok(result)), new_ctx)
             }
@@ -66,7 +66,7 @@ fn dispatch_known(msg, request_id, server_context) {
           }
         }
         ServerCreateItem(params:) -> {
-          case trace.try_call(fn() { server_handler_handler.server_create_item(params:, server_context:) }) {
+          case trace.try_call(fn() { server_handler_handler.server_create_item(params, server_context) }) {
             Ok(#(result, new_ctx)) -> {
               #(wire.encode_response(request_id:, value:Ok(result)), new_ctx)
             }
@@ -78,7 +78,7 @@ fn dispatch_known(msg, request_id, server_context) {
           }
         }
         ServerToggleItem(id:) -> {
-          case trace.try_call(fn() { server_handler_handler.server_toggle_item(id:, server_context:) }) {
+          case trace.try_call(fn() { server_handler_handler.server_toggle_item(id, server_context) }) {
             Ok(#(result, new_ctx)) -> {
               #(wire.encode_response(request_id:, value:Ok(result)), new_ctx)
             }
@@ -90,7 +90,7 @@ fn dispatch_known(msg, request_id, server_context) {
           }
         }
         ServerDeleteItem(id:) -> {
-          case trace.try_call(fn() { server_handler_handler.server_delete_item(id:, server_context:) }) {
+          case trace.try_call(fn() { server_handler_handler.server_delete_item(id, server_context) }) {
             Ok(#(result, new_ctx)) -> {
               #(wire.encode_response(request_id:, value:Ok(result)), new_ctx)
             }

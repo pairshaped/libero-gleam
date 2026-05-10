@@ -63,13 +63,9 @@ pub fn generate_with_extra_params(
       "\n  " <> p.name <> " " <> p.name <> ": " <> p.type_ref <> ","
     })
     |> string.join("")
-  let extra_call_args =
+  let extra_args =
     extra_params
     |> list.map(fn(p) { ", " <> p.name })
-    |> string.join("")
-  let extra_handler_args =
-    extra_params
-    |> list.map(fn(p) { ", " <> p.name <> ": " <> p.name })
     |> string.join("")
 
   let handler_modules =
@@ -126,13 +122,13 @@ pub fn generate_with_extra_params(
       <> e.fn_name
       <> "\") ->\n"
       <> "          dispatch_known(msg, request_id, server_context"
-      <> extra_call_args
+      <> extra_args
       <> ")"
     })
     |> string.join("\n")
 
   let case_arms =
-    list.map(endpoints, emit_case_arm(_, wire_module, extra_handler_args))
+    list.map(endpoints, emit_case_arm(_, wire_module, extra_args))
 
   let atoms_external = case atoms_module {
     option.Some(mod) ->
@@ -200,7 +196,7 @@ fn ensure_atoms() -> Nil
   let dispatch_known = case endpoints {
     [] -> ""
     _ -> "
-fn dispatch_known(msg, request_id, server_context" <> extra_call_args <> ") {
+fn dispatch_known(msg, request_id, server_context" <> extra_args <> ") {
   case trace.try_call(fn() {
 " <> decode_msg_call <> "  let typed_msg: ClientMsg = wire.coerce(msg)
   case typed_msg {
@@ -257,7 +253,7 @@ pub fn handle(
 fn emit_case_arm(
   e: scanner.HandlerEndpoint,
   wire_module: option.Option(String),
-  extra_handler_args: String,
+  extra_args: String,
 ) -> String {
   let variant_name = codegen.to_pascal_case("server_" <> e.fn_name)
   let alias = handler_alias(e.module_path)
@@ -266,11 +262,11 @@ fn emit_case_arm(
 
   let handler_args = case e.msg_type {
     option.Some(_) ->
-      "msg: wire.coerce(typed_msg), server_context:" <> extra_handler_args
+      "wire.coerce(typed_msg), server_context" <> extra_args
     option.None -> {
-      let labeled = list.map(e.params, fn(p) { p.0 <> ":" })
+      let positional = list.map(e.params, fn(p) { p.0 })
       string.join(
-        list.append(labeled, ["server_context:" <> extra_handler_args]),
+        list.append(positional, ["server_context" <> extra_args]),
         ", ",
       )
     }

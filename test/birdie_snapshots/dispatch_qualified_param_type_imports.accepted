@@ -53,7 +53,7 @@ fn dispatch_known(msg, request_id, server_context) {
   let typed_msg: ClientMsg = wire.coerce(msg)
   case typed_msg {
         ServerListWidgets(filters:) -> {
-          case trace.try_call(fn() { server_store_handler.server_list_widgets(filters:, server_context:) }) {
+          case trace.try_call(fn() { server_store_handler.server_list_widgets(filters, server_context) }) {
             Ok(#(result, new_ctx)) -> {
               #(wire.encode_response(request_id:, value:Ok(result)), new_ctx)
             }
@@ -65,7 +65,7 @@ fn dispatch_known(msg, request_id, server_context) {
           }
         }
         ServerSendAlert(params:) -> {
-          case trace.try_call(fn() { server_notifier_handler.server_send_alert(params:, server_context:) }) {
+          case trace.try_call(fn() { server_notifier_handler.server_send_alert(params, server_context) }) {
             Ok(#(result, new_ctx)) -> {
               #(wire.encode_response(request_id:, value:Ok(result)), new_ctx)
             }
@@ -77,7 +77,7 @@ fn dispatch_known(msg, request_id, server_context) {
           }
         }
         ServerGetWidget(id:) -> {
-          case trace.try_call(fn() { server_store_handler.server_get_widget(id:, server_context:) }) {
+          case trace.try_call(fn() { server_store_handler.server_get_widget(id, server_context) }) {
             Ok(#(result, new_ctx)) -> {
               #(wire.encode_response(request_id:, value:Ok(result)), new_ctx)
             }
