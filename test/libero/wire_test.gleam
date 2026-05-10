@@ -7,6 +7,7 @@
 import gleam/dynamic.{type Dynamic}
 import gleam/option.{None, Some}
 import libero/error
+import libero/frame
 import libero/wire
 
 pub type TestVariant {
@@ -115,7 +116,7 @@ pub fn variant_tag_rejects_plain_tuple_test() {
 
 pub fn encode_response_decode_response_frame_roundtrip_test() {
   let frame = wire.encode_response(request_id: 42, value: "hello")
-  let assert Ok(wire.Response(request_id: 42, value:)) =
+  let assert Ok(frame.Response(request_id: 42, value:)) =
     wire.decode_response_frame(frame)
   let decoded: String = wire.coerce(value)
   let assert "hello" = decoded
@@ -123,7 +124,7 @@ pub fn encode_response_decode_response_frame_roundtrip_test() {
 
 pub fn encode_response_decode_response_frame_int_test() {
   let frame = wire.encode_response(request_id: 7, value: 99)
-  let assert Ok(wire.Response(request_id: 7, value:)) =
+  let assert Ok(frame.Response(request_id: 7, value:)) =
     wire.decode_response_frame(frame)
   let decoded: Int = wire.coerce(value)
   let assert 99 = decoded
@@ -131,7 +132,7 @@ pub fn encode_response_decode_response_frame_int_test() {
 
 pub fn encode_push_decode_push_frame_roundtrip_test() {
   let frame = wire.encode_push(module: "pages/home", value: "hello push")
-  let assert Ok(wire.Push(module: "pages/home", value:)) =
+  let assert Ok(frame.Push(module: "pages/home", value:)) =
     wire.decode_push_frame(frame)
   let decoded: String = wire.coerce(value)
   let assert "hello push" = decoded
@@ -139,7 +140,7 @@ pub fn encode_push_decode_push_frame_roundtrip_test() {
 
 pub fn encode_push_decode_push_frame_int_test() {
   let frame = wire.encode_push(module: "core/topic", value: 123)
-  let assert Ok(wire.Push(module: "core/topic", value:)) =
+  let assert Ok(frame.Push(module: "core/topic", value:)) =
     wire.decode_push_frame(frame)
   let decoded: Int = wire.coerce(value)
   let assert 123 = decoded
@@ -167,7 +168,7 @@ pub fn decode_push_frame_wrong_tag_test() {
 
 pub fn decode_server_frame_response_test() {
   let frame = wire.encode_response(request_id: 42, value: "hello")
-  let assert Ok(wire.Response(request_id: 42, value:)) =
+  let assert Ok(frame.Response(request_id: 42, value:)) =
     wire.decode_server_frame(frame)
   let decoded: String = wire.coerce(value)
   let assert "hello" = decoded
@@ -175,7 +176,7 @@ pub fn decode_server_frame_response_test() {
 
 pub fn decode_server_frame_push_test() {
   let frame = wire.encode_push(module: "pages/home", value: 99)
-  let assert Ok(wire.Push(module: "pages/home", value:)) =
+  let assert Ok(frame.Push(module: "pages/home", value:)) =
     wire.decode_server_frame(frame)
   let decoded: Int = wire.coerce(value)
   let assert 99 = decoded

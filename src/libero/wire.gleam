@@ -28,21 +28,10 @@
 import gleam/bit_array
 import gleam/dynamic.{type Dynamic}
 import libero/error.{type DecodeError}
+import libero/frame.{Push, Response}
 
-// ---------- Frame abstraction ----------
-
-/// A decoded server-to-client frame.
-///
-/// Consumers use this to handle incoming server messages without
-/// knowing the frame wire shape (tag bytes, request ID layout, etc.).
-///
-/// The `value` type parameter is typically `Dynamic` at the boundary
-/// and narrowed by the consumer with a typed decoder or `coerce`.
-///
-pub type ServerFrame(value) {
-  Response(request_id: Int, value: value)
-  Push(module: String, value: value)
-}
+pub type ServerFrame(value) =
+  frame.ServerFrame(value)
 
 // ---------- Encoder ----------
 
