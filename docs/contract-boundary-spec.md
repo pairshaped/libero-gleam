@@ -1,7 +1,7 @@
 # Contract Boundary Spec
 
-Status: target architecture
-Date: 2026-05-09
+Status: implemented boundary, JSON-ready facade
+Date: 2026-05-10
 
 ## Summary
 
@@ -10,9 +10,9 @@ generates the code needed for both sides to speak that contract. Consumers use
 generated modules and runtime helpers. They should not need to know the wire
 protocol shape.
 
-This is the direction Libero has been moving toward. The remaining work is to
-turn Libero from "codec primitives plus dispatch generation" into the owner of
-the full typed protocol boundary.
+This is the direction Libero has been moving toward. The first boundary pass is
+now in place: consumers call protocol-level helpers instead of reaching into ETF
+frames, raw decoders, or hand-built request envelopes.
 
 The test is simple: adding JSON RPC as a configured protocol should not require
 consumer code to understand JSON. ETF remains valuable and should not be thrown
@@ -53,7 +53,7 @@ Consumers own:
 The short rule: consumers decide what messages exist and when to send them.
 Libero decides how typed messages become protocol data and back.
 
-## Desired Consumer API Shape
+## Consumer API Shape
 
 Consumers should call Libero through operations that name the protocol concept,
 not the byte format:
@@ -69,28 +69,33 @@ encode_flags(value)
 decode_flags(bytes_or_string, decoder)
 ```
 
-Names may differ in the final API. The important part is that callers ask
-Libero for "request", "response", "push", or "flags" behavior. They do not
-assemble or slice wire frames themselves.
+The current API names differ a little from this sketch. The important part is
+that callers ask Libero for "request", "response", "push", or "flags" behavior.
+They do not assemble or slice wire frames themselves.
 
 ## Current State
 
-Libero already owns most of the hard pieces:
+Libero now owns the protocol boundary for the active ETF path:
 
 - The scanner and walker derive the handler contract from source.
 - Dispatch codegen turns request messages into handler calls.
 - Wire transformers move type identity into generated code.
 - JavaScript decoder codegen reconstructs typed values from wire values.
-- `libero/wire` owns the current ETF encode/decode functions and frame helpers.
+- `libero/wire` owns request, response, push, and SSR flag helpers.
+- Rally receives WebSocket frames through `decode_server_frame`.
+- Rally sends requests through `encode_request`.
+- Server responses use `encode_response`.
+- Server pushes pre-encode typed payloads through generated `encode_push/2`
+  dispatch before framing with `wire.encode_push`.
+- SSR flags use `encode_flags` and `decode_flags_typed`.
 
-What remains too low-level:
+Raw codec functions still exist, but they are not the framework integration
+path. `wire.encode` is documented as unsafe for user custom types unless the
+value has already passed through a typed encoder.
 
-- `tag_response` and `tag_push` expose frame details instead of returning a
-  decoded frame abstraction on the receiving side.
-- JavaScript consumers import `encode_call`, `decode_value`,
-  `decode_safe_raw`, and `decodeTyped` directly.
-- The current API makes it easy for a consumer to choose the wrong decode path.
-- Non-RPC paths such as SSR flags still depend on consumer-specific glue.
+The remaining low-level surface is intentional but sharp. It should stay for
+tests, protocol internals, and advanced escape hatches. Framework consumers
+should stay on the typed helpers.
 
 ## Target Frame API
 
@@ -151,16 +156,22 @@ The boundary should enforce:
 The caller should receive structured protocol errors. Consumers should not parse
 codec exception strings.
 
-## Migration Steps
+## Migration Status
 
-1. Add higher-level Libero frame APIs while keeping the current ETF wire format.
-2. Move JavaScript response and push frame decoding behind Libero helpers.
-3. Move SSR flag encode/decode helpers behind Libero helpers where the decoded
-   value is part of the discovered contract.
-4. Update Rally to stop importing raw codec operations except through generated
-   Libero modules.
-5. Update examples and tests so no consumer slices response frames by hand.
-6. Only after that, evaluate JSON as a second configured Libero protocol.
+Done:
+
+- Higher-level Libero frame APIs exist while keeping the current ETF format.
+- JavaScript response and push frame decoding goes through Libero helpers.
+- SSR flag encode/decode goes through Libero helpers for contract values.
+- Rally generated transport no longer imports raw decode operations.
+- Outbound requests, server responses, server pushes, and SSR flags have typed
+  boundary helpers.
+- The RealWorld CLI uses Libero helpers instead of matching frame bytes.
+
+Next:
+
+- Keep raw codec calls out of Rally and generated consumer code.
+- Evaluate JSON as a second configured Libero protocol behind the same facade.
 
 ## Acceptance Criteria
 
@@ -171,6 +182,7 @@ codec exception strings.
 - Rally no longer imports raw decode functions in generated transport code.
 - The RealWorld CLI uses a Libero helper instead of matching frame bytes.
 - Existing ETF behavior is preserved while the boundary is tightened.
+- Server push payloads pass through generated typed pre-encoders before framing.
 - The JSON spike can add a configured protocol without rewriting Rally's
   transport lifecycle, response handling, push handling, or hydration logic.
 

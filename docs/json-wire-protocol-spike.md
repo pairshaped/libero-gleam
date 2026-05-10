@@ -1,7 +1,7 @@
 # JSON Wire Protocol Spike
 
-Status: research note
-Date: 2026-05-09
+Status: research note, updated after contract-boundary work
+Date: 2026-05-10
 
 ## Current Belief
 
@@ -11,6 +11,12 @@ fits BEAM-shaped deployments. Swapping ETF bytes for JSON while preserving BEAM
 term shapes would keep most of the hard parts: constructor identity, tuple/list
 distinctions, `Nil` vs `None`, `Dict`, `Float` handling, typed reconstruction,
 and hostile input checks.
+
+The contract boundary work has landed. Rally now talks to Libero through
+protocol-level operations for requests, responses, pushes, and SSR flags. That
+changes the JSON question. JSON no longer needs to be the thing that creates the
+boundary. It is now a possible second protocol behind a boundary Libero already
+owns.
 
 The win is not likely to be raw simplicity inside Libero. The win would be that
 non-Gleam clients can understand and produce the protocol without implementing
@@ -53,6 +59,28 @@ Gleam handlers and types
 
 This keeps Libero distinct from schema-first tools. Users should not have to
 write a parallel protocol file just to expose a handler.
+
+## Boundary State After The ETF Work
+
+The current ETF path is now much closer to the shape JSON would need:
+
+- `encode_request` owns outbound request envelopes.
+- `decode_server_frame` owns response and push frame decoding.
+- `encode_response` owns server response frames.
+- `encode_push` owns server push frames after typed pre-encoding.
+- `encode_flags` and `decode_flags_typed` own SSR flag encoding and hydration.
+- Generated wire modules own type identity for values that cross the protocol.
+
+That last point matters most. The generic ETF encoder is no longer expected to
+guess user custom type identity from bare BEAM atoms. Typed values must pass
+through generated encoders before they hit the raw codec. JSON should follow the
+same rule: generated typed encoders and decoders sit at the boundary, and raw
+JSON parsing is only the transport format underneath.
+
+The rule for any JSON branch is now stricter: Rally and downstream apps should
+not gain JSON-specific logic. They may regenerate generated modules and choose a
+protocol config, but transport lifecycle, push routing, response routing, and
+hydration should continue to call Libero-owned facade functions.
 
 ## Public JSON Shape
 
@@ -189,15 +217,15 @@ References:
 
 ## Rally Impact
 
-Rally is a main consumer and would need a real cutover. A Libero-only swap would
-miss most of the risk.
+Rally is still the proving ground, but the expected work is smaller than it was
+before the boundary landed. Rally should stay mostly oblivious to the configured
+protocol. A JSON branch should verify that the facade holds instead of teaching
+Rally to speak JSON directly.
 
 Areas to cover:
 
 - WebSocket request and response frames.
-- HTTP RPC.
 - Push frames.
-- Page init frames.
 - SSR flags.
 - Client context.
 - Message logging and inspector formatting.
@@ -205,9 +233,9 @@ Areas to cover:
 - Generated snapshots.
 - The realworld example CLI.
 
-Rally mostly wraps Libero's wire APIs, which helps. Still, the generated output
-and runtime assumptions will change enough that the branch should include Rally
-work before drawing conclusions.
+HTTP RPC and page init should be checked through the generated Libero/Rally
+surface that exists at the time of the branch. If they need protocol-specific
+logic in Rally, the boundary has leaked.
 
 ## Branch Acceptance Criteria
 
@@ -223,8 +251,9 @@ The branch is worth keeping only if it can show:
 - Rally realworld running through RPC, push, SSR flags, client context, and page
   init.
 - A contract artifact that can be inspected and snapshot-tested.
-- A meaningful reduction in ETF-specific machinery.
-- A clear accounting of new JSON-specific machinery.
+- A clear split between shared contract machinery and protocol-specific codec
+  machinery.
+- No JSON parsing, frame slicing, or type reconstruction in Rally runtime code.
 
 The blunt test: if the branch removes ETF but replaces it with opaque generated
 JSON code that only Libero understands, it failed the reason for doing JSON.
