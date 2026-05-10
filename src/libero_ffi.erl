@@ -11,7 +11,7 @@
 -export([try_call/1, encode/1, decode/1, decode_safe/1, decode_typed/2,
          identity/1, unique_id/0, run_executable_capturing/2,
          find_executable/1, get_env/1, halt/1, ensure_decoders/0,
-         compile_module_from_source/1, apply2/4]).
+         compile_module_from_source/1]).
 
 identity(X) -> X.
 
@@ -122,6 +122,3 @@ split_forms([{dot, _} = Dot | Rest], Acc) ->
     [lists:reverse([Dot | Acc]) | split_forms(Rest, [])];
 split_forms([Tok | Rest], Acc) ->
     split_forms(Rest, [Tok | Acc]).
-
-apply2(Mod, Fun, Arg1, Arg2) ->
-    erlang:apply(Mod, Fun, [Arg1, Arg2]).

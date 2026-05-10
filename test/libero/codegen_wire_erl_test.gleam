@@ -901,7 +901,7 @@ fn compile_module(source: String) -> Result(atom, Nil)
 @external(erlang, "erlang", "apply")
 fn erl_apply(module: atom, function: atom, args: List(a)) -> b
 
-@external(erlang, "libero_ffi", "apply2")
+@external(erlang, "libero_test_ffi", "apply2")
 fn erl_apply2(module: atom, function: atom, arg1: a, arg2: b) -> c
 
 @external(erlang, "erlang", "binary_to_atom")

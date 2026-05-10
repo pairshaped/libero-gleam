@@ -55,7 +55,8 @@ pub type ServerFrame(value) {
 ///
 /// For user values, use the typed entry points instead:
 /// - `encode_response` for RPC handler returns
-/// - `encode_push` (generated) for push payloads
+/// - Generated `encode_push/2` pre-encoder (called by rally's
+///   `encode_push_payload` FFI before `wire.encode_push` frames it)
 /// - Per-type `wire_encode_<model>` (rally-generated) for SSR flags
 ///
 /// This function is correct for primitives, containers of primitives,
