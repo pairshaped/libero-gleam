@@ -6,6 +6,22 @@
 //
 // This is the JS FFI for the JSON wire protocol, mirroring the ETF
 // rpc_ffi.mjs but working with JSON text frames instead of ETF binary.
+//
+// IMPORTANT: This module is frame-level only. It wraps/unwraps JSON-RPC-v1
+// protocol envelopes. It does NOT perform typed encoding of user values.
+//
+// Callers must pre-encode message payloads through generated typed JSON
+// encoders before passing them to encode_request. The `msg` parameter
+// expects a plain JS object in the Libero typed-value shape:
+//   { "type": "<module>.<Type>", "variant": "<Variant>", "fields": ... }
+//
+// Similarly, decode_server_frame returns a ServerFrame carrying a raw
+// JSON value. Callers must route the value through a generated typed
+// JSON decoder to reconstruct the Gleam type.
+//
+// The contract_hash parameter on encode_request is REQUIRED for JSON
+// protocol. It must match the hash in the server's contract artifact.
+// Mismatched hashes produce a protocol error response.
 
 import { Ok, Error as ResultError, CustomType, Empty, NonEmpty } from "../../../gleam_stdlib/gleam.mjs";
 import { Some, None } from "../../../gleam_stdlib/gleam/option.mjs";
