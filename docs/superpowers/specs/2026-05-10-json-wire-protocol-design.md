@@ -144,8 +144,22 @@ pub fn decode_server_frame(data: String) -> Result(ServerFrame(Dynamic), List(Js
 // SSR flags
 pub fn encode_flags(value: json.Json) -> String
 // Returns typed JSON value directly, with HTML-unsafe chars escaped.
+pub fn decode_flags_typed(
+  flags: String,
+  decoder: fn(Dynamic) -> Result(a, List(JsonError)),
+) -> Result(a, List(JsonError))
+```
+
+The generated JSON codec facade exposes the name-based public boundary used by
+Rally:
+
+```gleam
 pub fn decode_flags_typed(flags: String, decoder_name: String) -> Result(a, List(JsonError))
 ```
+
+That generated function selects the typed decoder by name and calls
+`libero/json/wire.decode_flags_typed(flags:, decoder:)`. Rally never receives
+raw `Dynamic` flags.
 
 Kind-field dispatch replaces tag-byte dispatch. `"response"`, `"push"`, `"error"`.
 

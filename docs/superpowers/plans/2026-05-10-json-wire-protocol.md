@@ -110,7 +110,7 @@ Commit after verifying `gleam.toml` and `manifest.toml` are updated and `gleam t
 
 - `src/rally/types.gleam` — Add `protocol` field to `ScanConfig`
 - `src/rally.gleam` — Parse protocol from TOML config
-- `src/rally/generator/client.gleam` — Emit protocol-aware transport
+- `src/rally/generator/client.gleam` — Emit protocol facade and protocol-aware transport imports
 - `src/rally/generator/ws_handler.gleam` — Generated WS handler uses `ServerFrame` from `libero/frame`
 
 ---
@@ -242,12 +242,19 @@ pub type ServerFrame(value) {
 }
 ```
 
-- [ ] **Step 2: Update `src/libero/wire.gleam` — remove `ServerFrame` type definition, add import**
-
-Remove the `ServerFrame` type definition block (lines ~34-45) and the preceding comment block. Add the import near the top:
+Add the import above the type:
 
 ```gleam
-import libero/frame.{type ServerFrame, Error, Push, Response}
+import gleam/option.{type Option}
+```
+
+- [ ] **Step 2: Update `src/libero/wire.gleam` — remove `ServerFrame` type definition, add import**
+
+Remove the `ServerFrame` type definition block (lines ~34-45) and the preceding comment block. Add imports near the top:
+
+```gleam
+import libero/frame
+import libero/frame.{type ServerFrame, Push, Response}
 ```
 
 - [ ] **Step 3: Update test that imports `ServerFrame` variants from `wire`**
@@ -257,20 +264,22 @@ In `test/libero/wire_test.gleam`, change the import from:
 import libero/wire
 // ... wire.Response, wire.Push used in patterns
 ```
-to also import from `frame` or use the re-exported names from `wire`.
-
-Since `wire.gleam` now imports and re-exports the variants, the test patterns like `wire.Response(...)` and `wire.Push(...)` still work as long as `wire.gleam` re-exports or at least imports them. The simplest approach: `wire.gleam` imports the variants and the existing `wire.Response` / `wire.Push` references in tests keep working because they are in scope via the `libero/wire` module.
-
-Actually, Gleam requires explicit re-export for qualified access. So `wire.Response` won't work unless `wire.gleam` has `pub type ServerFrame = frame.ServerFrame`. Let me handle this differently: keep a type alias in `wire.gleam`.
-
-In `wire.gleam`, replace the removed type definition with:
+to:
 
 ```gleam
-pub type ServerFrame =
-  frame.ServerFrame
+import libero/frame
+import libero/wire
+// ... frame.Response, frame.Push used in patterns
 ```
 
-This is a type alias that re-exports the type under the `wire` namespace, keeping all existing callers working.
+Do not rely on `wire.Response` after the move. Gleam type aliases do not re-export constructors under the aliasing module's namespace. For compatibility in function signatures only, add a type alias in `wire.gleam`:
+
+```gleam
+pub type ServerFrame(value) =
+  frame.ServerFrame(value)
+```
+
+This keeps `wire.ServerFrame(a)` as a type name, but callers that pattern match frames must import constructors from `libero/frame`.
 
 - [ ] **Step 4: Run tests**
 
@@ -280,7 +289,7 @@ gleam format
 gleam test
 ```
 
-Expected: all Libero tests pass. The `ServerFrame` type alias in `wire.gleam` keeps `wire.Response` etc. working.
+Expected: all Libero tests pass. Existing `wire.Response` / `wire.Push` references have been moved to `frame.Response` / `frame.Push`.
 
 - [ ] **Step 5: Commit**
 
@@ -307,8 +316,9 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleeunit/should
 import libero/field_type
-import libero/gen_error
+import libero/scanner
 import libero/walker
+import simplifile
 
 pub fn variant_field_labels_test() {
   // Build a minimal DiscoveredVariant by hand to test the field is present
@@ -333,6 +343,37 @@ pub fn variant_field_labels_test() {
   )
 
   u.field_labels |> should.equal([None, None])
+}
+
+pub fn walker_preserves_labels_from_source_test() {
+  let root = "build/.test_json_field_labels/shared/src/shared"
+  let assert Ok(Nil) = simplifile.create_directory_all(root)
+  let assert Ok(Nil) =
+    simplifile.write(
+      root <> "/query.gleam",
+      "
+pub type Query {
+  Query(String, limit: Int, offset: Int)
+}
+",
+    )
+
+  let assert Ok(files) = scanner.walk_directory(path: root)
+  let assert Ok(types) =
+    walker.walk(seeds: [#("shared/query", "Query")], file_paths: files)
+
+  let assert [query] = types
+  let assert [variant] = query.variants
+
+  variant.field_labels |> should.equal([None, Some("limit"), Some("offset")])
+  variant.fields
+  |> should.equal([
+    field_type.StringField,
+    field_type.IntField,
+    field_type.IntField,
+  ])
+
+  let assert Ok(Nil) = simplifile.delete_all(["build/.test_json_field_labels"])
 }
 ```
 
@@ -392,18 +433,18 @@ And pass `field_labels:` into the `DiscoveredVariant(...)` constructor.
 
 - [ ] **Step 4: Update all existing tests that construct `DiscoveredVariant`**
 
-Add `field_labels: [],` (or the correct labels) to every `DiscoveredVariant(` constructor call in these files:
+Add `field_labels:` to every `DiscoveredVariant(` constructor call in these files:
 
 - `test/libero/endpoint_dispatch_test.gleam` (3 instances)
 - `test/libero/codegen_wire_erl_test.gleam` (1 instance)
 - `test/libero/typed_decoder_codegen_test.gleam` (~14 instances)
 
-Use grep to find all instances:
+Use `rg` to find all instances:
 ```bash
-grep -rn "DiscoveredVariant(" test/
+rg -n "DiscoveredVariant\\(" test/
 ```
 
-For each one, add `field_labels:` after `float_field_indices:` with an empty list `[]` (tests don't need real labels unless specifically testing label behavior).
+For each one, add `field_labels:` after `float_field_indices:`. The list length must match `fields`: use `[]` only for zero-field variants, and use `option.None` for each unlabelled field in hand-built variants. Do not put `[]` on variants that have fields, because that would hide length mismatch bugs in JSON codegen.
 
 - [ ] **Step 5: Run tests**
 
@@ -478,7 +519,7 @@ pub fn prefix(errors: List(JsonError), segment: String) -> List(JsonError) {
 
 ```gleam
 import gleeunit/should
-import libero/json/error.{type JsonError, JsonError}
+import libero/json/error
 
 pub fn json_error_at_test() {
   let e = error.at("fields.slug", "expected String, got Null")
@@ -583,11 +624,15 @@ git commit -m "Add JSON error and limits types"
 
 - [ ] **Step 1: Write the contract artifact test**
 
+The contract artifact must describe every public wire surface, not only handler endpoints. Include endpoints, push modules, SSR flag model types, and the discovered type graph. The first tests can pass empty push/SSR lists, but the API must have slots for them from day one so SDK generation does not grow a second metadata path later.
+
 Create `test/libero/json_contract_test.gleam`:
 
 ```gleam
+import gleam/dynamic/decode
 import gleam/json
 import gleam/list
+import gleam/option
 import gleam/option.{Some}
 import gleeunit/should
 import libero/field_type
@@ -626,12 +671,18 @@ pub fn contract_artifact_is_deterministic_test() {
     ),
   ]
 
-  let one = contract.generate(endpoints:, discovered:)
-  let two = contract.generate(endpoints:, discovered:)
+  let push_types: List(contract.PushContract) = []
+  let ssr_models: List(contract.SsrModelContract) = []
+
+  let one = contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
+  let two = contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
 
   one |> should.equal(two)
   one |> should.contain("\"protocol_version\"")
   one |> should.contain("\"json-rpc-v1\"")
+  one |> should.contain("\"contract_hash\"")
+  one |> should.contain("\"push_types\"")
+  one |> should.contain("\"ssr_models\"")
   one |> should.contain("\"shared/article\"")
 }
 
@@ -649,9 +700,11 @@ pub fn contract_artifact_includes_endpoints_test() {
   ]
 
   let discovered: List(walker.DiscoveredType) = []
+  let push_types: List(contract.PushContract) = []
+  let ssr_models: List(contract.SsrModelContract) = []
 
-  let artifact = contract.generate(endpoints:, discovered:)
-  let parsed = json.parse(artifact, json.Decoder(fn(x) { Ok(x) }))
+  let artifact = contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
+  let parsed = json.parse(artifact, decode.dynamic)
 
   // Don't crash on parse — the artifact must be valid JSON
   let assert Ok(_) = parsed
@@ -673,14 +726,26 @@ Expected: compile fails because `libero/json/contract` does not exist.
 import gleam/json
 import gleam/list
 import gleam/option
+import gleam/bit_array
+import gleam/crypto
 import gleam/string
 import libero/field_type.{type FieldType}
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType, type DiscoveredVariant}
 
+pub type PushContract {
+  PushContract(module: String, type_module: String, type_name: String)
+}
+
+pub type SsrModelContract {
+  SsrModelContract(route_module: String, type_module: String, type_name: String)
+}
+
 pub fn generate(
   endpoints endpoints: List(HandlerEndpoint),
   discovered discovered: List(DiscoveredType),
+  push_types push_types: List(PushContract),
+  ssr_models ssr_models: List(SsrModelContract),
 ) -> String {
   let sorted_endpoints =
     endpoints
@@ -695,13 +760,37 @@ pub fn generate(
       )
     })
 
+  let canonical =
+    json.object([
+      #("protocol_version", json.string("json-rpc-v1")),
+      #("libero_version", json.string("6.0.0")),
+      #("endpoints", json.array(sorted_endpoints, of: endpoint_json)),
+      #("push_types", json.array(push_types, of: push_contract_json)),
+      #("ssr_models", json.array(ssr_models, of: ssr_model_json)),
+      #("types", json.array(sorted_types, of: discovered_type_json)),
+    ])
+
+  let canonical_text = json.to_string(canonical)
+  let contract_hash = contract_hash(canonical_text)
+
   json.object([
     #("protocol_version", json.string("json-rpc-v1")),
     #("libero_version", json.string("6.0.0")),
+    #("contract_hash", json.string(contract_hash)),
     #("endpoints", json.array(sorted_endpoints, of: endpoint_json)),
+    #("push_types", json.array(push_types, of: push_contract_json)),
+    #("ssr_models", json.array(ssr_models, of: ssr_model_json)),
     #("types", json.array(sorted_types, of: discovered_type_json)),
   ])
   |> json.to_string
+}
+
+fn contract_hash(canonical_text: String) -> String {
+  canonical_text
+  |> bit_array.from_string
+  |> crypto.hash(crypto.Sha256, _)
+  |> bit_array.base16_encode
+  |> string.lowercase
 }
 
 fn endpoint_json(e: HandlerEndpoint) -> json.Json {
@@ -716,6 +805,22 @@ fn endpoint_json(e: HandlerEndpoint) -> json.Json {
     })),
     #("return_ok", field_type_json(e.return_ok)),
     #("return_err", field_type_json(e.return_err)),
+  ])
+}
+
+fn push_contract_json(push: PushContract) -> json.Json {
+  json.object([
+    #("module", json.string(push.module)),
+    #("type_module", json.string(push.type_module)),
+    #("type_name", json.string(push.type_name)),
+  ])
+}
+
+fn ssr_model_json(model: SsrModelContract) -> json.Json {
+  json.object([
+    #("route_module", json.string(model.route_module)),
+    #("type_module", json.string(model.type_module)),
+    #("type_name", json.string(model.type_name)),
   ])
 }
 
@@ -809,8 +914,10 @@ Add the public function:
 pub fn generate_json_contract(
   endpoints endpoints: List(HandlerEndpoint),
   discovered discovered: List(DiscoveredType),
+  push_types push_types: List(contract.PushContract),
+  ssr_models ssr_models: List(contract.SsrModelContract),
 ) -> String {
-  contract.generate(endpoints:, discovered:)
+  contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
 }
 ```
 
@@ -846,6 +953,7 @@ Create `test/libero/json_codegen_test.gleam`:
 ```gleam
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
 import libero/field_type
 import libero/json/codegen
@@ -870,7 +978,7 @@ pub fn generated_encoder_emits_type_and_variant_test() {
     ),
   ]
 
-  let source = codegen.generate(types, [], [])
+  let source = assert_generated(codegen.generate(types, [], []))
 
   // Encoder function exists
   source |> should.contain("fn json_encode_shared_article__article")
@@ -919,7 +1027,7 @@ pub fn duplicate_variant_names_generate_distinct_codecs_test() {
     ),
   ]
 
-  let source = codegen.generate(types, [], [])
+  let source = assert_generated(codegen.generate(types, [], []))
 
   // Both encode functions exist with distinct names
   source |> should.contain("json_encode_page_a__to_client")
@@ -948,7 +1056,7 @@ pub fn unlabelled_fields_encode_as_array_test() {
     ),
   ]
 
-  let source = codegen.generate(types, [], [])
+  let source = assert_generated(codegen.generate(types, [], []))
 
   // Unlabelled fields should use json.array not json.object
   source |> should.contain("json.array(")
@@ -1006,10 +1114,15 @@ pub fn zero_field_variant_encodes_empty_object_test() {
     ),
   ]
 
-  let source = codegen.generate(types, [], [])
+  let source = assert_generated(codegen.generate(types, [], []))
 
   // Zero-field variants should use json.object with type and variant only
   source |> should.contain("\"fields\"")
+}
+
+fn assert_generated(result: Result(String, List(a))) -> String {
+  let assert Ok(source) = result
+  source
 }
 ```
 
@@ -1137,11 +1250,12 @@ Create `test/libero/json_wire_test.gleam`:
 
 ```gleam
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
-import libero/json/error.{type JsonError, JsonError}
+import libero/json/error.{JsonError}
 import libero/json/wire
-import libero/frame.{type ServerFrame, Response, Push, Error}
 
 pub fn encode_request_produces_correct_shape_test() {
   let message = json.object([
@@ -1266,6 +1380,8 @@ Expected: compile fails because `libero/json/wire` does not exist.
 
 - [ ] **Step 3: Implement `src/libero/json/wire.gleam`**
 
+Use `gleam/json.parse(..., decode.dynamic)` and the `gleam/dynamic/decode` API (`decode.run`, `decode.field`, `decode.string`, `decode.int`, `decode.list`) for extraction. Do not use `dynamic.string` or `dynamic.int` as decoders: those are constructors for `Dynamic`, not validation functions.
+
 ```gleam
 //// JSON wire protocol: encode/decode, frame builders, SSR flags.
 ////
@@ -1275,13 +1391,15 @@ Expected: compile fails because `libero/json/wire` does not exist.
 ////
 //// Produces/consumes `String` (JSON text), not `BitArray`.
 
-import gleam/dynamic
+import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import libero/frame.{type ServerFrame, Error, Push, Response}
+import libero/frame
+import libero/frame.{type ServerFrame}
 import libero/json/error.{type JsonError, JsonError}
 
 const json_rpc_v1 = "json-rpc-v1"
@@ -1289,7 +1407,7 @@ const json_rpc_v1 = "json-rpc-v1"
 // ---------- Types ----------
 
 pub type RequestEnvelope {
-  RequestEnvelope(module: String, request_id: Int, message: dynamic.Dynamic)
+  RequestEnvelope(module: String, request_id: Int, message: Dynamic)
 }
 
 // ---------- Request ----------
@@ -1315,7 +1433,7 @@ pub fn decode_request(
   data data: String,
   expected_hash expected_hash: String,
 ) -> Result(RequestEnvelope, List(JsonError)) {
-  let parsed = case json.parse(data, dynamic.dynamic) {
+  let parsed = case json.parse(data, decode.dynamic) {
     Ok(v) -> v
     Error(_) -> return Error([JsonError("", "failed to parse JSON")])
   }
@@ -1408,8 +1526,8 @@ pub fn encode_push(module module: String, value value: json.Json) -> String {
 
 pub fn decode_server_frame(
   data data: String,
-) -> Result(ServerFrame(dynamic.Dynamic), List(JsonError)) {
-  let parsed = case json.parse(data, dynamic.dynamic) {
+) -> Result(ServerFrame(Dynamic), List(JsonError)) {
+  let parsed = case json.parse(data, decode.dynamic) {
     Ok(v) -> v
     Error(_) -> return Error([JsonError("", "failed to parse JSON")])
   }
@@ -1431,8 +1549,8 @@ pub fn decode_server_frame(
 }
 
 fn decode_response_frame_body(
-  parsed: dynamic.Dynamic,
-) -> Result(ServerFrame(dynamic.Dynamic), List(JsonError)) {
+  parsed: Dynamic,
+) -> Result(ServerFrame(Dynamic), List(JsonError)) {
   let request_id = case dynamic.field(parsed, "request_id") {
     Ok(id) -> case dynamic.int(id) {
       Ok(n) -> n
@@ -1446,12 +1564,12 @@ fn decode_response_frame_body(
     Error(_) -> return Error([JsonError("value", "required field missing")])
   }
 
-  Ok(Response(request_id:, value:))
+  Ok(frame.Response(request_id:, value:))
 }
 
 fn decode_push_frame_body(
-  parsed: dynamic.Dynamic,
-) -> Result(ServerFrame(dynamic.Dynamic), List(JsonError)) {
+  parsed: Dynamic,
+) -> Result(ServerFrame(Dynamic), List(JsonError)) {
   let module = case dynamic.field(parsed, "module") {
     Ok(m) -> case dynamic.string(m) {
       Ok(s) -> s
@@ -1465,12 +1583,12 @@ fn decode_push_frame_body(
     Error(_) -> return Error([JsonError("value", "required field missing")])
   }
 
-  Ok(Push(module:, value:))
+  Ok(frame.Push(module:, value:))
 }
 
 fn decode_error_frame_body(
-  parsed: dynamic.Dynamic,
-) -> Result(ServerFrame(dynamic.Dynamic), List(JsonError)) {
+  parsed: Dynamic,
+) -> Result(ServerFrame(Dynamic), List(JsonError)) {
   let request_id = case dynamic.field(parsed, "request_id") {
     Ok(id) -> case dynamic.int(id) {
       Ok(n) -> Some(n)
@@ -1498,7 +1616,7 @@ fn decode_error_frame_body(
     Error(_) -> [#("errors", "required field missing")]
   }
 
-  Ok(Error(request_id:, errors:))
+  Ok(frame.Error(request_id:, errors:))
 }
 
 // ---------- SSR flags ----------
@@ -1510,19 +1628,10 @@ pub fn encode_flags(value: json.Json) -> String {
 
 pub fn decode_flags_typed(
   flags flags: String,
-  decoder_name decoder_name: String,
+  decoder decoder: fn(Dynamic) -> Result(a, List(JsonError)),
 ) -> Result(a, List(JsonError)) {
-  let _ = decoder_name
-  // Typed decode delegation: the caller (generated codec module) will
-  // pass this through to the generated decoder function. This function
-  // just parses the JSON to Dynamic.
-  case json.parse(flags, dynamic.dynamic) {
-    Ok(value) -> {
-      // Caller will apply typed decoder. We just verify valid JSON.
-      // The actual typed decode happens through the generated codec
-      // module, not here.
-      Ok(dynamic.unsafe_coerce(value))
-    }
+  case json.parse(flags, decode.dynamic) {
+    Ok(value) -> decoder(value)
     Error(_) -> Error([JsonError("flags", "failed to parse flags JSON")])
   }
 }
@@ -1530,7 +1639,7 @@ pub fn decode_flags_typed(
 // ---------- Validation helpers ----------
 
 fn validate_kind(
-  parsed: dynamic.Dynamic,
+  parsed: Dynamic,
   expected: String,
 ) -> Result(Nil, List(JsonError)) {
   case dynamic.field(parsed, "kind") {
@@ -1544,7 +1653,7 @@ fn validate_kind(
 }
 
 fn validate_protocol_version(
-  parsed: dynamic.Dynamic,
+  parsed: Dynamic,
 ) -> Result(Nil, List(JsonError)) {
   case dynamic.field(parsed, "protocol_version") {
     Ok(v) -> case dynamic.string(v) {
@@ -1557,7 +1666,7 @@ fn validate_protocol_version(
 }
 
 fn validate_contract_hash(
-  parsed: dynamic.Dynamic,
+  parsed: Dynamic,
   expected_hash: String,
 ) -> Result(Nil, List(JsonError)) {
   case dynamic.field(parsed, "contract_hash") {
@@ -1581,6 +1690,14 @@ fn escape_script_json(input: String) -> String {
   |> string.replace("\u{2029}", "\\u2029")
 }
 ```
+
+The generated JSON codec facade must expose the public name-based boundary:
+
+```gleam
+pub fn decode_flags_typed(flags: String, decoder_name: String) -> Result(a, List(JsonError))
+```
+
+That generated function switches on `decoder_name`, selects the generated typed decoder, then calls `libero/json/wire.decode_flags_typed(flags:, decoder:)`. Do not return raw `Dynamic` or use `unsafe_coerce` here. Rally must keep seeing one typed decode call.
 
 - [ ] **Step 4: Run tests**
 
@@ -1612,14 +1729,22 @@ In `src/libero.gleam`, import the new codegen:
 
 ```gleam
 import libero/json/codegen
+import libero/json/contract
 ```
 
 In the `main()` function, after the `discovered` variable is available and after the existing ETF generation calls, add:
 
 ```gleam
 // JSON contract artifact
-let json_contract = contract.generate(endpoints:, discovered:)
+let json_contract = contract.generate(
+  endpoints:,
+  discovered:,
+  push_types: [],
+  ssr_models: [],
+)
 ```
+
+When Rally calls into Libero generation, pass the real push and SSR model metadata instead of empty lists. Empty lists are acceptable only for the standalone Libero CLI until Rally wires its full surface into the contract call.
 
 And after `write_generated_files(...)`, write the JSON outputs:
 
@@ -1641,12 +1766,20 @@ case discovered {
       Error(errors) -> {
         io.println_error("[libero] JSON codec generation failed:")
         list.each(errors, fn(e) { io.println_error("  " <> e.path <> ": " <> e.message) })
-        Nil
+        panic as "JSON codec generation failed"
       }
     }
   }
 }
 ```
+
+The generated JSON codec source must also include a public name-based SSR helper:
+
+```gleam
+pub fn decode_flags_typed(flags: String, decoder_name: String) -> Result(a, List(JsonError))
+```
+
+It switches on known decoder names and calls `libero/json/wire.decode_flags_typed(flags:, decoder:)` with the matching generated decoder. This preserves the single typed boundary call used by Rally hydration.
 
 Update the `wrote` message to include the new files.
 
@@ -1705,6 +1838,13 @@ fn read_protocol(config: dict.Dict(String, tom.Toml)) -> Result(Protocol, RallyE
 
 Thread `protocol:` into every `ScanConfig` constructor call.
 
+Also thread contract metadata for non-request surfaces through the generation path:
+
+- push modules and their `ToClient` type module/name
+- SSR flag model route module and model type module/name
+
+These values feed `contract.generate(..., push_types:, ssr_models:)`. Do not make external SDK authors infer pushes or SSR models from the discovered type graph alone.
+
 - [ ] **Step 3: Run Rally tests**
 
 ```bash
@@ -1724,25 +1864,38 @@ git commit -m "Add Rally protocol config"
 
 ---
 
-### Task 10: Rally Generated Transport Stays Protocol-Agnostic
+### Task 10: Rally Generated Protocol Facade Keeps Transport Protocol-Agnostic
 
 **Files:**
-- Modify: `src/rally/generator/client.gleam` (emit protocol constant, keep transport agnostic)
-- Test: `test/rally_runtime/transport_boundary_test.gleam` (verify no JSON.parse in generated output)
+- Modify: `src/rally/generator/client.gleam` (emit generated protocol facade and keep transport agnostic)
+- Test: `test/rally_runtime/transport_boundary_test.gleam` (verify no JSON.parse in Rally runtime transport)
 
-- [ ] **Step 1: Emit protocol constant in generated client**
+- [ ] **Step 1: Generate a protocol facade, not an informational constant**
 
-In `client.gleam`, the generated `transport.gleam` should include a protocol constant based on the `ScanConfig.protocol` value:
+In `client.gleam`, generate a protocol-specific facade module beside the generated transport. Name it something like `generated/libero/protocol_wire.gleam` and, for the JavaScript target, `generated/libero/protocol_wire.mjs`.
 
-```gleam
-pub const protocol = "<etf or json>"
-```
+A bare constant such as `pub const protocol = "json"` is not enough. The protocol choice must change which Libero boundary implementation is called.
 
-This is informational for the generated code; the actual protocol dispatch happens in Libero's FFI.
+For ETF, the facade delegates to the existing ETF helpers:
+
+- `libero/wire.encode_request`
+- `libero/wire.decode_server_frame`
+- `libero/wire.encode_flags`
+- `libero/wire.decode_flags_typed`
+
+For JSON, the facade delegates to the generated JSON typed codecs plus `libero/json/wire`:
+
+- request messages are first encoded with the generated JSON message encoder, then wrapped by `json/wire.encode_request`
+- server frames are decoded with `json/wire.decode_server_frame`, then routed through the generated JSON typed decoder selected by request ID or push module
+- SSR flags call the generated name-based `decode_flags_typed`, which selects a typed decoder and calls `json/wire.decode_flags_typed(flags:, decoder:)`
+
+Rally runtime code may choose the generated facade module, but it must not inspect JSON envelopes or reconstruct user custom types.
 
 - [ ] **Step 2: Verify transport stays agnostic**
 
-The generated `transport_ffi.mjs` must not contain `JSON.parse` or `JSON.stringify` for protocol handling. Those stay in Libero's `rpc_ffi.mjs`. The transport continues to call `encode_request` and `decode_server_frame` from Libero, which handles protocol dispatch internally.
+The generated transport and `rally_runtime/transport_ffi.mjs` must not contain `JSON.parse` or `JSON.stringify` for protocol handling. JSON parsing/stringifying belongs to Libero-generated protocol code, not Rally runtime code.
+
+The transport continues to call boundary names such as `encode_request` and `decode_server_frame`, but it imports them from the generated protocol facade. This is the switch point that makes the protocol config real while keeping Rally oblivious to the wire format.
 
 - [ ] **Step 3: Run Rally tests**
 
@@ -1757,8 +1910,8 @@ Expected: all Rally tests pass.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/rally/generator/client.gleam
-git commit -m "Emit protocol constant in generated transport"
+git add src/rally/generator/client.gleam test/rally_runtime/transport_boundary_test.gleam
+git commit -m "Generate protocol wire facade"
 ```
 
 ---
@@ -1774,9 +1927,12 @@ Create `test/libero/json_wire_roundtrip_test.gleam`:
 
 ```gleam
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import gleeunit/should
-import libero/json/error.{type JsonError}
+import libero/frame
+import libero/json/error.{JsonError}
 import libero/json/wire
 
 pub fn request_encode_then_decode_roundtrip_test() {
@@ -1814,7 +1970,7 @@ pub fn response_roundtrip_test() {
   let encoded = wire.encode_response(request_id: 1, value:)
 
   case wire.decode_server_frame(encoded) {
-    Ok(Response(request_id: 1, value:)) -> Nil
+    Ok(frame.Response(request_id: 1, value:)) -> Nil
     other -> should.fail("unexpected decode result: " <> string.inspect(other))
   }
 }
@@ -1829,7 +1985,7 @@ pub fn push_roundtrip_test() {
   let encoded = wire.encode_push(module: "public/pages/article", value:)
 
   case wire.decode_server_frame(encoded) {
-    Ok(Push(module: "public/pages/article", value:)) -> Nil
+    Ok(frame.Push(module: "public/pages/article", value:)) -> Nil
     other -> should.fail("unexpected decode result: " <> string.inspect(other))
   }
 }
@@ -1840,7 +1996,7 @@ pub fn error_roundtrip_test() {
   let encoded = wire.encode_error(request_id: Some(1), errors:)
 
   case wire.decode_server_frame(encoded) {
-    Ok(Error(request_id: Some(1), errors:)) -> should.equal(errors, [#("fields.slug", "expected String, got Null")])
+    Ok(frame.Error(request_id: Some(1), errors:)) -> should.equal(errors, [#("fields.slug", "expected String, got Null")])
     other -> should.fail("unexpected decode result: " <> string.inspect(other))
   }
 }

@@ -16,9 +16,11 @@ import libero/scanner
 import libero/walker.{type DiscoveredType}
 import libero/wire_identity
 
+pub type ExtraParam {
+  ExtraParam(name: String, type_ref: String, import_line: String)
+}
+
 /// Generate dispatch.gleam source from scanned endpoints.
-/// The generated dispatch function signature:
-///   pub fn handle(ctx: a, data: BitArray) -> #(BitArray, a)
 pub fn generate(
   endpoints endpoints: List(scanner.HandlerEndpoint),
   context_module context_module: String,
@@ -27,6 +29,49 @@ pub fn generate(
   atoms_module atoms_module: option.Option(String),
   wire_module wire_module: option.Option(String),
 ) -> String {
+  generate_with_extra_params(
+    endpoints:,
+    context_module:,
+    context_type_name:,
+    wire_module_tag:,
+    atoms_module:,
+    wire_module:,
+    extra_params: [],
+  )
+}
+
+/// Generate dispatch with additional pass-through parameters on handle()
+/// and every handler call. Each ExtraParam adds an import, a function
+/// parameter, and a labeled argument threaded to handlers.
+pub fn generate_with_extra_params(
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+  context_module context_module: String,
+  context_type_name context_type_name: String,
+  wire_module_tag wire_module_tag: String,
+  atoms_module atoms_module: option.Option(String),
+  wire_module wire_module: option.Option(String),
+  extra_params extra_params: List(ExtraParam),
+) -> String {
+  let extra_import_lines =
+    extra_params
+    |> list.filter(fn(p) { p.import_line != "" })
+    |> list.map(fn(p) { p.import_line })
+    |> list.unique
+  let extra_handle_params =
+    extra_params
+    |> list.map(fn(p) {
+      "\n  " <> p.name <> " " <> p.name <> ": " <> p.type_ref <> ","
+    })
+    |> string.join("")
+  let extra_call_args =
+    extra_params
+    |> list.map(fn(p) { ", " <> p.name })
+    |> string.join("")
+  let extra_handler_args =
+    extra_params
+    |> list.map(fn(p) { ", " <> p.name <> ":" })
+    |> string.join("")
+
   let handler_modules =
     endpoints
     |> list.map(fn(e) { e.module_path })
@@ -80,11 +125,14 @@ pub fn generate(
       "        Ok(\"server_"
       <> e.fn_name
       <> "\") ->\n"
-      <> "          dispatch_known(msg, request_id, server_context)"
+      <> "          dispatch_known(msg, request_id, server_context"
+      <> extra_call_args
+      <> ")"
     })
     |> string.join("\n")
 
-  let case_arms = list.map(endpoints, emit_case_arm(_, wire_module))
+  let case_arms =
+    list.map(endpoints, emit_case_arm(_, wire_module, extra_handler_args))
 
   let atoms_external = case atoms_module {
     option.Some(mod) ->
@@ -152,7 +200,7 @@ fn ensure_atoms() -> Nil
   let dispatch_known = case endpoints {
     [] -> ""
     _ -> "
-fn dispatch_known(msg, request_id, server_context) {
+fn dispatch_known(msg, request_id, server_context" <> extra_call_args <> ") {
   case trace.try_call(fn() {
 " <> decode_msg_call <> "  let typed_msg: ClientMsg = wire.coerce(msg)
   case typed_msg {
@@ -179,14 +227,17 @@ import libero/wire" <> dict_import <> option_import <> "
 import " <> context_module <> ".{type " <> context_type_name <> "}
 " <> string.join(handler_imports, "\n") <> "
 " <> string.join(shared_type_imports, "\n") <> "
-" <> atoms_external <> wire_externals <> "
+" <> case extra_import_lines {
+    [] -> ""
+    lines -> string.join(lines, "\n") <> "\n"
+  } <> atoms_external <> wire_externals <> "
 pub type ClientMsg {
 " <> string.join(client_msg_variants, "\n") <> "
 }
 
 pub fn handle(
   server_context server_context: " <> context_type_name <> ",
-  data data: BitArray,
+  data data: BitArray," <> extra_handle_params <> "
 ) -> #(BitArray, " <> context_type_name <> ") {
   " <> ensure_call <> "case wire.decode_call(data) {
     Ok(#(\"" <> wire_module_tag <> "\", request_id, msg)) -> {
@@ -206,6 +257,7 @@ pub fn handle(
 fn emit_case_arm(
   e: scanner.HandlerEndpoint,
   wire_module: option.Option(String),
+  extra_handler_args: String,
 ) -> String {
   let variant_name = codegen.to_pascal_case("server_" <> e.fn_name)
   let alias = handler_alias(e.module_path)
@@ -213,10 +265,14 @@ fn emit_case_arm(
     codegen.variant_pattern(variant_name:, params: e.params)
 
   let handler_args = case e.msg_type {
-    option.Some(_) -> "msg: wire.coerce(typed_msg), server_context:"
+    option.Some(_) ->
+      "msg: wire.coerce(typed_msg), server_context:" <> extra_handler_args
     option.None -> {
       let labeled = list.map(e.params, fn(p) { p.0 <> ":" })
-      string.join(list.append(labeled, ["server_context:"]), ", ")
+      string.join(
+        list.append(labeled, ["server_context:" <> extra_handler_args]),
+        ", ",
+      )
     }
   }
   let raw_call =

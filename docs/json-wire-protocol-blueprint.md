@@ -77,6 +77,11 @@ the protocol in generated config and may pass text frames instead of binary
 frames, but routing, timeouts, topics, reconnects, hydration, and dispatch should
 stay protocol-agnostic.
 
+For JSON, the static `libero/json/wire` helper takes a decoder function for SSR
+flags. The generated Libero codec facade keeps the public name-based
+`decode_flags_typed(flags, decoder_name)` boundary by selecting the typed decoder
+and passing it to that helper. Rally never receives raw dynamic flag data.
+
 ## Identity Rule
 
 JSON must preserve Libero's source identity rule. A constructor name is never
@@ -267,8 +272,9 @@ For JSON, SSR flags are the encoded typed value itself:
 }
 ```
 
-Rally still calls `encode_flags` on the server and `decode_flags_typed` during
-hydration. Rally should not parse this shape directly.
+Rally still calls `encode_flags` on the server and the generated
+`decode_flags_typed(flags, decoder_name)` facade during hydration. Rally should
+not parse this shape directly.
 
 ## Typed Value Shape
 

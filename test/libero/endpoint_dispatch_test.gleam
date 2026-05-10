@@ -728,6 +728,236 @@ pub fn dispatch_no_wire_externals_when_wire_module_none_test() {
   let assert False = string.contains(content, "wire_encode_response_")
 }
 
+// -- Extra params tests --
+
+pub fn dispatch_extra_params_adds_import_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "get_items",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_with_extra_params(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+      extra_params: [
+        codegen_dispatch.ExtraParam(
+          name: "identity",
+          type_ref: "auth.Identity",
+          import_line: "import admin/auth",
+        ),
+      ],
+    )
+
+  let assert True = string.contains(content, "import admin/auth")
+}
+
+pub fn dispatch_extra_params_on_handle_signature_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "get_items",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_with_extra_params(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+      extra_params: [
+        codegen_dispatch.ExtraParam(
+          name: "identity",
+          type_ref: "auth.Identity",
+          import_line: "import admin/auth",
+        ),
+      ],
+    )
+
+  let assert True = string.contains(content, "identity identity: auth.Identity")
+}
+
+pub fn dispatch_extra_params_threaded_to_handler_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "get_items",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_with_extra_params(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+      extra_params: [
+        codegen_dispatch.ExtraParam(
+          name: "identity",
+          type_ref: "auth.Identity",
+          import_line: "import admin/auth",
+        ),
+      ],
+    )
+
+  let assert True =
+    string.contains(content, "server_get_items(server_context:, identity:)")
+}
+
+pub fn dispatch_extra_params_threaded_to_dispatch_known_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "get_items",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: True,
+      msg_type: option.None,
+    ),
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "delete_item",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [#("id", field_type.IntField)],
+      mutates_context: True,
+      msg_type: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_with_extra_params(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+      extra_params: [
+        codegen_dispatch.ExtraParam(
+          name: "identity",
+          type_ref: "auth.Identity",
+          import_line: "import admin/auth",
+        ),
+      ],
+    )
+
+  let assert True =
+    string.contains(
+      content,
+      "dispatch_known(msg, request_id, server_context, identity)",
+    )
+  let assert True =
+    string.contains(
+      content,
+      "fn dispatch_known(msg, request_id, server_context, identity)",
+    )
+}
+
+pub fn dispatch_extra_params_two_params_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "get_items",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_with_extra_params(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+      extra_params: [
+        codegen_dispatch.ExtraParam(
+          name: "identity",
+          type_ref: "auth.Identity",
+          import_line: "import admin/auth",
+        ),
+        codegen_dispatch.ExtraParam(
+          name: "org_id",
+          type_ref: "Int",
+          import_line: "",
+        ),
+      ],
+    )
+
+  let assert True =
+    string.contains(
+      content,
+      "identity identity: auth.Identity,\n  org_id org_id: Int,",
+    )
+  let assert True =
+    string.contains(
+      content,
+      "server_get_items(server_context:, identity:, org_id:)",
+    )
+}
+
+pub fn dispatch_zero_extra_params_unchanged_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "get_items",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+  ]
+  let with_extra =
+    codegen_dispatch.generate_with_extra_params(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+      extra_params: [],
+    )
+  let without_extra =
+    codegen_dispatch.generate(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+    )
+
+  let assert True = with_extra == without_extra
+}
+
 @external(erlang, "libero_ffi", "find_executable")
 fn find_executable(name: String) -> option.Option(String)
 

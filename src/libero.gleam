@@ -172,6 +172,10 @@ pub fn walk(
   walker.walk(seeds, list.append(server_files, shared_files))
 }
 
+/// Re-export so consumers can build extra dispatch parameters.
+pub type ExtraParam =
+  codegen_dispatch.ExtraParam
+
 /// Generate the server dispatch module source.
 pub fn generate_dispatch(
   endpoints endpoints: List(HandlerEndpoint),
@@ -185,6 +189,25 @@ pub fn generate_dispatch(
     "rpc",
     atoms_module,
     wire_module,
+  )
+}
+
+/// Generate dispatch with extra pass-through parameters on handle()
+/// and every handler call.
+pub fn generate_dispatch_with_extra_params(
+  endpoints endpoints: List(HandlerEndpoint),
+  atoms_module atoms_module: option.Option(String),
+  wire_module wire_module: option.Option(String),
+  extra_params extra_params: List(ExtraParam),
+) -> String {
+  codegen_dispatch.generate_with_extra_params(
+    endpoints,
+    default_context_module,
+    "ServerContext",
+    "rpc",
+    atoms_module,
+    wire_module,
+    extra_params,
   )
 }
 
