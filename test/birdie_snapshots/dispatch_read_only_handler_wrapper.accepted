@@ -31,15 +31,15 @@ pub fn handle(
         Ok("server_rename_thing") ->
           dispatch_known(msg, request_id, server_context)
         Ok(tag) ->
-          #(wire.tag_response(request_id:, data: wire.encode(Error(UnknownFunction("rpc." <> tag)))), server_context)
+          #(wire.encode_response(request_id:, value:Error(UnknownFunction("rpc." <> tag))), server_context)
         Error(_) ->
-          #(wire.tag_response(request_id:, data: wire.encode(Error(MalformedRequest))), server_context)
+          #(wire.encode_response(request_id:, value:Error(MalformedRequest)), server_context)
       }
     }
     Ok(#(name, request_id, _)) ->
-      #(wire.tag_response(request_id:, data: wire.encode(Error(UnknownFunction(name)))), server_context)
+      #(wire.encode_response(request_id:, value:Error(UnknownFunction(name))), server_context)
     Error(_) ->
-      #(wire.tag_response(request_id: 0, data: wire.encode(Error(MalformedRequest))), server_context)
+      #(wire.encode_response(request_id: 0, value: Error(MalformedRequest)), server_context)
   }
 }
 
@@ -50,24 +50,24 @@ fn dispatch_known(msg, request_id, server_context) {
         ServerListThings -> {
           case trace.try_call(fn() { server_handler_handler.server_list_things(server_context:) }) {
             Ok(result) -> {
-              #(wire.tag_response(request_id:, data: wire.encode(Ok(result))), server_context)
+              #(wire.encode_response(request_id:, value:Ok(result)), server_context)
             }
             Error(reason) -> {
               let trace_id = trace.new_trace_id()
               io.println_error("[libero] " <> trace_id <> " list_things: " <> reason)
-              #(wire.tag_response(request_id:, data: wire.encode(Error(InternalError(trace_id:, message: "Something went wrong")))), server_context)
+              #(wire.encode_response(request_id:, value:Error(InternalError(trace_id:, message: "Something went wrong"))), server_context)
             }
           }
         }
         ServerRenameThing(id:) -> {
           case trace.try_call(fn() { server_handler_handler.server_rename_thing(id:, server_context:) }) {
             Ok(#(result, new_ctx)) -> {
-              #(wire.tag_response(request_id:, data: wire.encode(Ok(result))), new_ctx)
+              #(wire.encode_response(request_id:, value:Ok(result)), new_ctx)
             }
             Error(reason) -> {
               let trace_id = trace.new_trace_id()
               io.println_error("[libero] " <> trace_id <> " rename_thing: " <> reason)
-              #(wire.tag_response(request_id:, data: wire.encode(Error(InternalError(trace_id:, message: "Something went wrong")))), server_context)
+              #(wire.encode_response(request_id:, value:Error(InternalError(trace_id:, message: "Something went wrong"))), server_context)
             }
           }
         }
@@ -77,7 +77,7 @@ fn dispatch_known(msg, request_id, server_context) {
     Error(reason) -> {
       let trace_id = trace.new_trace_id()
       io.println_error("[libero] " <> trace_id <> " malformed message: " <> reason)
-      #(wire.tag_response(request_id:, data: wire.encode(Error(MalformedRequest))), server_context)
+      #(wire.encode_response(request_id:, value:Error(MalformedRequest)), server_context)
     }
   }
 }

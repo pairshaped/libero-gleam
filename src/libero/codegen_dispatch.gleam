@@ -106,20 +106,20 @@ fn ensure_atoms() -> Nil
   let inner_case = case endpoints {
     [] ->
       "        Ok(_) ->\n"
-      <> "          #(wire.tag_response(request_id:, data: wire.encode(Error(UnknownFunction(\""
+      <> "          #(wire.encode_response(request_id:, value:Error(UnknownFunction(\""
       <> wire_module_tag
-      <> "\")))), server_context)\n"
+      <> "\"))), server_context)\n"
       <> "        Error(_) ->\n"
-      <> "          #(wire.tag_response(request_id:, data: wire.encode(Error(MalformedRequest))), server_context)"
+      <> "          #(wire.encode_response(request_id:, value:Error(MalformedRequest)), server_context)"
     _ ->
       known_tag_arms
       <> "\n"
       <> "        Ok(tag) ->\n"
-      <> "          #(wire.tag_response(request_id:, data: wire.encode(Error(UnknownFunction(\""
+      <> "          #(wire.encode_response(request_id:, value:Error(UnknownFunction(\""
       <> wire_module_tag
-      <> ".\" <> tag)))), server_context)\n"
+      <> ".\" <> tag))), server_context)\n"
       <> "        Error(_) ->\n"
-      <> "          #(wire.tag_response(request_id:, data: wire.encode(Error(MalformedRequest))), server_context)"
+      <> "          #(wire.encode_response(request_id:, value:Error(MalformedRequest)), server_context)"
   }
 
   let wire_externals = case wire_module, endpoints {
@@ -163,7 +163,7 @@ fn dispatch_known(msg, request_id, server_context) {
     Error(reason) -> {
       let trace_id = trace.new_trace_id()
       io.println_error(\"[libero] \" <> trace_id <> \" malformed message: \" <> reason)
-      #(wire.tag_response(request_id:, data: wire.encode(Error(MalformedRequest))), server_context)
+      #(wire.encode_response(request_id:, value:Error(MalformedRequest)), server_context)
     }
   }
 }
@@ -195,9 +195,9 @@ pub fn handle(
       }
     }
     Ok(#(name, request_id, _)) ->
-      #(wire.tag_response(request_id:, data: wire.encode(Error(UnknownFunction(name)))), server_context)
+      #(wire.encode_response(request_id:, value:Error(UnknownFunction(name))), server_context)
     Error(_) ->
-      #(wire.tag_response(request_id: 0, data: wire.encode(Error(MalformedRequest))), server_context)
+      #(wire.encode_response(request_id: 0, value: Error(MalformedRequest)), server_context)
   }
 }
 " <> dispatch_known
@@ -247,7 +247,7 @@ fn emit_case_arm(
   <> ok_destructure
   <> ") -> {\n"
   <> encode_line
-  <> "              #(wire.tag_response(request_id:, data: wire.encode(Ok(result))), "
+  <> "              #(wire.encode_response(request_id:, value:Ok(result)), "
   <> ok_ctx
   <> ")\n"
   <> "            }\n"
@@ -256,7 +256,7 @@ fn emit_case_arm(
   <> "              io.println_error(\"[libero] \" <> trace_id <> \" "
   <> e.fn_name
   <> ": \" <> reason)\n"
-  <> "              #(wire.tag_response(request_id:, data: wire.encode(Error(InternalError(trace_id:, message: \"Something went wrong\")))), server_context)\n"
+  <> "              #(wire.encode_response(request_id:, value:Error(InternalError(trace_id:, message: \"Something went wrong\"))), server_context)\n"
   <> "            }\n"
   <> "          }\n"
   <> "        }"
