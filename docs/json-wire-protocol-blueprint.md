@@ -1,98 +1,151 @@
-# JSON Wire Protocol Spike
+# JSON Wire Protocol Blueprint
 
-Status: research note, updated after contract-boundary work
+Status: blueprint
 Date: 2026-05-10
 
-## Current Belief
+## Summary
 
-Adding JSON only makes sense if JSON becomes an interop-friendly public
-protocol. ETF should stay: the existing ETF work is valuable, fast, and already
-fits BEAM-shaped deployments. Swapping ETF bytes for JSON while preserving BEAM
-term shapes would keep most of the hard parts: constructor identity, tuple/list
-distinctions, `Nil` vs `None`, `Dict`, `Float` handling, typed reconstruction,
-and hostile input checks.
+Libero should add JSON as a second RPC protocol behind the protocol boundary that
+already exists. ETF remains the native protocol for Gleam, Lustre, and BEAM-first
+deployments. JSON exists for generated SDKs, external tools, debugging,
+inspection, and client code that should not need an ETF implementation.
 
-The contract boundary work has landed. Rally now talks to Libero through
-protocol-level operations for requests, responses, pushes, and SSR flags. That
-changes the JSON question. JSON no longer needs to be the thing that creates the
-boundary. It is now a possible second protocol behind a boundary Libero already
-owns.
+This is an RPC protocol. It serializes Libero messages, frames, pushes, and SSR
+flags. It is not a REST resource surface.
 
-The win is not likely to be raw simplicity inside Libero. The win would be that
-non-Gleam clients can understand and produce the protocol without implementing
-ETF or knowing BEAM runtime shapes.
+The first JSON version has one public shape: readable JSON. There is no compact,
+condensed, indexed, or positional mode in this blueprint. Compression can handle
+repeated structural fields for most real traffic, and extra modes would add
+support cost before we know they are needed.
 
-The intended product shape is multiple Libero-owned protocols. Gleam and Lustre
-clients can keep using ETF and benefit from the existing native path. A Rust
-CLI, Go tool, or hand-written JavaScript client can choose JSON for interop.
-Both protocols should be generated from the same handler-derived contract.
+## Goals
 
-## Why Consider JSON
+- Keep normal Gleam handlers and types as the source of truth.
+- Keep Rally and downstream apps behind Libero protocol helpers.
+- Make the JSON shape readable enough for logs, fixtures, docs, and SDK authors.
+- Make generated SDKs possible without requiring ETF knowledge.
+- Preserve ETF behavior and performance for existing Gleam and Rally users.
+- Give malformed input structured errors with useful paths.
+- Make contract changes visible through a generated contract artifact.
 
-ETF has strong performance and maps naturally to BEAM terms, but it makes Libero
-harder to use outside the Gleam and Rally world. A configured JSON protocol
-could make these consumers realistic:
+## Non-Goals
 
-- JavaScript clients that do not use generated Gleam output.
-- Rust or Go command-line clients.
-- Human debugging and message inspection.
-- Documentation generated from the same contract Libero already derives.
+- Replace ETF.
+- Create a REST API.
+- Generate Rust or Go clients in the first JSON branch.
+- Support multiple JSON output modes.
+- Support batched requests or streaming responses.
+- Preserve wire compatibility with the ETF frame bytes.
+- Let consumers build protocol envelopes by hand inside Rally or v3.
 
-The trade-off is real. JSON encode/decode will almost certainly be slower,
-especially on the BEAM side where `term_to_binary` and `binary_to_term` are very
-fast. The older benchmarks already show the shape of that cost. The branch
-should not try to prove JSON is faster. It should prove the ecosystem story is
-worth the added validation work.
+## Development Rule
 
-## Direction
+JSON protocol implementation must happen on isolated Libero and Rally worktree
+branches. Do not implement this directly on `master`.
 
-Libero should keep normal Gleam code as the source of truth:
+This work touches protocol config, codegen, generated artifacts, runtime FFI, and
+Rally integration. It will be disruptive while in progress. Use paired sibling
+worktrees so Rally's path dependency points at the Libero JSON branch:
 
 ```text
-Gleam handlers and types
-  -> Libero scanner and walker
-  -> generated JSON contract artifact
-  -> generated server decoders and encoders
-  -> generated client decoders and encoders
-  -> external client generators later
+json-wire-worktrees/
+  libero/
+  rally/
 ```
 
-This keeps Libero distinct from schema-first tools. Users should not have to
-write a parallel protocol file just to expose a handler.
+Commit each slice independently. ETF tests should keep passing after each slice.
+If a slice cannot pass tests on its own, the commit message must say why and the
+next commit must close that gap.
 
-## Boundary State After The ETF Work
+## Boundary Rule
 
-The current ETF path is now much closer to the shape JSON would need:
+All protocol traffic goes through Libero-owned operations:
 
-- `encode_request` owns outbound request envelopes.
-- `decode_server_frame` owns response and push frame decoding.
-- `encode_response` owns server response frames.
-- `encode_push` owns server push frames after typed pre-encoding.
-- `encode_flags` and `decode_flags_typed` own SSR flag encoding and hydration.
-- Generated wire modules own type identity for values that cross the protocol.
+```text
+encode_request(module, request_id, msg)
+decode_request(data)
+encode_response(request_id, value)
+decode_server_frame(data)
+encode_push(module, value)
+encode_flags(value)
+decode_flags_typed(flags, decoder_name)
+```
 
-That last point matters most. The generic ETF encoder is no longer expected to
-guess user custom type identity from bare BEAM atoms. Typed values must pass
-through generated encoders before they hit the raw codec. JSON should follow the
-same rule: generated typed encoders and decoders sit at the boundary, and raw
-JSON parsing is only the transport format underneath.
+The configured protocol decides whether these operations produce ETF bytes or
+JSON text. Consumer code should not branch on ETF versus JSON. Rally may choose
+the protocol in generated config and may pass text frames instead of binary
+frames, but routing, timeouts, topics, reconnects, hydration, and dispatch should
+stay protocol-agnostic.
 
-The rule for any JSON branch is now stricter: Rally and downstream apps should
-not gain JSON-specific logic. They may regenerate generated modules and choose a
-protocol config, but transport lifecycle, push routing, response routing, and
-hydration should continue to call Libero-owned facade functions.
+## Identity Rule
 
-## Public JSON Shape
+JSON must preserve Libero's source identity rule. A constructor name is never
+enough to identify a value. The identity basis is:
 
-The JSON format should be readable and stable enough to document. A request
-could look like this:
+```text
+module path + type name + constructor name + field types
+```
+
+The readable JSON shape may include `"variant": "Loaded"` for humans, but
+generated encoders and decoders must validate the surrounding `"type"` and field
+contract before constructing a value. Two modules can both define `Loaded`, and
+they must remain distinct on the wire.
+
+This is the rule we do not break:
+
+- No global lookup indexed by bare constructor name.
+- No dispatch indexed only by constructor name and arity.
+- No fallback that guesses a type from a JSON object shape.
+- No consumer responsibility to make names unique.
+
+If JSON cannot preserve source identity through generated typed encoders and
+decoders, the JSON protocol should not ship.
+
+## Protocol Selection
+
+Libero should expose protocol selection as generated configuration. The exact
+Gleam API can follow existing config patterns, but the model is:
+
+```gleam
+pub type Protocol {
+  Etf
+  Json
+}
+```
+
+`Etf` is the default. `Json` selects the readable JSON protocol described here.
+The choice should be explicit config, not environment-derived. A production
+system may expose JSON to third-party clients, and a development system may use
+ETF while testing internal flows.
+
+## Transport Encoding
+
+ETF uses the current binary format.
+
+JSON uses UTF-8 JSON text:
+
+- WebSocket JSON messages should be text frames.
+- HTTP JSON RPC should use `application/json` unless a more specific media type
+  is introduced later.
+- SSR flags should be a JSON string that is safe to embed in a script tag.
+
+`encode_flags` must escape `<`, `>`, `&`, U+2028, and U+2029 before the JSON is
+written into HTML.
+
+## Envelope Shapes
+
+### Request
 
 ```json
 {
+  "kind": "request",
+  "protocol_version": "json-rpc-v1",
+  "contract_hash": "example-contract-hash",
   "module": "rpc",
   "request_id": 1,
   "message": {
-    "type": "server_get_article",
+    "type": "shared/messages.MsgFromClient",
+    "variant": "GetArticle",
     "fields": {
       "slug": "hello-world"
     }
@@ -100,11 +153,147 @@ could look like this:
 }
 ```
 
-A custom type could use a source-qualified type tag:
+Rules:
+
+- `kind` must be `"request"`.
+- `protocol_version` must match the server's JSON protocol version.
+- `contract_hash` must match the generated contract artifact the server is
+  using.
+- `module` is the same logical module tag used by the ETF request helper.
+- `request_id` must be an integer from `0` through `4294967295`, matching the
+  current ETF request ID range.
+- `message` is a typed Libero value.
+
+The protocol version and contract hash are not a full negotiation system. The
+first JSON version uses fail-fast compatibility checks: if either value does not
+match, the server returns a protocol error response instead of trying to decode
+the message.
+
+### Response
 
 ```json
 {
-  "type": "public/pages/article.Article",
+  "kind": "response",
+  "protocol_version": "json-rpc-v1",
+  "request_id": 1,
+  "value": {
+    "type": "gleam/result.Result",
+    "variant": "Ok",
+    "fields": [
+      {
+        "type": "shared/article.Article",
+        "variant": "Loaded",
+        "fields": {
+          "title": "Hello",
+          "body": "..."
+        }
+      }
+    ]
+  }
+}
+```
+
+Rules:
+
+- `kind` must be `"response"`.
+- `protocol_version` must be `"json-rpc-v1"`.
+- `request_id` must match a client request.
+- `value` is the generated dispatch response value for that request.
+
+### Error
+
+```json
+{
+  "kind": "error",
+  "protocol_version": "json-rpc-v1",
+  "request_id": 1,
+  "errors": [
+    {
+      "path": "message.fields.slug",
+      "message": "expected String, got Null"
+    }
+  ]
+}
+```
+
+Rules:
+
+- `kind` must be `"error"`.
+- `protocol_version` must be `"json-rpc-v1"`.
+- `request_id` is present when the request ID could be read safely. It is `null`
+  when the request ID was missing, malformed, or unsafe.
+- `errors` must contain at least one structured protocol error.
+- SDKs should surface this as a transport/protocol error, not as a handler
+  domain error.
+
+### Push
+
+```json
+{
+  "kind": "push",
+  "protocol_version": "json-rpc-v1",
+  "module": "public/pages/article",
+  "value": {
+    "type": "public/pages/article.ToClient",
+    "variant": "CommentsUpdated",
+    "fields": {
+      "comments": []
+    }
+  }
+}
+```
+
+Rules:
+
+- `kind` must be `"push"`.
+- `protocol_version` must be `"json-rpc-v1"`.
+- `module` is a Libero/Rally channel tag, not always a Gleam module path. For
+  RPC requests it is usually `"rpc"`. For Rally page pushes it is the page tag
+  used by generated routing. For client context it is `"__ClientContext__"`.
+- `value` must pass through the generated typed push encoder before framing.
+
+### SSR Flags
+
+For JSON, SSR flags are the encoded typed value itself:
+
+```json
+{
+  "type": "public/pages/article.Model",
+  "variant": "Model",
+  "fields": {
+    "article": null,
+    "loading": true
+  }
+}
+```
+
+Rally still calls `encode_flags` on the server and `decode_flags_typed` during
+hydration. Rally should not parse this shape directly.
+
+## Typed Value Shape
+
+Custom types encode as:
+
+```json
+{
+  "type": "module/path.TypeName",
+  "variant": "VariantName",
+  "fields": {}
+}
+```
+
+For labelled constructor fields, `fields` is an object whose entries are the
+source labels:
+
+```gleam
+pub type Article {
+  Article(title: String, body: String)
+}
+```
+
+```json
+{
+  "type": "shared/article.Article",
   "variant": "Article",
   "fields": {
     "title": "Hello",
@@ -113,168 +302,242 @@ A custom type could use a source-qualified type tag:
 }
 ```
 
-The exact shape is still open. The branch should compare at least two shapes:
+For unlabelled constructor fields, `fields` is an array in declaration order:
 
-- Field-name objects: readable, good for external clients, larger payloads.
-- Positional arrays with a contract artifact: smaller and more rename-tolerant,
-  but less friendly for external clients.
-
-Given the interop goal, field-name objects are the default recommendation unless
-they create too much code or ambiguity.
-
-If JSON lands, Libero should expose protocol selection in config. ETF remains a
-valid protocol. JSON may also need an explicit output mode:
-
-- `protocol = "etf"`: current binary protocol, optimized for Gleam/Rally and
-  BEAM-shaped deployments.
-- `protocol = "json"`: public JSON protocol, optimized for interop.
-- `verbose`: readable field-name objects intended for third-party clients,
-  debugging, and public documentation.
-- `condensed`: smaller generated JSON, likely using positional fields and the
-  contract artifact as the map.
-
-This should not be tied to dev/prod environment. A production API may need
-verbose JSON for external clients, and a development system may want condensed
-JSON to test the production wire shape. Because Libero generates both sides of
-the Gleam/Rally boundary, protocol and output mode can stay opaque to user
-handler code.
-
-## Security And Stability
-
-Libero should own the wire boundary. A generic JSON codec can parse text, but it
-cannot decide Libero's contract behavior.
-
-The generated JSON path needs explicit checks for:
-
-- Unknown message type.
-- Unknown variant.
-- Missing required field.
-- Unknown field, unless we choose to allow it for forward compatibility.
-- Field value with the wrong type.
-- Non-finite or unsafe numeric values.
-- Oversized strings, arrays, and objects.
-- Excessive nesting depth.
-- Malformed base64 for `BitArray`.
-
-Errors should include useful paths, for example:
-
-```text
-article.author.id: expected Int, got String
+```gleam
+pub type Pair {
+  Pair(String, Int)
+}
 ```
 
-The contract artifact should make accidental breaking changes visible. Skir's
-snapshot checks are a good reference point here.
+```json
+{
+  "type": "shared/pair.Pair",
+  "variant": "Pair",
+  "fields": ["count", 2]
+}
+```
 
-## Adjacent Projects
+Zero-field variants use an empty object:
 
-### Skir
+```json
+{
+  "type": "shared/status.Status",
+  "variant": "Ready",
+  "fields": {}
+}
+```
 
-Skir is schema-first. Users write `.skir` files and generate code for many
-languages. Its most relevant ideas are stable field and variant numbers,
-removed slots, readable vs dense JSON modes, generated clients, and snapshot
-checks.
+The JSON branch must extend type discovery so generated codecs know whether each
+constructor field was labelled. The current ETF wire identity can stay based on
+field order and field types. JSON readability needs labels where source code has
+labels.
 
-Skir is not a fit as Libero's model because it makes the schema the source of
-truth. Libero's source of truth is normal Gleam handler code.
+Constructors with mixed labelled and unlabelled fields are rejected by the JSON
+codegen in the first branch. They remain valid for ETF. Rejection is less clever
+than inventing a half-object half-array JSON shape, and it keeps the public JSON
+surface easy to explain. A later branch can add a tagged mixed-field shape if a
+real contract needs it.
 
-Reference: <https://github.com/gepheum/skir>
+Readable names are not identity by themselves. The generated JSON decoder must
+enter through an expected type or through a contract artifact lookup that
+includes the full source identity. It must not accept `"variant": "Article"` and
+then search globally for a matching constructor.
 
-### Sara
+## Built-In Type Shapes
 
-Sara scans Gleam source and generates JSON encode/decode functions for annotated
-custom types. It is closer to Libero than Skir because it derives code from
-Gleam source.
+Built-ins use typed context from the generated decoder. Decoders should reject
+the same JSON shape when it appears at the wrong expected type.
 
-The useful ideas are recursive type handling, custom codec escape hatches, and
-the general shape of generated companion codecs.
+| Gleam type | JSON shape |
+| --- | --- |
+| `String` | JSON string |
+| `Bool` | JSON boolean |
+| `Int` | JSON integer within JavaScript safe integer range |
+| `Float` | JSON number, excluding `NaN`, `Infinity`, and `-Infinity` |
+| `Nil` | `null` |
+| `List(a)` | JSON array |
+| `Dict(String, a)` | JSON object |
+| `Dict(k, v)` for non-string `k` | JSON array of two-item arrays |
+| `Tuple` | JSON array in tuple order |
+| `BitArray` | Base64 string with standard padding |
+| `Option(a)` | Typed custom shape with variants `Some` and `None` |
+| `Result(a, e)` | typed custom shape unless a later SDK layer wraps it |
 
-Sara is probably not a dependency for Libero. It requires user annotations, has
-constraints around public non-opaque types, and does not cover RPC envelopes,
-Rally frames, SSR flags, or contract artifacts.
+The first branch should reject integers outside the JavaScript safe integer
+range instead of silently changing values. A later branch can add a tagged
+big-integer representation if real contracts need it.
 
-Reference: <https://hexdocs.pm/sara/index.html>
+Encoders must reject Int values outside the JavaScript safe integer range. They
+must not truncate, round, stringify, or silently change the value.
 
-### glon And json_blueprint
+`Option(a)` must not use `null` as a special case. `None` and `Some(None)` are
+different Gleam values, so the JSON shape must preserve that difference:
 
-Both point toward pairing JSON decoding with generated JSON Schema. That is
-worth borrowing. Libero can emit a contract artifact and possibly JSON Schema
-from the same discovered handler graph.
+```json
+{
+  "type": "gleam/option.Option",
+  "variant": "Some",
+  "fields": [
+    {
+      "type": "gleam/option.Option",
+      "variant": "None",
+      "fields": {}
+    }
+  ]
+}
+```
 
-References:
+`Nil` remains JSON `null`.
 
-- <https://hexdocs.pm/glon/index.html>
-- <https://hexdocs.pm/json_blueprint/index.html>
+Decoders never guess between `Dict(String, a)` and typed custom values. They
+always enter through an expected type. If the expected type is `Dict(String, a)`,
+a JSON object is decoded as a dict. If the expected type is a custom type, the
+object must have the custom type shape.
 
-### gleam_json And gleam/dynamic/decode
+## Contract Artifact
 
-`gleam_json` is the likely low-level parser/printer. `gleam/dynamic/decode` is
-the best reference for composable decoders and readable error paths.
+The JSON branch should emit a contract artifact next to generated code. It is
+used for docs, fixtures, SDK generation, and snapshot checks.
 
-References:
+The artifact should include:
 
-- <https://hexdocs.pm/gleam_json/gleam/json.html>
-- <https://hexdocs.pm/gleam_stdlib/gleam/dynamic/decode.html>
+- Protocol version.
+- Contract hash.
+- Libero version.
+- Endpoint modules and request message variants.
+- Response value type for each endpoint.
+- Push modules and their `ToClient` types.
+- SSR flag model types.
+- Custom type definitions with module path, type name, variants, field labels,
+  field order, and field types.
+- Built-in type encoding rules.
 
-## Rally Impact
+The artifact should be deterministic. Reordering source files without changing
+the contract should produce the same artifact.
 
-Rally is still the proving ground, but the expected work is smaller than it was
-before the boundary landed. Rally should stay mostly oblivious to the configured
-protocol. A JSON branch should verify that the facade holds instead of teaching
-Rally to speak JSON directly.
+## Validation And Errors
 
-Areas to cover:
+Generated JSON decoders must validate before constructing typed values:
 
-- WebSocket request and response frames.
-- Push frames.
-- SSR flags.
-- Client context.
-- Message logging and inspector formatting.
-- Generated client transport.
-- Generated snapshots.
-- The realworld example CLI.
+- Top-level JSON must be an object for frames and requests.
+- `kind` must be one of the known frame kinds for that decode path.
+- `protocol_version` must match exactly.
+- `contract_hash` must match on requests.
+- Required envelope fields must be present.
+- Unknown envelope fields are errors.
+- `type` must be known for the expected decode path.
+- `variant` must be known for the expected type.
+- Labelled fields must be present exactly once.
+- Unknown labelled fields are errors.
+- Unlabelled fields must have the expected array length.
+- Field values must match expected types.
+- `Int` values must be safe JSON integers.
+- `Float` values must be finite.
+- Strings, arrays, objects, and nesting depth must obey configured limits.
+- `BitArray` strings must be valid base64 with padding.
 
-HTTP RPC and page init should be checked through the generated Libero/Rally
-surface that exists at the time of the branch. If they need protocol-specific
-logic in Rally, the boundary has leaked.
+Errors should include the path and expected type:
 
-## Branch Acceptance Criteria
+```text
+message.fields.slug: expected String, got Null
+value.fields.comments[3].fields.author.fields.id: expected Int, got String
+```
 
-The branch is worth keeping only if it can show:
+The decoder result should use structured protocol errors. Consumers should not
+parse JSON parser exception strings.
 
-- A documented JSON protocol that a non-Gleam client author could implement.
-- Generated server-side validation with good error messages.
-- Generated JS client encode/decode behavior matching the server contract.
-- Existing consumers keep using Libero-generated modules and protocol helpers
-  rather than learning the JSON shape.
-- Gleam and Lustre clients can keep using ETF while a non-Gleam client uses
-  JSON against the same handler contract.
-- Rally realworld running through RPC, push, SSR flags, client context, and page
-  init.
-- A contract artifact that can be inspected and snapshot-tested.
-- A clear split between shared contract machinery and protocol-specific codec
-  machinery.
-- No JSON parsing, frame slicing, or type reconstruction in Rally runtime code.
+## Security Limits
 
-The blunt test: if the branch removes ETF but replaces it with opaque generated
-JSON code that only Libero understands, it failed the reason for doing JSON.
+Libero should apply limits before or during decode:
 
-## Non-Goals For The First Branch
+- Maximum input bytes.
+- Maximum nesting depth.
+- Maximum string length.
+- Maximum array length.
+- Maximum object entry count.
+- Maximum base64 decoded byte length.
 
-- Prove JSON is faster than ETF.
-- Remove ETF or treat it as legacy.
-- Generate Rust or Go clients immediately.
-- Preserve wire compatibility with current ETF frames.
-- Move Libero to a separate schema language.
+The defaults can be conservative and configurable. The limits must apply to JSON
+requests, JSON frames, and JSON SSR flags.
 
-## Open Questions
+JavaScript decoders must create plain data without prototype mutation hazards.
+`__proto__`, `prototype`, and `constructor` must not be written as raw object
+properties by generated JavaScript decoders. Protocol-owned objects reject those
+field names. User-labelled fields with those names use a generated safe property
+mapping internally while preserving the public JSON field name. For example,
+`constructor` can appear in JSON, but generated JS must store it with a safe
+internal name before constructing the Gleam value.
 
-- Should unknown fields be rejected or ignored?
-- Should protocol config be project-wide, client-specific, or endpoint-specific?
-- Should field names or stable field numbers be the compatibility anchor?
-- Should JSON output mode be a single project-level config, or can individual
-  generated surfaces choose `verbose` vs `condensed`?
-- How should Gleam `Dict` encode when its lookup terms are not strings?
-- How should `BitArray` encode: base64 string, hex string, or tagged object?
-- Should custom types include both module path and variant name in every value?
-- How much schema evolution should Libero support before it becomes a schema
-  system in disguise?
+`Dict(String, a)` entries are user data, so string entries named `__proto__`,
+`prototype`, or `constructor` should round-trip as data. Decoders must read only
+own properties and construct Gleam dicts without assigning those strings as
+object prototype properties. Encoders must use a prototype-free object or an
+equivalent safe builder before printing JSON.
+
+## Codegen Responsibilities
+
+Libero owns:
+
+- JSON request encoding and decoding.
+- JSON response frame encoding and decoding.
+- JSON push frame encoding and decoding.
+- JSON SSR flag encoding and typed decoding.
+- Generated typed JSON encoders and decoders.
+- Contract artifact generation.
+- JSON validation and protocol errors.
+
+Rally owns:
+
+- WebSocket lifecycle.
+- HTTP route integration.
+- Request IDs, callbacks, timeouts, and reconnect policy.
+- Page, session, topic, and client-context concepts.
+- Choosing when generated messages are sent.
+
+Rally must not contain JSON-specific parsing, type reconstruction, frame slicing,
+or custom-type dispatch.
+
+## Implementation Slices
+
+1. Add protocol config and keep ETF as the default.
+2. Add a generated contract artifact for the current discovered contract.
+3. Extend type discovery to retain constructor field labels.
+4. Generate JSON typed encoders and decoders for built-ins and custom types.
+5. Add JSON request, response, push, and SSR flag helpers behind `libero/wire`.
+6. Route Rally generated code through the same protocol helpers.
+7. Add a small non-Gleam client fixture that sends one request and decodes one
+   response using only the JSON contract docs.
+8. Run Rally realworld through RPC, push, SSR flags, client context, and page
+   init with JSON selected.
+
+Each slice should keep ETF tests passing.
+
+## Acceptance Criteria
+
+- ETF remains the default protocol.
+- A generated config can select JSON without changing user handler code.
+- JSON request, response, push, and SSR flags use the documented shapes.
+- Rally does not import JSON parser helpers or inspect JSON envelopes directly.
+- v3 can regenerate against JSON without application code learning the protocol.
+- Malformed JSON returns structured errors with paths.
+- Duplicate variant names across modules remain distinct through generated typed
+  encoders and decoders.
+- No JSON encoder or decoder uses bare constructor names as global identity.
+- `Option(Option(a))` round-trips without collapsing `Some(None)` into `None`.
+- Mixed labelled/unlabelled constructors fail at codegen with a clear JSON-only
+  error.
+- Protocol version and contract hash mismatches return protocol error responses.
+- The contract artifact is deterministic and snapshot-tested.
+- A simple external client can be written from the JSON docs plus the contract
+  artifact.
+- Realworld passes through RPC, push, SSR flags, client context, and page init
+  with JSON selected.
+
+## Open Decisions For Implementation
+
+- Exact config API shape.
+- Exact contract artifact file name and path.
+- Whether JSON HTTP RPC needs a Libero-specific media type.
+- Default values for size and depth limits.
+- Whether large `Int` support is needed in the first JSON branch.
