@@ -1447,29 +1447,9 @@ pub fn decode_request(
   // Validate contract_hash (fail fast, no accumulation)
   use _ <- result.try(validate_contract_hash(parsed, expected_hash))
 
-  // Extract module
-  let module = case dynamic.field(parsed, "module") {
-    Ok(m) -> case dynamic.string(m) {
-      Ok(s) -> s
-      Error(_) -> return Error([JsonError("module", "expected String")])
-    }
-    Error(_) -> return Error([JsonError("module", "required field missing")])
-  }
-
-  // Extract request_id
-  let request_id = case dynamic.field(parsed, "request_id") {
-    Ok(id) -> case dynamic.int(id) {
-      Ok(n) -> n
-      Error(_) -> return Error([JsonError("request_id", "expected Int")])
-    }
-    Error(_) -> return Error([JsonError("request_id", "required field missing")])
-  }
-
-  // Extract message
-  let message = case dynamic.field(parsed, "message") {
-    Ok(m) -> m
-    Error(_) -> return Error([JsonError("message", "required field missing")])
-  }
+  use module <- result.try(required_string_field(parsed, "module"))
+  use request_id <- result.try(required_int_field(parsed, "request_id"))
+  use message <- result.try(required_dynamic_field(parsed, "message"))
 
   Ok(RequestEnvelope(module:, request_id:, message:))
 }
@@ -1532,13 +1512,7 @@ pub fn decode_server_frame(
     Error(_) -> return Error([JsonError("", "failed to parse JSON")])
   }
 
-  let kind = case dynamic.field(parsed, "kind") {
-    Ok(k) -> case dynamic.string(k) {
-      Ok(s) -> s
-      Error(_) -> return Error([JsonError("kind", "expected String")])
-    }
-    Error(_) -> return Error([JsonError("kind", "required field missing")])
-  }
+  use kind <- result.try(required_string_field(parsed, "kind"))
 
   case kind {
     "response" -> decode_response_frame_body(parsed)
@@ -1551,18 +1525,8 @@ pub fn decode_server_frame(
 fn decode_response_frame_body(
   parsed: Dynamic,
 ) -> Result(ServerFrame(Dynamic), List(JsonError)) {
-  let request_id = case dynamic.field(parsed, "request_id") {
-    Ok(id) -> case dynamic.int(id) {
-      Ok(n) -> n
-      Error(_) -> return Error([JsonError("request_id", "expected Int")])
-    }
-    Error(_) -> return Error([JsonError("request_id", "required field missing")])
-  }
-
-  let value = case dynamic.field(parsed, "value") {
-    Ok(v) -> v
-    Error(_) -> return Error([JsonError("value", "required field missing")])
-  }
+  use request_id <- result.try(required_int_field(parsed, "request_id"))
+  use value <- result.try(required_dynamic_field(parsed, "value"))
 
   Ok(frame.Response(request_id:, value:))
 }
@@ -1570,18 +1534,8 @@ fn decode_response_frame_body(
 fn decode_push_frame_body(
   parsed: Dynamic,
 ) -> Result(ServerFrame(Dynamic), List(JsonError)) {
-  let module = case dynamic.field(parsed, "module") {
-    Ok(m) -> case dynamic.string(m) {
-      Ok(s) -> s
-      Error(_) -> return Error([JsonError("module", "expected String")])
-    }
-    Error(_) -> return Error([JsonError("module", "required field missing")])
-  }
-
-  let value = case dynamic.field(parsed, "value") {
-    Ok(v) -> v
-    Error(_) -> return Error([JsonError("value", "required field missing")])
-  }
+  use module <- result.try(required_string_field(parsed, "module"))
+  use value <- result.try(required_dynamic_field(parsed, "value"))
 
   Ok(frame.Push(module:, value:))
 }
@@ -1589,32 +1543,8 @@ fn decode_push_frame_body(
 fn decode_error_frame_body(
   parsed: Dynamic,
 ) -> Result(ServerFrame(Dynamic), List(JsonError)) {
-  let request_id = case dynamic.field(parsed, "request_id") {
-    Ok(id) -> case dynamic.int(id) {
-      Ok(n) -> Some(n)
-      Error(_) -> None
-    }
-    Error(_) -> None
-  }
-
-  let errors = case dynamic.field(parsed, "errors") {
-    Ok(arr) -> case dynamic.list(arr) {
-      Ok(items) ->
-        list.flat_map(items, fn(item) {
-          let path = case dynamic.field(item, "path") {
-            Ok(p) -> case dynamic.string(p) { Ok(s) -> s; Error(_) -> "" }
-            Error(_) -> ""
-          }
-          let message = case dynamic.field(item, "message") {
-            Ok(m) -> case dynamic.string(m) { Ok(s) -> s; Error(_) -> "unknown error" }
-            Error(_) -> "unknown error"
-          }
-          [#(path, message)]
-        })
-      Error(_) -> [#("errors", "expected Array")]
-    }
-    Error(_) -> [#("errors", "required field missing")]
-  }
+  let request_id = optional_int_field(parsed, "request_id")
+  use errors <- result.try(error_list_field(parsed, "errors"))
 
   Ok(frame.Error(request_id:, errors:))
 }
@@ -1642,26 +1572,20 @@ fn validate_kind(
   parsed: Dynamic,
   expected: String,
 ) -> Result(Nil, List(JsonError)) {
-  case dynamic.field(parsed, "kind") {
-    Ok(k) -> case dynamic.string(k) {
-      Ok(s) if s == expected -> Ok(Nil)
-      Ok(s) -> Error([JsonError("kind", "expected \"" <> expected <> "\", got \"" <> s <> "\"")])
-      Error(_) -> Error([JsonError("kind", "expected String")])
-    }
-    Error(_) -> Error([JsonError("kind", "required field missing")])
+  case required_string_field(parsed, "kind") {
+    Ok(s) if s == expected -> Ok(Nil)
+    Ok(s) -> Error([JsonError("kind", "expected \"" <> expected <> "\", got \"" <> s <> "\"")])
+    Error(errors) -> Error(errors)
   }
 }
 
 fn validate_protocol_version(
   parsed: Dynamic,
 ) -> Result(Nil, List(JsonError)) {
-  case dynamic.field(parsed, "protocol_version") {
-    Ok(v) -> case dynamic.string(v) {
-      Ok(s) if s == json_rpc_v1 -> Ok(Nil)
-      Ok(s) -> Error([JsonError("protocol_version", "unsupported version: " <> s)])
-      Error(_) -> Error([JsonError("protocol_version", "expected String")])
-    }
-    Error(_) -> Error([JsonError("protocol_version", "required field missing")])
+  case required_string_field(parsed, "protocol_version") {
+    Ok(s) if s == json_rpc_v1 -> Ok(Nil)
+    Ok(s) -> Error([JsonError("protocol_version", "unsupported version: " <> s)])
+    Error(errors) -> Error(errors)
   }
 }
 
@@ -1669,14 +1593,32 @@ fn validate_contract_hash(
   parsed: Dynamic,
   expected_hash: String,
 ) -> Result(Nil, List(JsonError)) {
-  case dynamic.field(parsed, "contract_hash") {
-    Ok(v) -> case dynamic.string(v) {
-      Ok(s) if s == expected_hash -> Ok(Nil)
-      Ok(_) -> Error([JsonError("contract_hash", "contract hash mismatch")])
-      Error(_) -> Error([JsonError("contract_hash", "expected String")])
-    }
-    Error(_) -> Error([JsonError("contract_hash", "required field missing")])
+  case required_string_field(parsed, "contract_hash") {
+    Ok(s) if s == expected_hash -> Ok(Nil)
+    Ok(_) -> Error([JsonError("contract_hash", "contract hash mismatch")])
+    Error(errors) -> Error(errors)
   }
+}
+
+fn required_string_field(parsed: Dynamic, name: String) -> Result(String, List(JsonError)) {
+  // Implement with decode.run(parsed, { use value <- decode.field(name, decode.string) ... }).
+  // Map missing/type errors to JsonError(path: name, message: ...).
+}
+
+fn required_int_field(parsed: Dynamic, name: String) -> Result(Int, List(JsonError)) {
+  // Implement with decode.field(name, decode.int), including the safe integer range check.
+}
+
+fn required_dynamic_field(parsed: Dynamic, name: String) -> Result(Dynamic, List(JsonError)) {
+  // Implement with decode.field(name, decode.dynamic).
+}
+
+fn optional_int_field(parsed: Dynamic, name: String) -> Option(Int) {
+  // Implement with decode.optional_field(name, None, decode.option(decode.int)) or equivalent.
+}
+
+fn error_list_field(parsed: Dynamic, name: String) -> Result(List(#(String, String)), List(JsonError)) {
+  // Implement with decode.list and per-item path/message decoding.
 }
 
 // ---------- HTML escaping for SSR ----------
