@@ -48,10 +48,18 @@ pub type ServerFrame(value) {
 
 /// Encode any Gleam value to an ETF binary.
 ///
-/// Works on both Erlang and JavaScript targets. Used internally by
-/// libero to serialize RPC responses, and also available for non-RPC
-/// paths (e.g. passing server-rendered state into a Lustre SPA via
-/// flags, in the Elm "init flags" style).
+/// **Not safe for user custom types.** This calls `encode_term` which
+/// is a container-only walker: it recurses into lists, maps, and tuples
+/// but passes atoms through unchanged. User custom type constructors
+/// go over the wire as bare BEAM atoms, not hashed wire identities.
+///
+/// For user values, use the typed entry points instead:
+/// - `encode_response` for RPC handler returns
+/// - `encode_push` (generated) for push payloads
+/// - Per-type `wire_encode_<model>` (rally-generated) for SSR flags
+///
+/// This function is correct for primitives, containers of primitives,
+/// and values that have already been pre-encoded by a typed encoder.
 @external(erlang, "libero_ffi", "encode")
 @external(javascript, "./rpc_ffi.mjs", "encode_value")
 pub fn encode(value: a) -> BitArray
