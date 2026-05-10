@@ -7,6 +7,7 @@
 //// per-type function pairs, hash-as-wire-tag, bare-atom-as-BEAM-tag,
 //// float wrapping, list comprehensions, recursive cross-type calls.
 
+import gleam/list
 import gleam/option
 import gleam/string
 import libero/codegen_wire_erl
@@ -33,6 +34,7 @@ fn variant(
       variant_name: name,
     ),
     float_field_indices: [],
+    field_labels: list.map(fields, fn(_) { option.None }),
     fields: fields,
   )
 }

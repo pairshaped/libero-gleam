@@ -438,6 +438,7 @@ pub fn generate_atoms_erl_includes_variant_constructor_atoms_test() {
           variant_name: "Admin",
           atom_name: "admin",
           float_field_indices: [],
+          field_labels: [],
           fields: [],
         ),
         DiscoveredVariant(
@@ -445,6 +446,7 @@ pub fn generate_atoms_erl_includes_variant_constructor_atoms_test() {
           variant_name: "SuperUser",
           atom_name: "super_user",
           float_field_indices: [],
+          field_labels: [],
           fields: [],
         ),
       ],
@@ -488,6 +490,7 @@ pub fn generate_atoms_erl_no_duplicate_end_of_function_test() {
           variant_name: "Admin",
           atom_name: "shared_types__admin",
           float_field_indices: [],
+          field_labels: [],
           fields: [],
         ),
       ],

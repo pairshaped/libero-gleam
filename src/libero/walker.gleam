@@ -34,6 +34,9 @@ pub type DiscoveredVariant {
     /// Used by the JS ETF encoder to distinguish Int from Float
     /// (JS erases this distinction at runtime).
     float_field_indices: List(Int),
+    /// Labels for each field. `None` for unlabelled, `Some("label")` for labelled.
+    /// Carried alongside `fields` for JSON codegen; ignored by ETF codegen.
+    field_labels: List(option.Option(String)),
     /// Structured types of each field, in declaration order.
     fields: List(FieldType),
   )
@@ -277,6 +280,7 @@ fn process_type_ast_custom(
         list.fold(custom_type.variants, #([], []), fn(acc, variant) {
           let #(disc_acc, queue_acc) = acc
           let float_indices = detect_float_fields(variant.fields)
+          let field_labels = list.map(variant.fields, variant_field_label)
           let fields =
             list.map(variant.fields, fn(field) {
               field_type_of(
@@ -295,6 +299,7 @@ fn process_type_ast_custom(
                 variant_name: variant.name,
               ),
               float_field_indices: float_indices,
+              field_labels: field_labels,
               fields:,
             )
           let field_refs =
@@ -643,5 +648,14 @@ fn variant_field_type(field: glance.VariantField) -> glance.Type {
   case field {
     glance.LabelledVariantField(item:, ..) -> item
     glance.UnlabelledVariantField(item:) -> item
+  }
+}
+
+/// Extract the label from a variant field. Returns `Some(label)` for labelled
+/// fields and `None` for unlabelled fields.
+fn variant_field_label(field: glance.VariantField) -> option.Option(String) {
+  case field {
+    glance.LabelledVariantField(label:, ..) -> option.Some(label)
+    glance.UnlabelledVariantField(..) -> option.None
   }
 }
