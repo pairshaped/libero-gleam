@@ -17,6 +17,7 @@ import libero/codegen_dispatch
 import libero/codegen_wire_erl
 import libero/format
 import libero/gen_error.{type GenError}
+import libero/json/codegen
 import libero/json/contract
 import libero/protocol
 import libero/scanner.{type HandlerEndpoint}
@@ -136,13 +137,49 @@ pub fn main() -> Nil {
     option.None -> Nil
   }
 
+  // JSON contract artifact
+  let json_contract =
+    contract.generate(endpoints:, discovered:, push_types: [], ssr_models: [])
+
+  // Write JSON contract artifact
+  let _ = write_file(out_dir <> "/rpc_contract.json", json_contract)
+
+  // JSON codecs (only if we have discovered types)
+  case discovered {
+    [] -> Nil
+    _ -> {
+      case codegen.generate(discovered, [], []) {
+        Ok(json_codecs_src) -> {
+          let _ =
+            write_file(
+              out_dir <> "/json_codecs.gleam",
+              format.format_gleam(json_codecs_src),
+            )
+          Nil
+        }
+        Error(errors) -> {
+          io.println_error("[libero] JSON codec generation failed:")
+          list.each(errors, fn(e) {
+            io.println_error("  " <> e.path <> ": " <> e.message)
+          })
+          Nil
+        }
+      }
+    }
+  }
+
   io.println(
     "wrote "
     <> out_dir
     <> "/dispatch.gleam, rpc_decoders_ffi.mjs, rpc_decoders.gleam, "
     <> atoms_path
     <> ", "
-    <> wire_path,
+    <> wire_path
+    <> ", "
+    <> out_dir
+    <> "/rpc_contract.json, "
+    <> out_dir
+    <> "/json_codecs.gleam",
   )
 }
 
