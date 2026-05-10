@@ -17,6 +17,7 @@ import libero/codegen_dispatch
 import libero/codegen_wire_erl
 import libero/format
 import libero/gen_error.{type GenError}
+import libero/json/contract
 import libero/protocol
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType}
@@ -266,6 +267,19 @@ pub fn generate_decoders_ffi(
 /// Generate the Gleam wrapper for the typed decoder FFI.
 pub fn generate_decoders_gleam() -> String {
   codegen_decoders.generate_decoders_gleam("rpc_decoders_ffi.mjs")
+}
+
+/// Generate a deterministic JSON contract artifact from discovered types
+/// and handler endpoints. The artifact describes every type, variant, and
+/// endpoint that crosses the wire so external tools and SDKs can generate
+/// clients from it.
+pub fn generate_json_contract(
+  endpoints endpoints: List(HandlerEndpoint),
+  discovered discovered: List(DiscoveredType),
+  push_types push_types: List(contract.PushContract),
+  ssr_models ssr_models: List(contract.SsrModelContract),
+) -> String {
+  contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
 }
 
 /// Resolve the optional client output directory from environment config.
