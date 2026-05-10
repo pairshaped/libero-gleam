@@ -901,6 +901,9 @@ fn compile_module(source: String) -> Result(atom, Nil)
 @external(erlang, "erlang", "apply")
 fn erl_apply(module: atom, function: atom, args: List(a)) -> b
 
+@external(erlang, "libero_ffi", "apply2")
+fn erl_apply2(module: atom, function: atom, arg1: a, arg2: b) -> c
+
 @external(erlang, "erlang", "binary_to_atom")
 fn binary_to_atom(name: String) -> atom
 
@@ -1071,4 +1074,54 @@ pub fn encode_push_multiple_pages_and_client_context_test() {
     string.contains(source, "encode_push(<<\"__ClientContext__\">>, Msg)")
   let assert True =
     string.contains(source, "encode_client_context__client_context_msg(Msg)")
+}
+
+pub fn encode_push_routes_to_correct_encoder_for_duplicate_variants_test() {
+  let dt_a =
+    typ("pages/dashboard", "ToClient", [
+      variant("pages/dashboard", "Updated", [StringField]),
+    ])
+  let dt_b =
+    typ("pages/reports", "ToClient", [
+      variant("pages/reports", "Updated", [StringField]),
+    ])
+
+  let assert Ok(source) =
+    codegen_wire_erl.generate(
+      module_name: "boundary_push_test",
+      discovered: [dt_a, dt_b],
+      endpoints: [],
+      push_dispatches: [
+        codegen_wire_erl.PushDispatch(
+          page_tag: "Dashboard",
+          type_atom: "pages_dashboard__to_client",
+        ),
+        codegen_wire_erl.PushDispatch(
+          page_tag: "Reports",
+          type_atom: "pages_reports__to_client",
+        ),
+      ],
+    )
+  let assert Ok(mod) = compile_module(source)
+
+  let hash_a = hash_for("pages/dashboard", "Updated", [StringField])
+  let hash_b = hash_for("pages/reports", "Updated", [StringField])
+  let assert True = hash_a != hash_b
+
+  let result_a: #(atom, String) =
+    erl_apply2(mod, binary_to_atom("encode_push"), "Dashboard", #(
+      binary_to_atom("updated"),
+      "payload_a",
+    ))
+  let assert #(wire_tag_a, "payload_a") = result_a
+  let assert True = wire_tag_a == binary_to_atom(hash_a)
+
+  let result_b: #(atom, String) =
+    erl_apply2(mod, binary_to_atom("encode_push"), "Reports", #(
+      binary_to_atom("updated"),
+      "payload_b",
+    ))
+  let assert #(wire_tag_b, "payload_b") = result_b
+  let assert True = wire_tag_b == binary_to_atom(hash_b)
+  let assert True = wire_tag_a != wire_tag_b
 }
