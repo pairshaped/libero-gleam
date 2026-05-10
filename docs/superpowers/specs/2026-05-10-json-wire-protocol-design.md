@@ -28,12 +28,13 @@ No shape-guessing fallback. No consumer responsibility to make names unique.
 
 ```
 libero/
-  wire.gleam              # Unchanged. Thin protocol dispatch via protocol_wire facade.
+  wire.gleam              # Unchanged ETF API. Imports libero/frame for ServerFrame.
   wire_identity.gleam     # Unchanged. Already protocol-agnostic.
   codegen_wire_erl.gleam  # Unchanged. Stays ETF/BEAM territory.
   codegen_decoders.gleam  # Unchanged. ETF JS decoder registration.
   codegen_dispatch.gleam  # Extended: protocol-aware dispatch delegating to ETF or JSON codegen.
   protocol.gleam          # NEW. Protocol type, re-exported from libero.gleam.
+  frame.gleam             # NEW. Protocol-neutral ServerFrame type moved from wire.gleam.
   field_type.gleam        # Unchanged. FieldType stays structural; labels live on DiscoveredVariant.
   walker.gleam            # Extended: DiscoveredVariant gets field_labels: List(Option(String)).
   json/
@@ -44,8 +45,13 @@ libero/
     limits.gleam          # NEW. JsonLimits type owned by Libero, not passed everywhere manually.
 ```
 
-Shared types (`ServerFrame`, `DecodeError`, `FieldType`) stay where they are.
-JSON modules import them. No parallel types unless the shape truly differs.
+Shared types (`ServerFrame`, `DecodeError`, `FieldType`) stay in protocol-neutral
+modules. JSON modules import them. No parallel types unless the shape truly differs.
+
+`ServerFrame` moves from `libero/wire.gleam` to a new `libero/frame.gleam` so both
+ETF and JSON wire modules can import it without creating a dependency from ETF onto
+JSON error types. Both `libero/wire.gleam` and `libero/json/wire.gleam` import
+`libero/frame.gleam`.
 
 `ServerFrame` is extended with an `Error` variant:
 
@@ -53,9 +59,14 @@ JSON modules import them. No parallel types unless the shape truly differs.
 pub type ServerFrame(value) {
   Response(request_id: Int, value: value)
   Push(module: String, value: value)
-  Error(request_id: Option(Int), errors: List(JsonError))
+  Error(request_id: Option(Int), errors: List(#(String, String)))
 }
 ```
+
+The error payload is `List(#(String, String))` — path+message tuples — so the
+shared frame module has no dependency on JSON-specific error types.
+`libero/json/error.gleam` provides a conversion from `List(JsonError)` to
+`List(#(String, String))`.
 
 ETF decode never produces `Error`. Callers that match exhaustively on `ServerFrame`
 add a dead arm.
@@ -90,29 +101,48 @@ mutable protocol state in Libero JS.
 
 ## JSON Wire API
 
-`libero/json/wire.gleam` produces/consumes `String` (JSON text).
+`libero/json/wire.gleam` produces/consumes `String` (JSON text). All encode
+functions take already-encoded `json.Json` values — generated typed encoders run
+first, then the wire module wraps them in protocol envelopes. This prevents the
+unsafe "generic encode guesses custom type identity" path.
 
 ```gleam
+// Types
+pub type RequestEnvelope {
+  RequestEnvelope(module: String, request_id: Int, message: Dynamic)
+}
+// message is the parsed JSON value of the "message" field, ready for typed decode.
+// contract_hash and protocol_version have already been validated before the
+// envelope is returned.
+
 // Request
-pub fn encode_request(module: String, request_id: Int, msg: a, contract_hash: String) -> String
-pub fn decode_request(data: String) -> Result(RequestEnvelope(a), List(JsonError))
+pub fn encode_request(
+  module: String,
+  request_id: Int,
+  msg: json.Json,
+  contract_hash: String,
+) -> String
+pub fn decode_request(data: String) -> Result(RequestEnvelope, List(JsonError))
+// Validates kind, protocol_version, contract_hash before returning envelope.
+// Returns the raw message as Dynamic for the caller to pass through a typed decoder.
 
 // Response
-pub fn encode_response(request_id: Int, value: a) -> String
+pub fn encode_response(request_id: Int, value: json.Json) -> String
 // Emits "protocol_version": "json-rpc-v1" internally. No contract_hash on responses.
 
 // Error
 pub fn encode_error(request_id: Option(Int), errors: List(JsonError)) -> String
 
 // Push
-pub fn encode_push(module: String, value: a) -> String
+pub fn encode_push(module: String, value: json.Json) -> String
 
 // Frames (client-side decode)
 pub fn decode_server_frame(data: String) -> Result(ServerFrame(Dynamic), List(JsonError))
 // Reads "kind" field. Dispatches to response/push/error.
+// Error frames have errors as List(#(String, String)) via the shared ServerFrame type.
 
 // SSR flags
-pub fn encode_flags(value: a) -> String
+pub fn encode_flags(value: json.Json) -> String
 // Returns typed JSON value directly, with HTML-unsafe chars escaped.
 pub fn decode_flags_typed(flags: String, decoder_name: String) -> Result(a, List(JsonError))
 ```
@@ -210,8 +240,15 @@ so Rally doesn't become responsible for configuring them.
 
 JS-specific: generated JS decoders create prototype-free objects
 (`Object.create(null)`) for dict entries. Own-property-only iteration.
-Protocol-owned keys (`__proto__`, `prototype`, `constructor`) rejected on
-frame/typed objects but round-tripped as data in `Dict(String, a)`.
+
+Protocol-owned keys (`__proto__`, `prototype`, `constructor`) are rejected on
+frame envelopes and typed value objects. User-labelled fields with these names
+(e.g. a field named `constructor`) keep their public JSON field name in the
+wire format, but generated JS decoders use a safe internal property mapping
+when constructing Gleam values. For `Dict(String, a)` entries, these strings
+round-trip as data: decoders read only own properties and construct Gleam dicts
+without assigning them as object prototype properties; encoders use
+prototype-free objects before printing JSON.
 
 ## Codegen Responsibilities
 
@@ -291,6 +328,25 @@ different Gleam values and must round-trip distinctly.
 
 Decoders never guess between `Dict(String, a)` and typed custom values. They
 always enter through expected type.
+
+## Development Rule
+
+JSON protocol implementation must happen on isolated Libero and Rally worktree
+branches. Do not implement directly on `master`.
+
+This work touches protocol config, codegen, generated artifacts, runtime FFI, and
+Rally integration. Use paired sibling worktrees so Rally's path dependency points
+at the Libero JSON branch:
+
+```text
+json-wire-worktrees/
+  libero/
+  rally/
+```
+
+Commit each slice independently. ETF tests must keep passing after each slice.
+If a slice cannot pass tests on its own, the commit message must say why and the
+next commit must close that gap.
 
 ## Implementation Slices
 
