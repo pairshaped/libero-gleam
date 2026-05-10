@@ -213,7 +213,8 @@ pub fn decode_flags_typed_empty_string_test() {
 }
 
 pub fn decode_flags_typed_invalid_base64_test() {
-  let assert Error(_) = wire.decode_flags_typed("!!!not-base64", "ignored_on_erlang")
+  let assert Error(_) =
+    wire.decode_flags_typed("!!!not-base64", "ignored_on_erlang")
 }
 
 // ---------- Helpers ----------

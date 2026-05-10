@@ -22,6 +22,20 @@ import libero/walker.{type DiscoveredType}
 import simplifile
 import tom
 
+/// Re-export so consumers can construct push dispatch entries without
+/// reaching into `libero/codegen_wire_erl` directly.
+pub type PushDispatch =
+  codegen_wire_erl.PushDispatch
+
+/// Re-export so consumers can build qualified atom names for push
+/// dispatch entries using the same logic as the codegen.
+pub fn qualified_atom_name(
+  module_path module_path: String,
+  variant_name variant_name: String,
+) -> String {
+  walker.qualified_atom_name(module_path:, variant_name:)
+}
+
 const out_dir = "src/generated/libero"
 
 const default_atoms_module = "generated@rpc_atoms"
@@ -67,7 +81,14 @@ pub fn main() -> Nil {
       atoms_module:,
       wire_module: option.Some(wire_module),
     )
-  let wire_erl = case generate_wire_erl(discovered:, wire_module:, endpoints:) {
+  let wire_erl = case
+    generate_wire_erl(
+      discovered:,
+      wire_module:,
+      endpoints:,
+      push_dispatches: [],
+    )
+  {
     Ok(src) -> src
     Error(err) -> {
       gen_error.print_error(err)
@@ -188,8 +209,14 @@ pub fn generate_wire_erl(
   discovered discovered: List(DiscoveredType),
   wire_module wire_module: String,
   endpoints endpoints: List(HandlerEndpoint),
+  push_dispatches push_dispatches: List(PushDispatch),
 ) -> Result(String, GenError) {
-  codegen_wire_erl.generate(module_name: wire_module, discovered:, endpoints:)
+  codegen_wire_erl.generate(
+    module_name: wire_module,
+    discovered:,
+    endpoints:,
+    push_dispatches:,
+  )
 }
 
 /// Generate the JS typed decoder FFI source.
