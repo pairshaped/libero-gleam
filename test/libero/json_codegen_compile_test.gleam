@@ -2,7 +2,7 @@ import glance
 import gleam/option.{Some}
 import gleam/string
 import gleeunit/should
-import libero/field_type.{StringField}
+import libero/field_type.{FloatField, IntField, StringField}
 import libero/json/codegen
 import libero/walker.{DiscoveredType, DiscoveredVariant}
 
@@ -195,4 +195,60 @@ pub fn generated_codec_uses_decode_success_test() {
 
   // All decode.field calls should use decode.success in the closure
   string.contains(source, "decode.success") |> should.be_true
+}
+
+pub fn generated_encoder_checks_safe_int_range_test() {
+  let types = [
+    DiscoveredType(
+      module_path: "shared/article",
+      type_name: "Article",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "shared/article",
+          variant_name: "Article",
+          atom_name: "shared_article__article",
+          float_field_indices: [],
+          field_labels: [Some("count")],
+          fields: [IntField],
+        ),
+      ],
+    ),
+  ]
+
+  let assert Ok(source) = codegen.generate(types, [], [])
+
+  // Must contain safe int range constants
+  string.contains(source, "-9007199254740992") |> should.be_true
+  string.contains(source, "9007199254740992") |> should.be_true
+  // Must contain the panic message
+  string.contains(source, "Int outside JavaScript safe integer range")
+  |> should.be_true
+}
+
+pub fn generated_encoder_checks_finite_float_test() {
+  let types = [
+    DiscoveredType(
+      module_path: "shared/article",
+      type_name: "Article",
+      type_params: [],
+      variants: [
+        DiscoveredVariant(
+          module_path: "shared/article",
+          variant_name: "Article",
+          atom_name: "shared_article__article",
+          float_field_indices: [],
+          field_labels: [Some("score")],
+          fields: [FloatField],
+        ),
+      ],
+    ),
+  ]
+
+  let assert Ok(source) = codegen.generate(types, [], [])
+
+  // Must contain NaN/Infinity check (float multiplication uses *.)
+  string.contains(source, "*. 0.0 == 0.0") |> should.be_true
+  // Must contain the panic message
+  string.contains(source, "Float must be finite") |> should.be_true
 }

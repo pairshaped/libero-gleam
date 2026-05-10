@@ -70,12 +70,12 @@ pub fn generate(
     <> "////\n"
     <> "//// Typed JSON encoders and decoders for all discovered types.\n"
     <> "\n"
-    <> "import gleam/dynamic\n"
+    <> "import gleam/dynamic.{type Dynamic}\n"
     <> "import gleam/dynamic/decode\n"
     <> "import gleam/json\n"
     <> "import gleam/bit_array\n"
     <> "import libero/json/error.{type JsonError, JsonError}\n"
-    <> "import gleam/result.{Ok, Error}\n"
+    <> "import gleam/result\n"
     <> "import gleam/option.{type Option, None, Some}\n"
     <> "import gleam/int\n"
     <> "import gleam/list\n"
@@ -168,13 +168,42 @@ fn build_module_alias_map(
   })
 }
 
+/// Validate that an Int value is within JavaScript safe integer range.
+/// Panics with a descriptive message if the value is outside the range.
+fn safe_int_check(var: String) -> String {
+  "case "
+  <> var
+  <> " >= -9007199254740992 && "
+  <> var
+  <> " <= 9007199254740992 {\n"
+  <> "    True -> "
+  <> var
+  <> "\n"
+  <> "    False -> panic as \"Int outside JavaScript safe integer range\"\n"
+  <> "  }"
+}
+
+/// Validate that a Float value is finite (not NaN or Infinity).
+/// NaN/Infinity can arise from FFI on the JavaScript runtime.
+/// Panics with a descriptive message if the value is not finite.
+fn finite_float_check(var: String) -> String {
+  "case "
+  <> var
+  <> " *. 0.0 == 0.0 {\n"
+  <> "    True -> "
+  <> var
+  <> "\n"
+  <> "    False -> panic as \"Float must be finite (not NaN or Infinity)\"\n"
+  <> "  }"
+}
+
 /// Wrap a raw Gleam value variable with the appropriate `json.X()` constructor
 /// so it becomes a `json.Json` expression.
 fn json_encode_expr(ft: FieldType, var: String) -> String {
   case ft {
     StringField -> "json.string(" <> var <> ")"
-    IntField -> "json.int(" <> var <> ")"
-    FloatField -> "json.float(" <> var <> ")"
+    IntField -> "json.int(" <> safe_int_check(var) <> ")"
+    FloatField -> "json.float(" <> finite_float_check(var) <> ")"
     BoolField -> "json.bool(" <> var <> ")"
     NilField -> "json.null()"
     BitArrayField -> "json.string(bit_array.base64_encode(" <> var <> ", True))"
@@ -608,13 +637,11 @@ fn emit_raw_value_decode(
       <> raw_var
       <> ", decode.int) {\n"
       <> pad
-      <> "  Ok(v) -> if v >= -9007199254740992 && v <= 9007199254740992 {\n"
+      <> "  Ok(v) -> case v >= -9007199254740992 && v <= 9007199254740992 {\n"
       <> pad
-      <> "    Ok(v)\n"
+      <> "    True -> Ok(v)\n"
       <> pad
-      <> "  } else {\n"
-      <> pad
-      <> "    Error([JsonError(\""
+      <> "    False -> Error([JsonError(\""
       <> path
       <> "\", \"expected Int in safe JSON range\")])\n"
       <> pad
