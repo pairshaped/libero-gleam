@@ -167,7 +167,11 @@ pub fn collect_seeds(
       list.flat_map(e.params, fn(p) { field_type.collect_user_types(p.1) })
     let from_ok = field_type.collect_user_types(e.return_ok)
     let from_err = field_type.collect_user_types(e.return_err)
-    list.flatten([from_params, from_ok, from_err])
+    let from_msg_type = case e.msg_type {
+      option.Some(#(module_path, type_name)) -> [#(module_path, type_name)]
+      option.None -> []
+    }
+    list.flatten([from_params, from_ok, from_err, from_msg_type])
   })
   |> list.unique()
 }
