@@ -1,6 +1,6 @@
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{Some}
 import gleam/string
 import gleeunit/should
 import libero/frame
@@ -26,11 +26,11 @@ pub fn request_encode_then_decode_roundtrip_test() {
   let decoded = wire.decode_request(encoded, expected_hash: "test-hash")
 
   case decoded {
-    Ok(wire.RequestEnvelope(module:, request_id:, message:)) -> {
+    Ok(wire.RequestEnvelope(module:, request_id:, message: _)) -> {
       module |> should.equal("rpc")
       request_id |> should.equal(42)
     }
-    Error(errors) -> should.fail()
+    Error(_errors) -> should.fail()
   }
 }
 
@@ -45,7 +45,7 @@ pub fn response_roundtrip_test() {
   let encoded = wire.encode_response(request_id: 1, value:)
 
   case wire.decode_server_frame(encoded) {
-    Ok(frame.Response(request_id: 1, value:)) -> Nil
+    Ok(frame.Response(request_id: 1, value: _)) -> Nil
     other -> {
       let _ = other
       should.fail()
@@ -64,7 +64,7 @@ pub fn push_roundtrip_test() {
   let encoded = wire.encode_push(module: "public/pages/article", value:)
 
   case wire.decode_server_frame(encoded) {
-    Ok(frame.Push(module: "public/pages/article", value:)) -> Nil
+    Ok(frame.Push(module: "public/pages/article", value: _)) -> Nil
     other -> {
       let _ = other
       should.fail()

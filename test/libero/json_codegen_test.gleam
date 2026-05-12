@@ -396,6 +396,171 @@ pub fn generated_codec_is_syntactically_valid_gleam_test() {
   let assert Ok(_module) = glance.module(source)
 }
 
+pub fn simple_type_omits_bit_array_import_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/counter",
+      type_name: "Counter",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/counter",
+          variant_name: "Counter",
+          atom_name: "shared_counter__counter",
+          float_field_indices: [],
+          field_labels: [Some("count")],
+          fields: [field_type.IntField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+  source |> string.contains("gleam/bit_array") |> should.be_false()
+}
+
+pub fn simple_type_omits_dict_import_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/counter",
+      type_name: "Counter",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/counter",
+          variant_name: "Counter",
+          atom_name: "shared_counter__counter",
+          float_field_indices: [],
+          field_labels: [Some("count")],
+          fields: [field_type.IntField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+  source |> string.contains("gleam/dict") |> should.be_false()
+}
+
+pub fn simple_type_omits_list_at_helper_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/counter",
+      type_name: "Counter",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/counter",
+          variant_name: "Counter",
+          atom_name: "shared_counter__counter",
+          float_field_indices: [],
+          field_labels: [Some("count")],
+          fields: [field_type.IntField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+  source |> string.contains("fn list_at") |> should.be_false()
+}
+
+pub fn bit_array_field_includes_bit_array_import_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/blob",
+      type_name: "Blob",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/blob",
+          variant_name: "Blob",
+          atom_name: "shared_blob__blob",
+          float_field_indices: [],
+          field_labels: [Some("data")],
+          fields: [field_type.BitArrayField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+  source |> string.contains("gleam/bit_array") |> should.be_true()
+}
+
+pub fn dict_field_includes_dict_import_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/config",
+      type_name: "Config",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/config",
+          variant_name: "Config",
+          atom_name: "shared_config__config",
+          float_field_indices: [],
+          field_labels: [Some("settings")],
+          fields: [
+            field_type.DictOf(field_type.StringField, field_type.IntField),
+          ],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+  source |> string.contains("gleam/dict") |> should.be_true()
+}
+
+pub fn unlabelled_fields_include_list_at_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/point",
+      type_name: "Point",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/point",
+          variant_name: "Point",
+          atom_name: "shared_point__point",
+          float_field_indices: [],
+          field_labels: [None, None],
+          fields: [field_type.IntField, field_type.IntField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+  source |> string.contains("fn list_at") |> should.be_true()
+}
+
+pub fn labelled_tuple_field_includes_list_at_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/location",
+      type_name: "Location",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/location",
+          variant_name: "Location",
+          atom_name: "shared_location__location",
+          float_field_indices: [],
+          field_labels: [Some("coords")],
+          fields: [
+            field_type.TupleOf([field_type.IntField, field_type.IntField]),
+          ],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types, [], []))
+  source |> string.contains("fn list_at") |> should.be_true()
+}
+
 fn assert_generated(result: Result(String, List(a))) -> String {
   let assert Ok(source) = result
   source
