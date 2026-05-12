@@ -16,34 +16,16 @@
 identity(X) -> X.
 
 encode(Term) ->
-    Term2 = case persistent_term:get({libero, wire_module}, undefined) of
-        undefined -> Term;
-        Mod -> Mod:encode_term(Term)
-    end,
-    erlang:term_to_binary(Term2).
+    libero_etf_ffi:encode(Term).
 
 decode(Bin) ->
-    apply_decode_term(erlang:binary_to_term(Bin, [safe])).
+    libero_etf_ffi:decode(Bin).
 
 decode_safe(Bin) ->
-    try apply_decode_term(erlang:binary_to_term(Bin, [safe])) of
-        Term -> {ok, Term}
-    catch
-        _:Reason ->
-            Msg = erlang:iolist_to_binary(
-                io_lib:format("~p", [Reason])
-            ),
-            {error, {decode_error, Msg}}
-    end.
+    libero_etf_ffi:decode_safe(Bin).
 
 decode_typed(Bin, _DecoderName) ->
-    decode_safe(Bin).
-
-apply_decode_term(Term) ->
-    case persistent_term:get({libero, wire_module}, undefined) of
-        undefined -> Term;
-        Mod -> Mod:decode_term(Term)
-    end.
+    libero_etf_ffi:decode_typed(Bin, _DecoderName).
 
 try_call(F) ->
     try F() of
@@ -102,7 +84,7 @@ halt(Code) ->
     erlang:halt(Code).
 
 ensure_decoders() ->
-    true.
+    libero_etf_ffi:ensure_decoders().
 
 compile_module_from_source(Source) when is_binary(Source) ->
     Str = binary_to_list(Source),

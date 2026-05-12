@@ -6,8 +6,8 @@
 
 import gleam/string
 import libero/error.{type RpcError, InternalError}
+import libero/etf/wire
 import libero/trace
-import libero/wire
 
 pub fn panicking_handler_produces_internal_error_test() {
   let request_id = 1

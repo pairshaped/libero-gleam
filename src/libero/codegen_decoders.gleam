@@ -57,7 +57,7 @@ pub fn generate_decoders_ffi(
 }
 
 /// Emit a JS string with one decoder function per discovered type,
-/// registration calls that populate rpc_ffi.mjs's typed decoder registry,
+/// registration calls that populate etf/wire_ffi.mjs's typed decoder registry,
 /// and an `ensure_decoders` entry point.
 pub fn emit_typed_decoders(discovered: List(DiscoveredType)) -> String {
   let type_decoders = list.map(discovered, fn(t) { emit_type_decoder(t) })
@@ -138,7 +138,7 @@ fn emit_decoder_imports(
     False ->
       "\nimport { registerAtomDecoder } from \""
       <> relpath_prefix
-      <> "libero/libero/rpc_ffi.mjs\";"
+      <> "libero/libero/etf/wire_ffi.mjs\";"
   }
   let module_imports =
     list.map(module_paths, fn(mp) {

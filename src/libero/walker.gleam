@@ -73,7 +73,7 @@ type WalkerState {
 }
 
 /// Module prefixes that should never be walked - their types are
-/// handled by libero's auto-wire blocks in rpc_ffi.mjs.
+/// handled by libero's auto-wire blocks in etf/wire_ffi.mjs.
 const registry_skip_prefixes = ["libero/", "gleam/"]
 
 /// Primitive/builtin type names: not custom types, never walked.
@@ -541,7 +541,7 @@ pub fn qualified_atom_name(
 /// Convert a PascalCase variant name to snake_case for the wire atom.
 /// "AdminData" → "admin_data", "One" → "one", "TwoOrMore" → "two_or_more".
 /// Handles consecutive uppercase: "XMLParser" → "xml_parser".
-/// Must stay aligned with `snakeCase()` in rpc_ffi.mjs.
+/// Must stay aligned with `snakeCase()` in etf/wire_ffi.mjs.
 pub fn to_snake_case(name: String) -> String {
   let graphemes = string.to_graphemes(name)
   // Build triples of (prev, current, next) so we can detect acronym

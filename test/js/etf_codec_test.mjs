@@ -1,7 +1,7 @@
-// ETF codec tests for libero's rpc_ffi.mjs
+// ETF codec tests for libero's etf/wire_ffi.mjs
 //
-// Standalone Node.js test - inlines the decoder/encoder classes from rpc_ffi.mjs
-// because top-level await imports in rpc_ffi.mjs prevent direct import.
+// Standalone Node.js test - inlines the decoder/encoder classes from etf/wire_ffi.mjs
+// because top-level await imports in etf/wire_ffi.mjs prevent direct import.
 //
 // The inlined decoder runs in "raw" mode (no Gleam prelude): atoms stay as
 // strings, tagged tuples stay as plain arrays, and lists are JS arrays.
@@ -14,7 +14,7 @@ import { execSync } from "child_process";
 import { strict as assert } from "assert";
 
 // ============================================================
-// Inlined from rpc_ffi.mjs - decoder, encoder, helpers
+// Inlined from etf/wire_ffi.mjs - decoder, encoder, helpers
 // ============================================================
 //
 // Wire identity in the production runtime is per-class: the Gleam

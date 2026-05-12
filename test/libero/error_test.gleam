@@ -2,7 +2,7 @@
 
 import gleam/dynamic.{type Dynamic}
 import libero/error.{type RpcError, InternalError}
-import libero/wire
+import libero/etf/wire
 
 /// InternalError carries a client-safe message that consumers can
 /// display directly. Verify the field survives construction and
@@ -20,7 +20,7 @@ pub fn internal_error_message_accessible_via_pattern_match_test() {
 }
 
 /// Verify the full error envelope survives an ETF roundtrip through
-/// a call envelope. This exercises the BEAM's atom encoding of
+/// a request envelope. This exercises the BEAM's atom encoding of
 /// the InternalError constructor tag.
 pub fn internal_error_roundtrips_through_wire_test() {
   let value: Result(String, RpcError) =
@@ -29,9 +29,9 @@ pub fn internal_error_roundtrips_through_wire_test() {
       message: "Something went wrong, please try again.",
     ))
   let encoded = wire.encode(value)
-  // Wrap in a call envelope {module, request_id, value} and decode to verify structure survives.
+  // Wrap in a request envelope {module, request_id, value} and decode to verify structure survives.
   let envelope = ffi_encode(coerce(#("shared/test", 0, coerce(encoded))))
-  let assert Ok(#("shared/test", 0, rebuilt)) = wire.decode_call(envelope)
+  let assert Ok(#("shared/test", 0, rebuilt)) = wire.decode_request(envelope)
   let decoded: Result(String, RpcError) = wire.decode(unsafe_coerce(rebuilt))
   let assert Error(InternalError(
     trace_id: "abc123",

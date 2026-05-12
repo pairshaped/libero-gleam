@@ -120,7 +120,7 @@ contract boundary: app code should call Libero helpers instead of assembling wir
 messages by hand.
 
 For untrusted ETF input, decode through the generated helpers or
-`wire.decode_safe`. ETF safe decoding prevents atom and function-term injection,
+`libero/etf/wire.decode_safe`. ETF safe decoding prevents atom and function-term injection,
 but callers should still set process memory limits for hostile input.
 
 ## More Docs

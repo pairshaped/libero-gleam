@@ -3,7 +3,7 @@
 // raw arrays with string atoms.
 //
 // There are two layers:
-// 1. ETF decoder (rpc_ffi.mjs): decode_value (raw=false) now
+// 1. ETF decoder (etf/wire_ffi.mjs): decode_value (raw=false) now
 //    reconstructs Ok, Error, Some, None inline in decodeTuple and
 //    decodeAtom. decode_value_raw still returns raw arrays/strings.
 // 2. Typed decoder prelude (decoders_prelude.mjs): decode_result_of,

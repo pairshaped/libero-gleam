@@ -8,7 +8,7 @@ const buildRoot = readFileSync("test/js/.wire_e2e_build_root", "utf8").trim();
 const webRoot = join(buildRoot, "clients/web/build/dev/javascript");
 
 await import(pathToFileURL(join(webRoot, "web/generated/libero/rpc_decoders_ffi.mjs")).href);
-const wire = await import(pathToFileURL(join(webRoot, "libero/libero/wire.mjs")).href);
+const wire = await import(pathToFileURL(join(webRoot, "libero/libero/etf/wire.mjs")).href);
 const types = await import(pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href);
 const collision = await import(pathToFileURL(join(webRoot, "shared/shared/collision.mjs")).href);
 const gleam = await import(pathToFileURL(join(webRoot, "gleam_stdlib/gleam.mjs")).href);
@@ -104,7 +104,7 @@ const cases = [
 ];
 
 const erlangCases = cases.map(([name, msg]) => {
-  const payload = wire.encode_call("rpc", 7, msg);
+  const payload = wire.encode_request("rpc", 7, msg);
   return `{${JSON.stringify(name)},${JSON.stringify(Buffer.from(payload.rawBuffer).toString("base64"))}}`;
 });
 const printed = execFileSync(

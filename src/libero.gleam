@@ -14,7 +14,7 @@ import gleam/result
 import gleam/string
 import libero/codegen_decoders
 import libero/codegen_dispatch
-import libero/codegen_wire_erl
+import libero/etf/codegen_erl
 import libero/format
 import libero/gen_error.{type GenError}
 import libero/json/codegen
@@ -25,10 +25,11 @@ import libero/walker.{type DiscoveredType}
 import simplifile
 import tom
 
-/// Re-export so consumers can construct push dispatch entries without
-/// reaching into `libero/codegen_wire_erl` directly.
-pub type PushDispatch =
-  codegen_wire_erl.PushDispatch
+/// Consumers can construct push dispatch entries without reaching into
+/// `libero/etf/codegen_erl` directly.
+pub type PushDispatch {
+  PushDispatch(page_tag: String, type_atom: String)
+}
 
 /// The wire protocol: ETF (Erlang Term Format) or JSON.
 pub type Protocol =
@@ -290,7 +291,15 @@ pub fn generate_wire_erl(
   endpoints endpoints: List(HandlerEndpoint),
   push_dispatches push_dispatches: List(PushDispatch),
 ) -> Result(String, GenError) {
-  codegen_wire_erl.generate(
+  let push_dispatches =
+    list.map(push_dispatches, fn(dispatch) {
+      codegen_erl.PushDispatch(
+        page_tag: dispatch.page_tag,
+        type_atom: dispatch.type_atom,
+      )
+    })
+
+  codegen_erl.generate(
     module_name: wire_module,
     discovered:,
     endpoints:,

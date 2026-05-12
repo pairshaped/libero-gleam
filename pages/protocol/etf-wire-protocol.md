@@ -144,8 +144,7 @@ helpers that validate the decoded shape before constructing typed values.
 
 ## Protocol Helpers
 
-ETF helpers currently live in `libero/wire`. The target module path is
-`libero/etf/wire`, matching `libero/json/wire`.
+ETF helpers live in `libero/etf/wire`, matching `libero/json/wire`.
 
 The contract-level helper surface is:
 

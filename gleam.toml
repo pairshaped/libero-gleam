@@ -30,7 +30,7 @@ source = "./pages/protocol/wire-type-identity.md"
 # No target specified - cross-target package.
 # Erlang-only modules: libero/trace, libero/format
 # JS-only modules: (none currently)
-# Cross-target modules: libero/error, libero/wire,
+# Cross-target modules: libero/error, libero/etf/wire,
 #   libero/field_type, libero/remote_data, libero/gen_error
 
 [dependencies]

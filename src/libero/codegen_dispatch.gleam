@@ -218,7 +218,7 @@ fn dispatch_known(msg, request_id, server_context" <> extra_args <> ") {
 import gleam/io
 import libero/error.{InternalError, MalformedRequest, UnknownFunction}
 import libero/trace
-import libero/wire" <> dict_import <> option_import <> "
+import libero/etf/wire" <> dict_import <> option_import <> "
 import " <> context_module <> ".{type " <> context_type_name <> "}
 " <> string.join(handler_imports, "\n") <> "
 " <> string.join(shared_type_imports, "\n") <> "
@@ -234,7 +234,7 @@ pub fn handle(
   server_context server_context: " <> context_type_name <> ",
   data data: BitArray," <> extra_handle_params <> "
 ) -> #(BitArray, " <> context_type_name <> ") {
-  " <> ensure_call <> "case wire.decode_call(data) {
+  " <> ensure_call <> "case wire.decode_request(data) {
     Ok(#(\"" <> wire_module_tag <> "\", request_id, msg)) -> {
 " <> decode_msg_call <> "      case wire.variant_tag(msg) {
 " <> inner_case <> "

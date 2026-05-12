@@ -9,7 +9,7 @@ test_name: endpoint_dispatch_wraps_read_only_handler_test
 import gleam/io
 import libero/error.{InternalError, MalformedRequest, UnknownFunction}
 import libero/trace
-import libero/wire
+import libero/etf/wire
 import server_context.{type ServerContext}
 import server/handler as server_handler_handler
 
@@ -23,7 +23,7 @@ pub fn handle(
   server_context server_context: ServerContext,
   data data: BitArray,
 ) -> #(BitArray, ServerContext) {
-  case wire.decode_call(data) {
+  case wire.decode_request(data) {
     Ok(#("rpc", request_id, msg)) -> {
       case wire.variant_tag(msg) {
         Ok("server_list_things") ->

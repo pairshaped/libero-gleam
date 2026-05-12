@@ -57,7 +57,7 @@ Each function returns a string, so the caller owns file I/O. Internal modules (`
 
 4. **Decoder codegen** (`libero/codegen_decoders`): Generates JavaScript typed decoders so the JS client can reconstruct Gleam values from ETF. It also emits float type hints used by the JS ETF encoder.
 
-5. **Wire protocol** (`libero/wire`): ETF codec for both Erlang and JavaScript targets. Call envelope, response framing, variant tag extraction.
+5. **ETF wire protocol** (`libero/etf/wire`): ETF codec for both Erlang and JavaScript targets. Request envelope, response framing, variant tag extraction. `libero/wire` remains as a compatibility wrapper.
 
 6. **RemoteData** (`libero/remote_data`): Client-side state machine for async data. `RpcData(value, domain)` separates transport errors from domain errors.
 
@@ -99,7 +99,7 @@ pub fn server_create_item(
 import gleam/io
 import libero/error.{InternalError, MalformedRequest, UnknownFunction}
 import libero/trace
-import libero/wire
+import libero/etf/wire
 
 pub type ClientMsg {
   GetItems
@@ -110,7 +110,7 @@ pub fn handle(
   server_context server_context: ServerContext,
   data data: BitArray,
 ) -> #(BitArray, ServerContext) {
-  case wire.decode_call(data) {
+  case wire.decode_request(data) {
     Ok(#("rpc", request_id, msg)) -> {
       case wire.variant_tag(msg) {
         Ok("get_items") | Ok("create_item") -> {
@@ -142,10 +142,10 @@ pub fn handle(
 ## Wire protocol
 
 - Format: ETF (Erlang External Term Format), binary WebSocket frames
-- Call envelope: `{module_name_binary, request_id, client_msg_value}` (3-tuple)
+- Request envelope: `{module_name_binary, request_id, client_msg_value}` (3-tuple)
 - Response frame: `<<0x00, request_id:32-big, etf_bytes>>`
 - Push frame: `<<0x01, etf_bytes>>` (server-initiated, no request ID)
-- JS codec: custom ETF encoder/decoder in `rpc_ffi.mjs` with typed decoder layer
+- JS codec: custom ETF encoder/decoder in `libero/etf/wire_ffi.mjs` with typed decoder layer
 - Float handling: generated code calls `registerFieldTypes` so JavaScript whole-number floats are encoded as ETF floats, including inside `List`, `Option`, `Result`, `Dict`, and tuple containers
 
 ## Error model
@@ -178,7 +178,8 @@ pub type RpcData(value, domain) = RemoteData(value, RpcOutcome(domain))
 | `libero/codegen_dispatch` | erlang | Server dispatch generator |
 | `libero/codegen_decoders` | erlang | JS typed decoder generator |
 | `libero/codegen` | both | Cross-cutting codegen helpers |
-| `libero/wire` | both | ETF codec |
+| `libero/etf/wire` | both | ETF codec |
+| `libero/wire` | both | Compatibility wrapper for ETF codec |
 | `libero/error` | both | RpcError, DecodeError, PanicInfo |
 | `libero/remote_data` | both | RemoteData/RpcData |
 | `libero/field_type` | both | Structured type representation |

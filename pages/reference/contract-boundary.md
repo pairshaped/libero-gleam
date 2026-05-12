@@ -81,7 +81,8 @@ The contract boundary has these parts:
 - Dispatch codegen turns request messages into handler calls.
 - Wire transformers move type identity into generated code.
 - JavaScript decoder codegen reconstructs typed values from wire values.
-- `libero/wire` owns request, response, push, and SSR flag helpers.
+- `libero/etf/wire` and `libero/json/wire` own request, response, push, and
+  SSR flag helpers for their protocols.
 - Consumers receive WebSocket frames through `decode_server_frame` or a
   generated wrapper.
 - Consumers send requests through `encode_request` or a generated wrapper.

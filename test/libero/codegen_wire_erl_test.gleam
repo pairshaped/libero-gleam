@@ -10,7 +10,7 @@
 import gleam/list
 import gleam/option
 import gleam/string
-import libero/codegen_wire_erl
+import libero/etf/codegen_erl as codegen_wire_erl
 import libero/field_type.{
   BitArrayField, BoolField, DictOf, FloatField, IntField, ListOf, NilField,
   OptionOf, ResultOf, StringField, TupleOf, UserType,
@@ -733,8 +733,7 @@ pub fn decode_client_msg_zero_arity_msg_type_accepts_wire_hash_test() {
       push_dispatches: [],
     )
 
-  let hash =
-    hash_for("admin/pages/website/sponsors", "ServerLoadSponsors", [])
+  let hash = hash_for("admin/pages/website/sponsors", "ServerLoadSponsors", [])
   let assert True =
     string.contains(
       out,
@@ -813,13 +812,11 @@ pub fn decode_client_msg_param_msg_type_accepts_wire_hash_test() {
     )
 
   let hash =
-    hash_for(
-      "admin/sponsors",
-      "ServerUpdateSponsor",
-      [IntField, params_type],
-    )
+    hash_for("admin/sponsors", "ServerUpdateSponsor", [IntField, params_type])
   let expected =
-    "decode_client_msg({'" <> hash <> "', F0, F1}) ->\n    {server_update_sponsor, F0, decode_admin_sponsors__sponsor_params(F1)}"
+    "decode_client_msg({'"
+    <> hash
+    <> "', F0, F1}) ->\n    {server_update_sponsor, F0, decode_admin_sponsors__sponsor_params(F1)}"
   let assert True = string.contains(out, expected)
 }
 
@@ -1203,8 +1200,7 @@ pub fn encode_push_routes_to_correct_encoder_for_duplicate_variants_test() {
 // -- Hardcoded hash regression ------------------------------------------------
 
 pub fn wire_hash_regression_server_set_dark_mode_test() {
-  let hash =
-    hash_for("admin/pages/settings", "ServerSetDarkMode", [BoolField])
+  let hash = hash_for("admin/pages/settings", "ServerSetDarkMode", [BoolField])
   // Pinned value: if this changes, the wire hash algorithm drifted.
   let assert "0418533ae1" = hash
 }

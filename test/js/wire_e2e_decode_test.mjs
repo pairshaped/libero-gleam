@@ -10,7 +10,7 @@ const manifest = JSON.parse(
 );
 
 const rpcFfi = await import(
-  pathToFileURL(join(webRoot, "libero/libero/rpc_ffi.mjs")).href
+  pathToFileURL(join(webRoot, "libero/libero/etf/wire_ffi.mjs")).href
 );
 const decoders = await import(
   pathToFileURL(join(webRoot, "web/generated/libero/rpc_decoders_ffi.mjs")).href

@@ -9,7 +9,7 @@ test_name: empty_endpoints_generates_valid_dispatch_test
 import gleam/io
 import libero/error.{InternalError, MalformedRequest, UnknownFunction}
 import libero/trace
-import libero/wire
+import libero/etf/wire
 import server_context.{type ServerContext}
 
 
@@ -22,7 +22,7 @@ pub fn handle(
   server_context server_context: ServerContext,
   data data: BitArray,
 ) -> #(BitArray, ServerContext) {
-  case wire.decode_call(data) {
+  case wire.decode_request(data) {
     Ok(#("rpc", request_id, msg)) -> {
       case wire.variant_tag(msg) {
         Ok(_) ->

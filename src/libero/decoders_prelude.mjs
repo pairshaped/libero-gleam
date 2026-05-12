@@ -3,7 +3,7 @@
 // generated.
 //
 // Gleam stdlib types (Ok, Error, Some, None, Empty, NonEmpty) are
-// injected via setters at module load time - same pattern as rpc_ffi.mjs.
+// injected via setters at module load time - same pattern as etf/wire_ffi.mjs.
 // The generated register file calls these setters before any RPC arrives.
 
 // --- Gleam stdlib types (set via setters, no direct imports) ---

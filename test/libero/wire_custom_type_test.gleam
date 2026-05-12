@@ -2,11 +2,11 @@
 ///
 /// Defines throwaway types covering every custom-type gotcha from
 /// the git history (None/Nil, 0-arity, float fields, nested types)
-/// and roundtrips them through encode → decode_call → coerce.
+/// and roundtrips them through encode → decode_request → coerce.
 import gleam/dict
 import gleam/dynamic.{type Dynamic}
 import gleam/option.{None, Some}
-import libero/wire
+import libero/etf/wire
 
 // ============================================================================
 // Test types
@@ -53,7 +53,7 @@ pub type Profile {
 fn roundtrip(value: a) -> Dynamic {
   let envelope = ffi_encode(coerce(#("shared/test", 0, coerce(value))))
   let assert Ok(#("shared/test", _request_id, rebuilt)) =
-    wire.decode_call(envelope)
+    wire.decode_request(envelope)
   rebuilt
 }
 
@@ -245,7 +245,7 @@ pub fn roundtrip_list_of_shapes_test() {
 }
 
 // ============================================================================
-// Direct encode/decode (not via call envelope)
+// Direct encode/decode (not via request envelope)
 // ============================================================================
 
 pub fn direct_roundtrip_status_test() {

@@ -1,5 +1,5 @@
 // Non-raw decode coverage. Mirrors wire_e2e_decode_test.mjs but uses
-// rpc_ffi.decode_value (the production WebSocket path) instead of
+// etf/wire_ffi.decode_value (the production WebSocket path) instead of
 // decode_value_raw. Production WebSocket frames take this code path,
 // which interleaves atom→typed-decoder reconstruction with raw ETF
 // decoding. The test below catches regressions where toRawShape, the
@@ -21,7 +21,7 @@ const manifest = JSON.parse(
 );
 
 const rpcFfi = await import(
-  pathToFileURL(join(webRoot, "libero/libero/rpc_ffi.mjs")).href
+  pathToFileURL(join(webRoot, "libero/libero/etf/wire_ffi.mjs")).href
 );
 // Importing the generated decoders has the side effect of calling
 // registerAtomDecoder for every user type, populating the atom→decoder

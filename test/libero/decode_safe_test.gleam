@@ -1,7 +1,7 @@
 //// Tests for wire.decode_safe - the Result-returning decoder.
 
 import libero/error
-import libero/wire
+import libero/etf/wire
 
 pub fn decode_safe_valid_int_test() {
   let encoded = wire.encode(42)

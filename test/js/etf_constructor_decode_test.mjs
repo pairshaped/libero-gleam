@@ -5,7 +5,7 @@
 //
 // This is a focused test that inlines just enough of ETFDecoder to
 // exercise the constructor reconstruction path. The real decoder
-// lives in src/libero/rpc_ffi.mjs and src/rally_runtime/rpc_ffi.mjs.
+// lives in src/libero/etf/wire_ffi.mjs and src/rally_runtime/rpc_ffi.mjs.
 //
 // Run from the libero root:
 //   node test/js/etf_constructor_decode_test.mjs
@@ -117,10 +117,10 @@ class ETFEncoder {
   }
 }
 
-// ---------- Constructor registry (matches rpc_ffi.mjs) ----------
+// ---------- Constructor registry (matches etf/wire_ffi.mjs) ----------
 const constructorRegistry = new Map();
 
-// ---------- Typed decoder registry (matches rpc_ffi.mjs) ----------
+// ---------- Typed decoder registry (matches etf/wire_ffi.mjs) ----------
 // Atom → decoder-name reverse mapping so non-raw decode_value can
 // reconstruct custom types without the deprecated constructorRegistry.
 const _typedDecoderRegistry = new Map();
@@ -161,7 +161,7 @@ function toRawShape(value) {
 }
 
 // ---------- Minimal ETFDecoder with constructor reconstruction ----------
-// Inlined from rpc_ffi.mjs - mirrors the real decodeTuple and
+// Inlined from etf/wire_ffi.mjs - mirrors the real decodeTuple and
 // decodeAtom paths for Ok, Error, Some, None, constructorRegistry,
 // and the atom→typed-decoder reverse mapping.
 

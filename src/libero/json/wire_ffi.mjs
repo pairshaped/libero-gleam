@@ -5,7 +5,7 @@
 // Wire shape: JSON text (string). WebSocket uses text frames.
 //
 // This is the JS FFI for the JSON wire protocol, mirroring the ETF
-// rpc_ffi.mjs but working with JSON text frames instead of ETF binary.
+// etf/wire_ffi.mjs but working with JSON text frames instead of ETF binary.
 //
 // IMPORTANT: This module is frame-level only. It wraps/unwraps JSON-RPC-v1
 // protocol envelopes. It does NOT perform typed encoding of user values.

@@ -26,7 +26,7 @@ pub type DecodeError {
 
 /// The error envelope for every Libero RPC response.
 pub type RpcError {
-  /// The server couldn't parse the incoming call envelope.
+  /// The server couldn't parse the incoming request envelope.
   MalformedRequest
 
   /// The named RPC function doesn't exist in the server's dispatch

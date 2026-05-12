@@ -270,7 +270,7 @@ pub fn qualified_atoms_prevent_collision_in_registry_test() {
 pub fn decode_typed_dispatch_in_output_test() {
   let js = codegen_decoders.emit_typed_decoders(sample_record_type())
 
-  // Registration calls populate rpc_ffi.mjs's atom→decoder reverse
+  // Registration calls populate etf/wire_ffi.mjs's atom→decoder reverse
   // mapping so the ETF decoder can reconstruct custom types in non-raw
   // mode. Under the wire-identity scheme the atom is the variant's
   // hash; the decoder function name still embeds the source module +
