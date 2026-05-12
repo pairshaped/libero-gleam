@@ -46,6 +46,7 @@ pub type GenError {
   /// generic survives only if the user wrote a wire type with an
   /// uninstantiated generic parameter, which is a logic error.
   WireTypeContainsTypeVar(field_path: String, var_name: String)
+  TypeResolutionFailed(path: String, message: String)
 }
 
 pub fn print_error(err: GenError) -> Nil {
@@ -203,6 +204,16 @@ fn to_string(err: GenError) -> String {
         ],
         hint: Some(
           "Replace the generic parameter with a concrete type at the\n        wire boundary, or wrap it in a fully-applied user type before\n        the value crosses the wire.",
+        ),
+      )
+
+    TypeResolutionFailed(path, message) ->
+      error_box(
+        title: "Failed to resolve Gleam type",
+        path:,
+        body_lines: [message],
+        hint: Some(
+          "Check for duplicate or conflicting type imports in this module.",
         ),
       )
   }

@@ -14,7 +14,9 @@ import gleam/string
 import libero/field_type
 import libero/gen_error.{
   type GenError, CannotReadDir, CannotReadFile, DuplicateEndpoint, ParseFailed,
+  TypeResolutionFailed,
 }
+import libero/glance_type_resolver.{PreserveUnsupported}
 import simplifile
 
 // ---------- Types ----------
@@ -218,12 +220,15 @@ fn parse_endpoints(
   context_type_name context_type_name: String,
   module_files module_files: dict.Dict(String, String),
 ) -> Result(List(HandlerEndpoint), GenError) {
-  use parsed <- result.map(parse_module(file_path:))
+  use parsed <- result.try(parse_module(file_path:))
   let module_path = derive_module_path(file_path: file_path)
-  let type_imports = build_type_import_map(parsed.imports)
-  let alias_map = build_alias_resolution_map(parsed.imports)
-  let type_alias_originals = build_type_alias_originals(parsed.imports)
-  list.filter_map(parsed.functions, fn(def) {
+  use resolver <- result.try(
+    glance_type_resolver.resolver_from_imports(parsed.imports)
+    |> result.map_error(fn(message) {
+      TypeResolutionFailed(path: file_path, message:)
+    }),
+  )
+  Ok(list.filter_map(parsed.functions, fn(def) {
     let glance.Definition(_, func) = def
     case func.publicity == glance.Public {
       False -> Error(Nil)
@@ -231,15 +236,13 @@ fn parse_endpoints(
         parse_single_endpoint(
           func: func,
           module_path: module_path,
-          type_imports: type_imports,
-          alias_map: alias_map,
-          type_alias_originals: type_alias_originals,
+          resolver: resolver,
           context_type_name: context_type_name,
           custom_types: parsed.custom_types,
           module_files: module_files,
         )
     }
-  })
+  }))
 }
 
 /// Build a map from unqualified type names to the full module path of their import.
@@ -293,14 +296,11 @@ pub fn build_alias_resolution_map(
 fn parse_single_endpoint(
   func func: glance.Function,
   module_path module_path: String,
-  type_imports type_imports: dict.Dict(String, String),
-  alias_map alias_map: dict.Dict(String, String),
-  type_alias_originals type_alias_originals: dict.Dict(String, String),
+  resolver resolver: glance_type_resolver.TypeResolver,
   context_type_name context_type_name: String,
   custom_types custom_types: List(glance.Definition(glance.CustomType)),
   module_files module_files: dict.Dict(String, String),
 ) -> Result(HandlerEndpoint, Nil) {
-  // Must have server_ prefix
   use <- bool.guard(
     when: !string.starts_with(func.name, "server_"),
     return: Error(Nil),
@@ -312,13 +312,14 @@ fn parse_single_endpoint(
   )
 
   let to_ft = fn(t) {
-    glance_type_to_field_type(
-      type_: t,
-      imports: type_imports,
-      aliases: alias_map,
-      type_alias_originals: type_alias_originals,
-      current_module: module_path,
-    )
+    let assert Ok(ft) =
+      glance_type_resolver.type_to_field_type(
+        type_: t,
+        resolver:,
+        current_module: module_path,
+        policy: PreserveUnsupported,
+      )
+    ft
   }
 
   let #(params_typed, msg_type) =
@@ -423,17 +424,17 @@ fn module_type_resolver(
   imports: List(glance.Definition(glance.Import)),
   current_module: String,
 ) -> fn(glance.Type) -> field_type.FieldType {
-  let type_imports = build_type_import_map(imports)
-  let alias_map = build_alias_resolution_map(imports)
-  let type_alias_originals = build_type_alias_originals(imports)
+  let assert Ok(resolver) =
+    glance_type_resolver.resolver_from_imports(imports)
   fn(t) {
-    glance_type_to_field_type(
-      type_: t,
-      imports: type_imports,
-      aliases: alias_map,
-      type_alias_originals: type_alias_originals,
-      current_module: current_module,
-    )
+    let assert Ok(ft) =
+      glance_type_resolver.type_to_field_type(
+        type_: t,
+        resolver:,
+        current_module:,
+        policy: PreserveUnsupported,
+      )
+    ft
   }
 }
 
@@ -547,82 +548,3 @@ fn extract_result_args(
   }
 }
 
-fn glance_type_to_field_type(
-  type_ t: glance.Type,
-  imports imports: dict.Dict(String, String),
-  aliases aliases: dict.Dict(String, String),
-  type_alias_originals type_alias_originals: dict.Dict(String, String),
-  current_module current_module: String,
-) -> field_type.FieldType {
-  let recurse_named = fn(name, params) {
-    builtin_or_user(
-      name:,
-      parameters: params,
-      imports:,
-      aliases:,
-      type_alias_originals:,
-      current_module:,
-    )
-  }
-  let recurse = fn(t) {
-    glance_type_to_field_type(
-      type_: t,
-      imports:,
-      aliases:,
-      type_alias_originals:,
-      current_module:,
-    )
-  }
-  case t {
-    glance.NamedType(name:, module: option.None, parameters: [], ..) ->
-      recurse_named(name, [])
-    glance.NamedType(name:, module: option.None, parameters: params, ..) ->
-      recurse_named(name, params)
-    glance.NamedType(name:, module: option.Some(m), parameters: params, ..) -> {
-      let module_path = dict.get(aliases, m) |> result.unwrap(or: m)
-      field_type.UserType(
-        module_path:,
-        type_name: name,
-        args: list.map(params, recurse),
-      )
-    }
-    glance.TupleType(elements:, ..) ->
-      field_type.TupleOf(elements: list.map(elements, recurse))
-    glance.VariableType(name:, ..) -> field_type.TypeVar(name:)
-    glance.FunctionType(..) -> field_type.TypeVar(name: "_fn")
-    glance.HoleType(..) -> field_type.TypeVar(name: "_")
-  }
-}
-
-fn builtin_or_user(
-  name name: String,
-  parameters parameters: List(glance.Type),
-  imports imports: dict.Dict(String, String),
-  aliases aliases: dict.Dict(String, String),
-  type_alias_originals type_alias_originals: dict.Dict(String, String),
-  current_module current_module: String,
-) -> field_type.FieldType {
-  let recurse = fn(t) {
-    glance_type_to_field_type(
-      type_: t,
-      imports:,
-      aliases:,
-      type_alias_originals:,
-      current_module:,
-    )
-  }
-  case field_type.builtin_field_type(name:, parameters:, recurse:) {
-    Ok(ft) -> ft
-    Error(Nil) -> {
-      let module_path =
-        dict.get(imports, name) |> result.unwrap(or: current_module)
-      let type_name =
-        dict.get(type_alias_originals, name) |> result.unwrap(or: name)
-      field_type.UserType(
-        module_path:,
-        type_name:,
-        args: list.map(parameters, recurse),
-      )
-    }
-  }
-}
