@@ -127,8 +127,7 @@ pub fn generate_with_extra_params(
     })
     |> string.join("\n")
 
-  let case_arms =
-    list.map(endpoints, emit_case_arm(_, wire_module, extra_args))
+  let case_arms = list.map(endpoints, emit_case_arm(_, wire_module, extra_args))
 
   let atoms_external = case atoms_module {
     option.Some(mod) ->
@@ -261,8 +260,7 @@ fn emit_case_arm(
     codegen.variant_pattern(variant_name:, params: e.params)
 
   let handler_args = case e.msg_type {
-    option.Some(_) ->
-      "wire.coerce(typed_msg), server_context" <> extra_args
+    option.Some(_) -> "wire.coerce(typed_msg), server_context" <> extra_args
     option.None -> {
       let positional = list.map(e.params, fn(p) { p.0 })
       string.join(
