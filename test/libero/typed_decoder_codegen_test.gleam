@@ -19,6 +19,7 @@ fn sample_status_enum() -> List(walker.DiscoveredType) {
           variant_name: "Pending",
           atom_name: "pending",
           float_field_indices: [],
+          field_labels: [],
           fields: [],
         ),
         walker.DiscoveredVariant(
@@ -26,6 +27,7 @@ fn sample_status_enum() -> List(walker.DiscoveredType) {
           variant_name: "Paid",
           atom_name: "paid",
           float_field_indices: [],
+          field_labels: [],
           fields: [],
         ),
       ],
@@ -45,6 +47,7 @@ fn sample_record_type() -> List(walker.DiscoveredType) {
           variant_name: "Item",
           atom_name: "item",
           float_field_indices: [],
+          field_labels: [option.None, option.None, option.None],
           fields: [
             field_type.StringField,
             field_type.IntField,
@@ -68,6 +71,7 @@ fn sample_notification_type() -> List(walker.DiscoveredType) {
           variant_name: "ItemsLoaded",
           atom_name: "items_loaded",
           float_field_indices: [],
+          field_labels: [option.None],
           fields: [
             field_type.ListOf(
               field_type.UserType(
@@ -83,6 +87,7 @@ fn sample_notification_type() -> List(walker.DiscoveredType) {
           variant_name: "StatusChanged",
           atom_name: "status_changed",
           float_field_indices: [],
+          field_labels: [option.None],
           fields: [field_type.StringField],
         ),
         walker.DiscoveredVariant(
@@ -90,6 +95,7 @@ fn sample_notification_type() -> List(walker.DiscoveredType) {
           variant_name: "Disconnected",
           atom_name: "disconnected",
           float_field_indices: [],
+          field_labels: [],
           fields: [],
         ),
         walker.DiscoveredVariant(
@@ -97,6 +103,7 @@ fn sample_notification_type() -> List(walker.DiscoveredType) {
           variant_name: "Refreshed",
           atom_name: "refreshed",
           float_field_indices: [],
+          field_labels: [],
           fields: [],
         ),
       ],
@@ -131,6 +138,7 @@ pub fn result_field_snapshot_test() {
           variant_name: "Wrapper",
           atom_name: "wrapper",
           float_field_indices: [],
+          field_labels: [option.None],
           fields: [
             field_type.ResultOf(
               ok: field_type.StringField,
@@ -157,6 +165,7 @@ pub fn option_field_snapshot_test() {
           variant_name: "OptWrapper",
           atom_name: "opt_wrapper",
           float_field_indices: [],
+          field_labels: [option.None],
           fields: [field_type.OptionOf(field_type.StringField)],
         ),
       ],
@@ -178,6 +187,7 @@ pub fn dict_and_tuple_field_snapshot_test() {
           variant_name: "Compound",
           atom_name: "compound",
           float_field_indices: [],
+          field_labels: [option.None, option.None],
           fields: [
             field_type.DictOf(
               key: field_type.StringField,
@@ -208,6 +218,7 @@ pub fn qualified_atoms_prevent_collision_in_registry_test() {
           variant_name: "Discount",
           atom_name: "pages_discounts__discount",
           float_field_indices: [],
+          field_labels: [option.None],
           fields: [field_type.IntField],
         ),
       ],
@@ -222,6 +233,7 @@ pub fn qualified_atoms_prevent_collision_in_registry_test() {
           variant_name: "Discount",
           atom_name: "pages_admin_discounts__discount",
           float_field_indices: [],
+          field_labels: [option.None, option.None],
           fields: [field_type.IntField, field_type.StringField],
         ),
       ],
@@ -290,6 +302,7 @@ pub fn float_type_hint_registration_test() {
           variant_name: "Measurements",
           atom_name: "measurements",
           float_field_indices: [],
+          field_labels: [option.None, option.None],
           fields: [
             field_type.ListOf(field_type.FloatField),
             field_type.OptionOf(field_type.FloatField),
@@ -340,4 +353,37 @@ pub fn float_type_hint_registration_test() {
   // gains its own class-statics emission. Endpoint floats still flow
   // through the encoder's hint argument when a typed decoder calls
   // back into the encoder, so user-type fields stay correct.
+}
+
+pub fn decoder_codegen_imports_shared_modules_from_shared_package_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/collision",
+      type_name: "Tag",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/collision",
+          variant_name: "Tag",
+          atom_name: "shared_collision__tag",
+          float_field_indices: [],
+          field_labels: [option.None],
+          fields: [field_type.StringField],
+        ),
+      ],
+    ),
+  ]
+
+  let js =
+    codegen_decoders.generate_decoders_ffi(
+      discovered: types,
+      endpoints: [],
+      relpath_prefix: "../../../",
+      package: "server",
+    )
+
+  let assert True =
+    string.contains(js, "from \"../../../shared/shared/collision.mjs\";")
+  let assert False =
+    string.contains(js, "from \"../../../server/shared/collision.mjs\";")
 }

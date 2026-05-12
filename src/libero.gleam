@@ -17,6 +17,9 @@ import libero/codegen_dispatch
 import libero/codegen_wire_erl
 import libero/format
 import libero/gen_error.{type GenError}
+import libero/json/codegen
+import libero/json/contract
+import libero/protocol
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType}
 import simplifile
@@ -26,6 +29,10 @@ import tom
 /// reaching into `libero/codegen_wire_erl` directly.
 pub type PushDispatch =
   codegen_wire_erl.PushDispatch
+
+/// The wire protocol: ETF (Erlang Term Format) or JSON.
+pub type Protocol =
+  protocol.Protocol
 
 /// Re-export so consumers can build qualified atom names for push
 /// dispatch entries using the same logic as the codegen.
@@ -130,13 +137,62 @@ pub fn main() -> Nil {
     option.None -> Nil
   }
 
+  // JSON contract artifact (always generated — public artifact,
+  // no dependency pressure).
+  let json_contract =
+    contract.generate(endpoints:, discovered:, push_types: [], ssr_models: [])
+
+  // Write JSON contract artifact
+  let _ = write_file(out_dir <> "/rpc_contract.json", json_contract)
+
+  // JSON codecs — only when explicitly opted in via LIBERO_GEN_JSON_CODECS.
+  // Without this, ETF-only consumers would inherit a gleam_json dependency
+  // through the generated json_codecs.gleam.
+  case get_env("LIBERO_GEN_JSON_CODECS") {
+    option.Some(val) if val == "1" || val == "true" -> {
+      case discovered {
+        [] -> Nil
+        _ -> {
+          case codegen.generate(discovered, [], []) {
+            Ok(json_codecs_src) -> {
+              let _ =
+                write_file(
+                  out_dir <> "/json_codecs.gleam",
+                  format.format_gleam(json_codecs_src),
+                )
+              Nil
+            }
+            Error(errors) -> {
+              io.println_error("[libero] JSON codec generation failed:")
+              list.each(errors, fn(e) {
+                io.println_error("  " <> e.path <> ": " <> e.message)
+              })
+              Nil
+            }
+          }
+        }
+      }
+    }
+    _ -> Nil
+  }
+
+  let json_codecs_msg = case get_env("LIBERO_GEN_JSON_CODECS") {
+    option.Some(val) if val == "1" || val == "true" ->
+      ", " <> out_dir <> "/json_codecs.gleam"
+    _ -> ""
+  }
+
   io.println(
     "wrote "
     <> out_dir
     <> "/dispatch.gleam, rpc_decoders_ffi.mjs, rpc_decoders.gleam, "
     <> atoms_path
     <> ", "
-    <> wire_path,
+    <> wire_path
+    <> ", "
+    <> out_dir
+    <> "/rpc_contract.json"
+    <> json_codecs_msg,
   )
 }
 
@@ -261,6 +317,19 @@ pub fn generate_decoders_ffi(
 /// Generate the Gleam wrapper for the typed decoder FFI.
 pub fn generate_decoders_gleam() -> String {
   codegen_decoders.generate_decoders_gleam("rpc_decoders_ffi.mjs")
+}
+
+/// Generate a deterministic JSON contract artifact from discovered types
+/// and handler endpoints. The artifact describes every type, variant, and
+/// endpoint that crosses the wire so external tools and SDKs can generate
+/// clients from it.
+pub fn generate_json_contract(
+  endpoints endpoints: List(HandlerEndpoint),
+  discovered discovered: List(DiscoveredType),
+  push_types push_types: List(contract.PushContract),
+  ssr_models ssr_models: List(contract.SsrModelContract),
+) -> String {
+  contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
 }
 
 /// Resolve the optional client output directory from environment config.

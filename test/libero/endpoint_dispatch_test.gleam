@@ -438,6 +438,7 @@ pub fn generate_atoms_erl_includes_variant_constructor_atoms_test() {
           variant_name: "Admin",
           atom_name: "admin",
           float_field_indices: [],
+          field_labels: [],
           fields: [],
         ),
         DiscoveredVariant(
@@ -445,6 +446,7 @@ pub fn generate_atoms_erl_includes_variant_constructor_atoms_test() {
           variant_name: "SuperUser",
           atom_name: "super_user",
           float_field_indices: [],
+          field_labels: [],
           fields: [],
         ),
       ],
@@ -488,6 +490,7 @@ pub fn generate_atoms_erl_no_duplicate_end_of_function_test() {
           variant_name: "Admin",
           atom_name: "shared_types__admin",
           float_field_indices: [],
+          field_labels: [],
           fields: [],
         ),
       ],
@@ -956,6 +959,233 @@ pub fn dispatch_zero_extra_params_unchanged_test() {
     )
 
   let assert True = with_extra == without_extra
+}
+
+pub fn dispatch_with_extra_param_and_msg_type_compiles_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "echo_item",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: False,
+      msg_type: option.Some(#("server/handler", "EchoItem")),
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_with_extra_params(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+      extra_params: [
+        codegen_dispatch.ExtraParam(
+          name: "identity",
+          type_ref: "auth.Identity",
+          import_line: "import admin/auth",
+        ),
+      ],
+    )
+
+  let assert Ok(Nil) =
+    compile_generated_dispatch_with_handler(
+      fixture_name: "extra_param_msg_type",
+      dispatch_source: content,
+      handler_source: handler_with_auth_source(),
+      auth_source: option.Some(auth_module_source()),
+    )
+}
+
+pub fn dispatch_with_extra_param_no_msg_type_compiles_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "get_items",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_with_extra_params(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+      extra_params: [
+        codegen_dispatch.ExtraParam(
+          name: "identity",
+          type_ref: "auth.Identity",
+          import_line: "import admin/auth",
+        ),
+      ],
+    )
+
+  let assert Ok(Nil) =
+    compile_generated_dispatch_with_handler(
+      fixture_name: "extra_param_no_msg_type",
+      dispatch_source: content,
+      handler_source: handler_no_msg_type_with_auth_source(),
+      auth_source: option.Some(auth_module_source()),
+    )
+}
+
+fn compile_generated_dispatch_with_handler(
+  fixture_name fixture_name: String,
+  dispatch_source dispatch_source: String,
+  handler_source handler_source: String,
+  auth_source auth_source: option.Option(String),
+) -> Result(Nil, String) {
+  let root = "build/.test_dispatch/" <> fixture_name
+  let src = root <> "/src"
+  let generated = src <> "/generated/libero"
+  let handler_dir = src <> "/server"
+  let auth_dir = src <> "/admin"
+  let _ = simplifile.delete_all([root])
+  use _ <- result.try(
+    simplifile.create_directory_all(generated)
+    |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+  )
+  use _ <- result.try(
+    simplifile.create_directory_all(handler_dir)
+    |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+  )
+  use _ <- result.try(
+    simplifile.write(root <> "/gleam.toml", fixture_toml())
+    |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+  )
+  use _ <- result.try(
+    simplifile.write(src <> "/server_context.gleam", server_context_source())
+    |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+  )
+  use _ <- result.try(
+    simplifile.write(handler_dir <> "/handler.gleam", handler_source)
+    |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+  )
+  use _ <- result.try(case auth_source {
+    option.Some(auth_src) -> {
+      use _ <- result.try(
+        simplifile.create_directory_all(auth_dir)
+        |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+      )
+      simplifile.write(auth_dir <> "/auth.gleam", auth_src)
+      |> result.map_error(fn(err) { simplifile.describe_error(err) })
+    }
+    option.None -> Ok(Nil)
+  })
+  use _ <- result.try(
+    simplifile.write(generated <> "/dispatch.gleam", dispatch_source)
+    |> result.map_error(fn(err) { simplifile.describe_error(err) }),
+  )
+  let #(status, output) = run_gleam(root, ["build"])
+  let _ = simplifile.delete_all([root])
+  case status {
+    0 -> Ok(Nil)
+    _ ->
+      Error(
+        "gleam build failed with exit code "
+        <> int.to_string(status)
+        <> ":\n"
+        <> output,
+      )
+  }
+}
+
+fn handler_with_auth_source() -> String {
+  "import server_context.{type ServerContext}
+import admin/auth
+
+pub type EchoItem {
+  EchoItem
+}
+
+pub fn server_echo_item(
+  msg msg: EchoItem,
+  server_context server_context: ServerContext,
+  identity identity: auth.Identity,
+) -> Result(Int, Nil) {
+  Ok(42)
+}
+"
+}
+
+fn handler_no_msg_type_with_auth_source() -> String {
+  "import server_context.{type ServerContext}
+import admin/auth
+
+pub fn server_get_items(
+  server_context server_context: ServerContext,
+  identity identity: auth.Identity,
+) -> Result(Int, Nil) {
+  Ok(42)
+}
+"
+}
+
+fn auth_module_source() -> String {
+  "pub type Identity {
+  Identity
+}
+"
+}
+
+pub fn dispatch_with_extra_param_mutating_context_compiles_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "create_item",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [#("name", field_type.StringField)],
+      mutates_context: True,
+      msg_type: option.None,
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate_with_extra_params(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+      extra_params: [
+        codegen_dispatch.ExtraParam(
+          name: "identity",
+          type_ref: "auth.Identity",
+          import_line: "import admin/auth",
+        ),
+      ],
+    )
+
+  let assert Ok(Nil) =
+    compile_generated_dispatch_with_handler(
+      fixture_name: "extra_param_mutating",
+      dispatch_source: content,
+      handler_source: handler_mutating_with_auth_source(),
+      auth_source: option.Some(auth_module_source()),
+    )
+}
+
+fn handler_mutating_with_auth_source() -> String {
+  "import server_context.{type ServerContext}
+import admin/auth
+
+pub fn server_create_item(
+  name name: String,
+  server_context server_context: ServerContext,
+  identity identity: auth.Identity,
+) -> #(Result(Int, Nil), ServerContext) {
+  #(Ok(42), server_context)
+}
+"
 }
 
 @external(erlang, "libero_ffi", "find_executable")
