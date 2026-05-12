@@ -7,8 +7,9 @@ import gleam/result
 import gleam/set.{type Set}
 import gleam/string
 
-import libero/field_type.{type FieldType, TupleOf, TypeVar, UserType}
+import libero/field_type.{type FieldType}
 import libero/gen_error.{type GenError, TypeNotFound, UnresolvedTypeModule}
+import libero/glance_type_resolver.{PreserveUnsupported}
 import libero/scanner
 
 /// A custom type discovered by the walker, grouping all its variants.
@@ -275,7 +276,8 @@ fn process_type_ast_custom(
       let custom_type = ct_def.definition
       let resolver = build_type_resolver(ast.imports)
       let aliases = build_alias_map(ast.type_aliases)
-      // Collect variants and field type refs
+      let assert Ok(shared_resolver) =
+        glance_type_resolver.resolver_from_imports(ast.imports)
       let #(variants_rev, new_queue_items_rev) =
         list.fold(custom_type.variants, #([], []), fn(acc, variant) {
           let #(disc_acc, queue_acc) = acc
@@ -285,7 +287,7 @@ fn process_type_ast_custom(
             list.map(variant.fields, fn(field) {
               field_type_of(
                 t: variant_field_type(field),
-                resolver:,
+                shared_resolver:,
                 aliases:,
                 current_module: module_path,
               )
@@ -462,104 +464,45 @@ fn collect_type_refs(
   }
 }
 
-/// Convert a glance.Type into a FieldType, resolving named types via the resolver.
-/// Type aliases in `aliases` are resolved transparently to their underlying type.
+/// Convert a glance.Type into a FieldType, resolving named types via the
+/// shared resolver. Local type aliases are resolved transparently before
+/// delegating to the shared resolver.
 fn field_type_of(
   t t: glance.Type,
-  resolver resolver: TypeResolver,
+  shared_resolver shared_resolver: glance_type_resolver.TypeResolver,
   aliases aliases: Dict(String, glance.Type),
   current_module current_module: String,
 ) -> FieldType {
   case t {
-    glance.VariableType(name:, ..) -> TypeVar(name:)
-    glance.TupleType(elements:, ..) ->
-      TupleOf(
-        list.map(elements, fn(e) {
-          field_type_of(t: e, resolver:, aliases:, current_module:)
-        }),
-      )
-    // Functions and holes cannot be serialized over ETF. Mapped to TypeVar
-    // which throws at runtime in the typed decoder ("TypeVar<_fn> not supported").
-    // This is intentional: a build-time error would require tracking which
-    // fields are transitively reachable from messages, which the walker doesn't
-    // do for non-custom types. The runtime error is clear and immediate.
-    glance.FunctionType(..) -> TypeVar(name: "_fn")
-    glance.HoleType(..) -> TypeVar(name: "_")
-    glance.NamedType(name:, module:, parameters:, ..) ->
-      case is_stdlib_reference(name:, module:, resolver:) {
-        True ->
-          stdlib_field_type(
-            name:,
-            parameters:,
-            resolver:,
+    glance.NamedType(name:, module: None, ..) ->
+      case dict.get(aliases, name) {
+        Ok(aliased_type) ->
+          field_type_of(
+            t: aliased_type,
+            shared_resolver:,
             aliases:,
             current_module:,
           )
-        False ->
-          resolve_field_type(
-            name:,
-            module:,
-            parameters:,
-            resolver:,
-            aliases:,
-            current_module:,
-          )
+        Error(Nil) -> {
+          let assert Ok(ft) =
+            glance_type_resolver.type_to_field_type(
+              type_: t,
+              resolver: shared_resolver,
+              current_module:,
+              policy: PreserveUnsupported,
+            )
+          ft
+        }
       }
-  }
-}
-
-/// Map a stdlib NamedType reference to its FieldType. Caller must have
-/// already verified via `is_stdlib_reference` that this isn't a
-/// user-defined type shadowing a primitive name.
-fn stdlib_field_type(
-  name name: String,
-  parameters parameters: List(glance.Type),
-  resolver resolver: TypeResolver,
-  aliases aliases: Dict(String, glance.Type),
-  current_module current_module: String,
-) -> FieldType {
-  let recurse = fn(t) {
-    field_type_of(t:, resolver:, aliases:, current_module:)
-  }
-  case field_type.builtin_field_type(name:, parameters:, recurse:) {
-    Ok(ft) -> ft
-    // Arity mismatch (e.g. bare `Result` used as a type name with zero
-    // args): fall through to UserType so codegen produces a decoder
-    // reference rather than a malformed primitive.
-    Error(Nil) ->
-      UserType(
-        module_path: current_module,
-        type_name: name,
-        args: list.map(parameters, recurse),
-      )
-  }
-}
-
-/// Resolve a named type: if it's a local type alias, recurse on the aliased
-/// type; otherwise produce a UserType.
-fn resolve_field_type(
-  name name: String,
-  module module: option.Option(String),
-  parameters parameters: List(glance.Type),
-  resolver resolver: TypeResolver,
-  aliases aliases: Dict(String, glance.Type),
-  current_module current_module: String,
-) -> FieldType {
-  // Unqualified name matching a local type alias: resolve through it
-  case module, dict.get(aliases, name) {
-    option.None, Ok(aliased_type) ->
-      field_type_of(t: aliased_type, resolver:, aliases:, current_module:)
-    _, _ -> {
-      let args =
-        list.map(parameters, fn(p) {
-          field_type_of(t: p, resolver:, aliases:, current_module:)
-        })
-      let resolved_module =
-        resolve_type_module(name:, module:, resolver:, current_module:)
-      let mp = result.unwrap(resolved_module, current_module)
-      let original_name =
-        result.unwrap(dict.get(resolver.original_names, name), name)
-      UserType(module_path: mp, type_name: original_name, args:)
+    _ -> {
+      let assert Ok(ft) =
+        glance_type_resolver.type_to_field_type(
+          type_: t,
+          resolver: shared_resolver,
+          current_module:,
+          policy: PreserveUnsupported,
+        )
+      ft
     }
   }
 }
