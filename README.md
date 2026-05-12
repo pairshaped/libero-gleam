@@ -123,14 +123,16 @@ but callers should still set process memory limits for hostile input.
 
 ## More Docs
 
-- [Contract boundary](docs/contract-boundary-spec.md): what Libero owns and what
-  app code owns
-- [Wire type identity](docs/wire-type-identity.md): how custom types stay unique
-  on ETF
-- [JSON wire protocol](docs/json-wire-protocol-blueprint.md): readable JSON
-  envelopes and contract hashes
-- [ETF vs JSON benchmarks](docs/etf-vs-json-benchmarks/README.md): local
-  benchmark notes
+- [Contract boundary](reference/contract-boundary.html): what Libero owns and
+  what app code owns
+- [ETF wire protocol](protocol/etf-wire-protocol.html): ETF frames, safe decode,
+  and hashed type identity
+- [JSON wire protocol](protocol/json-wire-protocol.html): readable JSON
+  envelopes, validation, and contract hashes
+- [Wire type identity](protocol/wire-type-identity.html): how custom types stay
+  unique across protocols
+- [llms.txt](https://raw.githubusercontent.com/pairshaped/libero/master/llms.txt):
+  raw package context for language models
 
 ## License
 
