@@ -177,6 +177,40 @@ pub fn dispatch_known_tags_call_shared_helper_test() {
     )
 }
 
+pub fn dispatch_decodes_wire_message_before_variant_tag_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "load_items",
+      return_ok: field_type.IntField,
+      return_err: field_type.NilField,
+      params: [],
+      mutates_context: False,
+      msg_type: option.Some(#("server/handler", "ServerLoadItems")),
+    ),
+  ]
+  let content =
+    codegen_dispatch.generate(
+      endpoints: endpoints,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.Some("generated@rpc_wire"),
+    )
+
+  let assert True =
+    string.contains(
+      content,
+      "Ok(#(\"rpc\", request_id, msg)) -> {\n      let msg = wire_decode_client_msg(msg)\n      case wire.variant_tag(msg) {",
+    )
+  let assert False =
+    string.contains(
+      content,
+      "fn dispatch_known(msg, request_id, server_context) {\n  case trace.try_call(fn() {\n  let msg = wire_decode_client_msg(msg)",
+    )
+}
+
 pub fn endpoint_dispatch_imports_qualified_param_types_test() {
   let endpoints = [
     scanner.HandlerEndpoint(

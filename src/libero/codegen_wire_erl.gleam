@@ -19,6 +19,7 @@
 
 import gleam/int
 import gleam/list
+import gleam/option
 import gleam/result
 import gleam/string
 
@@ -277,20 +278,49 @@ fn emit_decode_client_msg(endpoints: List(scanner.HandlerEndpoint)) -> String {
 
 fn emit_decode_client_msg_clause(e: scanner.HandlerEndpoint) -> String {
   let fn_atom = "server_" <> e.fn_name
+  let wire_atoms = case endpoint_wire_hash(e) {
+    option.Some(hash) -> ["'" <> hash <> "'", fn_atom]
+    option.None -> [fn_atom]
+  }
   case e.params {
-    [] -> "decode_client_msg(" <> fn_atom <> ") ->\n    " <> fn_atom
+    [] ->
+      wire_atoms
+      |> list.map(fn(atom) {
+        "decode_client_msg(" <> atom <> ") ->\n    " <> fn_atom
+      })
+      |> string.join(";\n")
     params -> {
       let indexed =
         list.index_map(params, fn(param, i) { #(param.1, top_var(i)) })
       let pattern_vars = list.map(indexed, fn(p) { p.1 })
-      let pattern =
-        "{" <> fn_atom <> ", " <> string.join(pattern_vars, ", ") <> "}"
       let body_terms =
         list.map(indexed, fn(pair) {
           decode_expr(field_type: pair.0, expr: pair.1, depth: 0)
         })
       let body = "{" <> fn_atom <> ", " <> string.join(body_terms, ", ") <> "}"
-      "decode_client_msg(" <> pattern <> ") ->\n    " <> body
+      wire_atoms
+      |> list.map(fn(atom) {
+        let pattern =
+          "{" <> atom <> ", " <> string.join(pattern_vars, ", ") <> "}"
+        "decode_client_msg(" <> pattern <> ") ->\n    " <> body
+      })
+      |> string.join(";\n")
+    }
+  }
+}
+
+fn endpoint_wire_hash(e: scanner.HandlerEndpoint) -> option.Option(String) {
+  case e.msg_type {
+    option.None -> option.None
+    option.Some(#(module_path, constructor_name)) -> {
+      let fields = list.map(e.params, fn(param) { param.1 })
+      let #(_, hash) =
+        wire_identity.wire_identity(
+          module_path: module_path,
+          constructor_name: constructor_name,
+          fields: fields,
+        )
+      option.Some(hash)
     }
   }
 }

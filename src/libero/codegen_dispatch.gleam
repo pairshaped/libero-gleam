@@ -188,7 +188,7 @@ fn ensure_atoms() -> Nil
   }
 
   let decode_msg_call = case wire_module {
-    option.Some(_) -> "  let msg = wire_decode_client_msg(msg)\n"
+    option.Some(_) -> "      let msg = wire_decode_client_msg(msg)\n"
     option.None -> ""
   }
 
@@ -197,7 +197,7 @@ fn ensure_atoms() -> Nil
     _ -> "
 fn dispatch_known(msg, request_id, server_context" <> extra_args <> ") {
   case trace.try_call(fn() {
-" <> decode_msg_call <> "  let typed_msg: ClientMsg = wire.coerce(msg)
+  let typed_msg: ClientMsg = wire.coerce(msg)
   case typed_msg {
 " <> string.join(case_arms, "\n") <> "
   }
@@ -236,7 +236,7 @@ pub fn handle(
 ) -> #(BitArray, " <> context_type_name <> ") {
   " <> ensure_call <> "case wire.decode_call(data) {
     Ok(#(\"" <> wire_module_tag <> "\", request_id, msg)) -> {
-      case wire.variant_tag(msg) {
+" <> decode_msg_call <> "      case wire.variant_tag(msg) {
 " <> inner_case <> "
       }
     }

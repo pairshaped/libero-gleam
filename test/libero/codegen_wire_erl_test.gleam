@@ -683,6 +683,16 @@ fn endpoint(
   )
 }
 
+fn endpoint_with_msg_type(
+  fn_name: String,
+  params: List(#(String, field_type.FieldType)),
+  msg_module: String,
+  msg_constructor: String,
+) -> HandlerEndpoint {
+  let ep = endpoint(fn_name, params, NilField, NilField)
+  HandlerEndpoint(..ep, msg_type: option.Some(#(msg_module, msg_constructor)))
+}
+
 pub fn decode_client_msg_zero_arity_endpoint_passes_bare_atom_test() {
   let ep = endpoint("load_discounts", [], NilField, NilField)
   let assert Ok(out) =
@@ -703,6 +713,38 @@ pub fn decode_client_msg_zero_arity_endpoint_passes_bare_atom_test() {
     )
   let assert True =
     string.contains(out, "decode_client_msg(Other) ->\n    Other")
+}
+
+pub fn decode_client_msg_zero_arity_msg_type_accepts_wire_hash_test() {
+  let ep =
+    endpoint_with_msg_type(
+      "load_sponsors",
+      [],
+      "admin/pages/website/sponsors",
+      "ServerLoadSponsors",
+    )
+  let assert Ok(out) =
+    codegen_wire_erl.generate(
+      module_name: "x_wire",
+      discovered: [],
+      endpoints: [
+        ep,
+      ],
+      push_dispatches: [],
+    )
+
+  let hash =
+    hash_for("admin/pages/website/sponsors", "ServerLoadSponsors", [])
+  let assert True =
+    string.contains(
+      out,
+      "decode_client_msg('" <> hash <> "') ->\n    server_load_sponsors",
+    )
+  let assert True =
+    string.contains(
+      out,
+      "decode_client_msg(server_load_sponsors) ->\n    server_load_sponsors",
+    )
 }
 
 pub fn decode_client_msg_user_type_param_calls_decoder_test() {
@@ -749,6 +791,36 @@ pub fn decode_client_msg_mixed_primitive_and_user_type_params_test() {
       out,
       "decode_client_msg({server_update_discount, F0, F1}) ->\n    {server_update_discount, F0, decode_admin_discounts__discount_params(F1)}",
     )
+}
+
+pub fn decode_client_msg_param_msg_type_accepts_wire_hash_test() {
+  let params_type = UserType("admin/sponsors", "SponsorParams", [])
+  let ep =
+    endpoint_with_msg_type(
+      "update_sponsor",
+      [#("id", IntField), #("params", params_type)],
+      "admin/sponsors",
+      "ServerUpdateSponsor",
+    )
+  let assert Ok(out) =
+    codegen_wire_erl.generate(
+      module_name: "x_wire",
+      discovered: [],
+      endpoints: [
+        ep,
+      ],
+      push_dispatches: [],
+    )
+
+  let hash =
+    hash_for(
+      "admin/sponsors",
+      "ServerUpdateSponsor",
+      [IntField, params_type],
+    )
+  let expected =
+    "decode_client_msg({'" <> hash <> "', F0, F1}) ->\n    {server_update_sponsor, F0, decode_admin_sponsors__sponsor_params(F1)}"
+  let assert True = string.contains(out, expected)
 }
 
 pub fn decode_client_msg_list_of_user_type_param_test() {
