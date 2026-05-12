@@ -1199,3 +1199,12 @@ pub fn encode_push_routes_to_correct_encoder_for_duplicate_variants_test() {
   let assert True = wire_tag_b == binary_to_atom(hash_b)
   let assert True = wire_tag_a != wire_tag_b
 }
+
+// -- Hardcoded hash regression ------------------------------------------------
+
+pub fn wire_hash_regression_server_set_dark_mode_test() {
+  let hash =
+    hash_for("admin/pages/settings", "ServerSetDarkMode", [BoolField])
+  // Pinned value: if this changes, the wire hash algorithm drifted.
+  let assert "0418533ae1" = hash
+}
