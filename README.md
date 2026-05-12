@@ -1,4 +1,4 @@
-![Libero](libero.png)
+![Libero](https://github.com/pairshaped/libero/blob/master/libero.png?raw=true)
 
 # Libero
 
