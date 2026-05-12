@@ -1,3 +1,5 @@
+![Libero](libero.png)
+
 # Libero
 
 Libero helps a Gleam client and server share a typed RPC contract. The contract
