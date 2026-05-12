@@ -1,9 +1,13 @@
 # Libero
 
-When a Gleam client calls a Gleam server, both sides usually want to agree on the
-same request and response types. The hard part is keeping that agreement true
-across the protocol layer: request messages, response decoders, server dispatch,
-client state, and wire-format details all need to match the handler signatures.
+Libero helps a Gleam client and server share a typed RPC contract. The contract
+is the main thing: both sides agree on which calls exist, what arguments they
+take, and what each call returns.
+
+Encoding and decoding are part of that, but they are not the whole point. The
+hard part is keeping the client and server agreement true across the protocol
+layer: request messages, response decoders, server dispatch, client state, and
+wire-format details all need to match the handler signatures.
 
 Libero treats the server handler as the source of truth. It scans your handler
 functions, follows the types used in their signatures, and generates the RPC
