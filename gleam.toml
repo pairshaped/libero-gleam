@@ -57,3 +57,20 @@ include = ["src/"]
 # type and function as unused. Turn off the check globally for the
 # library.
 unused_exports = "off"
+
+[tools.glinter.ignore]
+# Encode functions use let assert for request_id range validation.
+# These are internal guards on trusted values, not user boundaries.
+"src/libero/etf/wire.gleam" = ["assert_ok_pattern"]
+"src/libero/json/wire.gleam" = ["assert_ok_pattern", "thrown_away_error"]
+
+# Type resolver and scanner use let assert on known-safe destructures
+# (the type was already parsed) and String error types for codegen
+# error messages where a custom type adds no value.
+"src/libero/glance_type_resolver.gleam" = ["stringly_typed_error"]
+"src/libero/scanner.gleam" = ["assert_ok_pattern", "thrown_away_error"]
+"src/libero/walker.gleam" = ["assert_ok_pattern", "thrown_away_error"]
+
+# CLI and protocol modules use String errors for user-facing messages.
+"src/libero.gleam" = ["stringly_typed_error"]
+"src/libero/protocol.gleam" = ["stringly_typed_error"]

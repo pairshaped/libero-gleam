@@ -54,8 +54,8 @@ pub fn generate_decoders_ffi(
   let client_msg_statics = case dispatch_module {
     option.Some(dm) ->
       emit_client_msg_statics(
-        endpoints,
-        "_m_" <> codegen.module_to_underscored(dm),
+        endpoints:,
+        dispatch_module_ref: "_m_" <> codegen.module_to_underscored(dm),
       )
     option.None -> ""
   }
@@ -241,8 +241,8 @@ pub fn emit_class_statics(discovered: List(DiscoveredType)) -> String {
 }
 
 pub fn emit_client_msg_statics(
-  endpoints: List(scanner.HandlerEndpoint),
-  dispatch_module_ref: String,
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+  dispatch_module_ref dispatch_module_ref: String,
 ) -> String {
   let lines =
     list.filter_map(endpoints, fn(e) {

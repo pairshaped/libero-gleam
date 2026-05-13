@@ -302,7 +302,7 @@ pub fn decode_flags_typed(
   decoder_name decoder_name: String,
 ) -> Result(a, DecodeError) {
   case bit_array.base64_decode(flags) {
-    Ok(bits) -> decode_typed(bits, decoder_name)
+    Ok(bits) -> decode_typed(data: bits, decoder_name:)
     Error(_) ->
       Error(error.DecodeError(message: "Failed to base64-decode flags"))
   }

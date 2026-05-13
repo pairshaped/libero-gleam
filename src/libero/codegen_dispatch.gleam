@@ -127,7 +127,8 @@ pub fn generate_with_extra_params(
     })
     |> string.join("\n")
 
-  let case_arms = list.map(endpoints, emit_case_arm(_, wire_module, extra_args))
+  let case_arms =
+    list.map(endpoints, emit_case_arm(_, wire_module:, extra_args:))
 
   let atoms_external = case atoms_module {
     option.Some(mod) ->
@@ -250,9 +251,9 @@ pub fn handle(
 }
 
 fn emit_case_arm(
-  e: scanner.HandlerEndpoint,
-  wire_module: option.Option(String),
-  extra_args: String,
+  endpoint e: scanner.HandlerEndpoint,
+  wire_module wire_module: option.Option(String),
+  extra_args extra_args: String,
 ) -> String {
   let variant_name = codegen.to_pascal_case("server_" <> e.fn_name)
   let alias = handler_alias(e.module_path)

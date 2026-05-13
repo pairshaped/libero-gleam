@@ -168,39 +168,8 @@ pub fn main() -> Nil {
   // Without this, ETF-only consumers would inherit a gleam_json dependency
   // through the generated json_codecs.gleam.
   case get_env("LIBERO_GEN_JSON_CODECS") {
-    option.Some(val) if val == "1" || val == "true" -> {
-      case discovered {
-        [] -> Nil
-        _ -> {
-          case codegen.generate(discovered, [], []) {
-            Ok(json_codecs_src) ->
-              case
-                write_file(
-                  out_dir <> "/json_codecs.gleam",
-                  format.format_gleam(json_codecs_src),
-                )
-              {
-                Ok(Nil) -> Nil
-                Error(err) -> {
-                  print_write_error(err)
-                  halt(1)
-                }
-              }
-            Error(errors) -> {
-              list.each(errors, fn(e) {
-                io.println_error(gen_error.error_box(
-                  title: "JSON codec generation failed",
-                  path: e.path,
-                  body_lines: [e.message],
-                  hint: option.None,
-                ))
-              })
-              halt(1)
-            }
-          }
-        }
-      }
-    }
+    option.Some(val) if val == "1" || val == "true" ->
+      generate_json_codecs(discovered, out_dir)
     _ -> Nil
   }
 
@@ -484,6 +453,42 @@ fn read_package_name() -> Result(String, String) {
               ))
             Ok(name) -> Ok(name)
           }
+      }
+  }
+}
+
+fn generate_json_codecs(
+  discovered: List(walker.DiscoveredType),
+  out_dir: String,
+) -> Nil {
+  case discovered {
+    [] -> Nil
+    _ ->
+      case codegen.generate(discovered, [], []) {
+        Ok(json_codecs_src) ->
+          case
+            write_file(
+              out_dir <> "/json_codecs.gleam",
+              format.format_gleam(json_codecs_src),
+            )
+          {
+            Ok(Nil) -> Nil
+            Error(err) -> {
+              print_write_error(err)
+              halt(1)
+            }
+          }
+        Error(errors) -> {
+          list.each(errors, fn(e) {
+            io.println_error(gen_error.error_box(
+              title: "JSON codec generation failed",
+              path: e.path,
+              body_lines: [e.message],
+              hint: option.None,
+            ))
+          })
+          halt(1)
+        }
       }
   }
 }

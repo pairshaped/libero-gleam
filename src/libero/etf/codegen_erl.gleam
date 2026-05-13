@@ -58,7 +58,7 @@ pub fn generate(
   use _ <- result.try(wire_identity.check_wire_safety(constructors))
   use _ <- result.try(wire_identity.check_uniqueness(constructors))
   use _ <- result.try(check_endpoint_field_safety(endpoints))
-  let exports = build_exports(discovered, endpoints, push_dispatches)
+  let exports = build_exports(discovered:, endpoints:, push_dispatches:)
   let transformers =
     discovered
     |> list.map(emit_type_transformers)
@@ -142,9 +142,9 @@ fn check_endpoint_field_safety(
 }
 
 fn build_exports(
-  discovered: List(DiscoveredType),
-  endpoints: List(scanner.HandlerEndpoint),
-  push_dispatches: List(PushDispatch),
+  discovered discovered: List(DiscoveredType),
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+  push_dispatches push_dispatches: List(PushDispatch),
 ) -> String {
   let type_exports =
     list.flat_map(discovered, fn(dt) {
@@ -192,13 +192,7 @@ fn emit_encode_term(_discovered: List(DiscoveredType)) -> String {
   // reaches encode_term. Dispatching custom types here by bare atom or
   // {atom, arity} is wrong because BEAM values do not carry source
   // module identity.
-  "encode_term(Term) -> encode_term(Term, 0).\n\n"
-  <> "encode_term(_Term, Depth) when Depth >= 512 ->\n    error({wire_depth_exceeded, Depth});\n"
-  <> "encode_term(Tuple, Depth) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->\n"
-  <> "    list_to_tuple([encode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)]);\n"
-  <> "encode_term(List, Depth) when is_list(List) ->\n    [encode_term(X, Depth + 1) || X <- List];\n"
-  <> "encode_term(Map, Depth) when is_map(Map) ->\n    maps:map(fun(_K, V) -> encode_term(V, Depth + 1) end, Map);\n"
-  <> "encode_term(Other, _Depth) -> Other."
+  "encode_term(Term) -> encode_term(Term, 0).\n\nencode_term(_Term, Depth) when Depth >= 512 ->\n    error({wire_depth_exceeded, Depth});\nencode_term(Tuple, Depth) when is_tuple(Tuple), tuple_size(Tuple) > 0 ->\n    list_to_tuple([encode_term(E, Depth + 1) || E <- tuple_to_list(Tuple)]);\nencode_term(List, Depth) when is_list(List) ->\n    [encode_term(X, Depth + 1) || X <- List];\nencode_term(Map, Depth) when is_map(Map) ->\n    maps:map(fun(_K, V) -> encode_term(V, Depth + 1) end, Map);\nencode_term(Other, _Depth) -> Other."
 }
 
 fn emit_decode_term(discovered: List(DiscoveredType)) -> String {

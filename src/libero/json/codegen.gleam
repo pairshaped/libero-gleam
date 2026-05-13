@@ -97,13 +97,7 @@ pub fn generate(
   }
   let list_at_helper = case needs_list_at {
     True ->
-      "/// Index into a list, returning Error if out of bounds.\n"
-      <> "fn list_at(items: List(a), index: Int) -> Result(a, List(JsonError)) {\n"
-      <> "  case list.drop(items, index) |> list.first {\n"
-      <> "    Ok(item) -> Ok(item)\n"
-      <> "    Error(_) -> Error([JsonError(\"fields[\" <> int.to_string(index) <> \"]\", \"missing\")])\n"
-      <> "  }\n"
-      <> "}\n"
+      "/// Index into a list, returning Error if out of bounds.\nfn list_at(items: List(a), index: Int) -> Result(a, List(JsonError)) {\n  case list.drop(items, index) |> list.first {\n    Ok(item) -> Ok(item)\n    Error(_) -> Error([JsonError(\"fields[\" <> int.to_string(index) <> \"]\", \"missing\")])\n  }\n}\n"
     False -> ""
   }
 
@@ -342,7 +336,9 @@ fn emit_type_encoder(
       field_type.last_segment(dt.module_path),
     )
   let clauses =
-    list.map(dt.variants, fn(v) { emit_encode_clause(v, alias, dt.type_name) })
+    list.map(dt.variants, fn(v) {
+      emit_encode_clause(v: v, alias: alias, type_name: dt.type_name)
+    })
 
   "pub fn json_encode_"
   <> qual
@@ -354,21 +350,21 @@ fn emit_type_encoder(
 
 /// Emit a single encode pattern-match arm for one variant.
 fn emit_encode_clause(
-  v: DiscoveredVariant,
-  alias: String,
-  type_name: String,
+  v variant: DiscoveredVariant,
+  alias alias: String,
+  type_name type_name: String,
 ) -> String {
   let field_vars =
-    list.index_map(v.fields, fn(_, i) { "f" <> int.to_string(i) })
-  let fields_expr = emit_fields_value(v, field_vars)
-  let type_str = v.module_path <> "." <> type_name
+    list.index_map(variant.fields, fn(_, i) { "f" <> int.to_string(i) })
+  let fields_expr = emit_fields_value(variant, field_vars)
+  let type_str = variant.module_path <> "." <> type_name
 
   let pattern = case field_vars {
-    [] -> alias <> "." <> v.variant_name
+    [] -> alias <> "." <> variant.variant_name
     _ ->
       alias
       <> "."
-      <> v.variant_name
+      <> variant.variant_name
       <> "("
       <> string.join(field_vars, ", ")
       <> ")"
@@ -382,7 +378,7 @@ fn emit_encode_clause(
   <> type_str
   <> "\")),\n"
   <> "        #(\"variant\", json.string(\""
-  <> v.variant_name
+  <> variant.variant_name
   <> "\")),\n"
   <> "        #(\"fields\", "
   <> fields_expr
@@ -400,21 +396,26 @@ fn emit_fields_value(v: DiscoveredVariant, field_vars: List(String)) -> String {
     _ -> {
       let all_unlabelled = list.all(v.field_labels, fn(l) { l == None })
       case all_unlabelled {
-        True -> {
-          let encoded =
-            list.index_map(field_vars, fn(fvar, i) {
-              let ft =
-                list.drop(v.fields, i)
-                |> list.first
-                |> result.unwrap(or: StringField)
-              json_encode_expr(ft, fvar)
-            })
-          "json.array([" <> string.join(encoded, ", ") <> "], of: fn(x) { x })"
-        }
+        True -> emit_unlabelled_fields_array(v, field_vars)
         False -> emit_fields_object(v, field_vars)
       }
     }
   }
+}
+
+fn emit_unlabelled_fields_array(
+  v: DiscoveredVariant,
+  field_vars: List(String),
+) -> String {
+  let encoded =
+    list.index_map(field_vars, fn(fvar, i) {
+      let ft =
+        list.drop(v.fields, i)
+        |> list.first
+        |> result.unwrap(or: StringField)
+      json_encode_expr(ft, fvar)
+    })
+  "json.array([" <> string.join(encoded, ", ") <> "], of: fn(x) { x })"
 }
 
 fn emit_fields_object(
@@ -562,7 +563,12 @@ fn emit_labelled_field_decodes(v: DiscoveredVariant, pad: String) -> String {
           <> "\", decode.dynamic, fn(x) { decode.success(x) })) {\n"
           <> pad
           <> "  Ok(raw) -> "
-          <> emit_raw_value_decode(ft, "raw", path, pad <> "  ")
+          <> emit_raw_value_decode(
+            ft: ft,
+            raw_var: "raw",
+            path: path,
+            pad: pad <> "  ",
+          )
           <> "\n"
           <> pad
           <> "  Error(_) -> Error([JsonError(\""
@@ -586,8 +592,8 @@ fn emit_labelled_field_decodes(v: DiscoveredVariant, pad: String) -> String {
 
 /// Generate field decode bindings for unlabelled fields (extracted by index).
 fn emit_unlabelled_field_decodes(v: DiscoveredVariant, pad: String) -> String {
-  let n = list.length(v.fields)
-  let n_str = int.to_string(n)
+  let field_count = list.length(v.fields)
+  let n_str = int.to_string(field_count)
 
   // Validate array length
   let length_check =
@@ -628,7 +634,12 @@ fn emit_unlabelled_field_decodes(v: DiscoveredVariant, pad: String) -> String {
       <> ") {\n"
       <> pad
       <> "  Ok(raw) -> "
-      <> emit_raw_value_decode(ft, "raw", path, pad <> "  ")
+      <> emit_raw_value_decode(
+        ft: ft,
+        raw_var: "raw",
+        path: path,
+        pad: pad <> "  ",
+      )
       <> "\n"
       <> pad
       <> "  Error(_) -> Error([JsonError(\""
@@ -668,10 +679,10 @@ fn emit_variant_constructor_positional(v: DiscoveredVariant) -> String {
 /// Emit a decode expression for a raw Dynamic value according to FieldType.
 /// Returns a single expression evaluating to `Result(value, List(JsonError))`.
 fn emit_raw_value_decode(
-  ft: FieldType,
-  raw_var: String,
-  path: String,
-  pad: String,
+  ft ft: FieldType,
+  raw_var raw_var: String,
+  path path: String,
+  pad pad: String,
 ) -> String {
   case ft {
     StringField ->
@@ -794,7 +805,12 @@ fn emit_raw_value_decode(
       <> ", decode.list(of: decode.dynamic)) {\n"
       <> pad
       <> "  Ok(items) -> list.try_map(items, fn(item_raw) {\n"
-      <> emit_raw_value_decode(element, "item_raw", path <> "[]", pad <> "    ")
+      <> emit_raw_value_decode(
+        ft: element,
+        raw_var: "item_raw",
+        path: path <> "[]",
+        pad: pad <> "    ",
+      )
       <> "\n"
       <> pad
       <> "  })\n"
@@ -814,10 +830,10 @@ fn emit_raw_value_decode(
       <> raw_var
       <> ", fn(inner_raw) {\n"
       <> emit_raw_value_decode(
-        inner,
-        "inner_raw",
-        path <> ".value",
-        pad <> "  ",
+        ft: inner,
+        raw_var: "inner_raw",
+        path: path <> ".value",
+        pad: pad <> "  ",
       )
       <> "\n"
       <> pad
@@ -832,19 +848,42 @@ fn emit_raw_value_decode(
       <> "("
       <> raw_var
       <> ", fn(inner_raw) {\n"
-      <> emit_raw_value_decode(ok, "inner_raw", path <> ".ok", pad <> "  ")
+      <> emit_raw_value_decode(
+        ft: ok,
+        raw_var: "inner_raw",
+        path: path <> ".ok",
+        pad: pad <> "  ",
+      )
       <> "\n"
       <> pad
       <> "}, fn(inner_raw) {\n"
-      <> emit_raw_value_decode(err, "inner_raw", path <> ".error", pad <> "  ")
+      <> emit_raw_value_decode(
+        ft: err,
+        raw_var: "inner_raw",
+        path: path <> ".error",
+        pad: pad <> "  ",
+      )
       <> "\n"
       <> pad
       <> "})"
     }
 
-    DictOf(key, value) -> emit_dict_decode(key, value, raw_var, path, pad)
+    DictOf(key, value) ->
+      emit_dict_decode(
+        key: key,
+        value: value,
+        raw_var: raw_var,
+        path: path,
+        pad: pad,
+      )
 
-    TupleOf(elements) -> emit_tuple_decode(elements, raw_var, path, pad)
+    TupleOf(elements) ->
+      emit_tuple_decode(
+        elements: elements,
+        raw_var: raw_var,
+        path: path,
+        pad: pad,
+      )
 
     TypeVar(name:) ->
       pad
@@ -858,112 +897,31 @@ fn emit_raw_value_decode(
 
 /// Emit the builtin Option encoder function.
 fn emit_option_encoder() -> String {
-  "pub fn json_encode_gleam_option__option(value, encode_inner: fn(a) -> json.Json) -> json.Json {\n"
-  <> "  case value {\n"
-  <> "    Some(inner) -> json.object([\n"
-  <> "      #(\"type\", json.string(\"gleam/option.Option\")),\n"
-  <> "      #(\"variant\", json.string(\"Some\")),\n"
-  <> "      #(\"fields\", json.array([encode_inner(inner)], of: fn(x) { x })),\n"
-  <> "    ])\n"
-  <> "    None -> json.object([\n"
-  <> "      #(\"type\", json.string(\"gleam/option.Option\")),\n"
-  <> "      #(\"variant\", json.string(\"None\")),\n"
-  <> "      #(\"fields\", json.object([])),\n"
-  <> "    ])\n"
-  <> "  }\n"
-  <> "}"
+  "pub fn json_encode_gleam_option__option(value, encode_inner: fn(a) -> json.Json) -> json.Json {\n  case value {\n    Some(inner) -> json.object([\n      #(\"type\", json.string(\"gleam/option.Option\")),\n      #(\"variant\", json.string(\"Some\")),\n      #(\"fields\", json.array([encode_inner(inner)], of: fn(x) { x })),\n    ])\n    None -> json.object([\n      #(\"type\", json.string(\"gleam/option.Option\")),\n      #(\"variant\", json.string(\"None\")),\n      #(\"fields\", json.object([])),\n    ])\n  }\n}"
 }
 
 /// Emit the builtin Option decoder function.
 fn emit_option_decoder() -> String {
-  "pub fn json_decode_gleam_option__option(value: Dynamic, decode_inner: fn(Dynamic) -> Result(a, List(JsonError))) -> Result(Option(a), List(JsonError)) {\n"
-  <> "  use _ <- result.try(\n"
-  <> "    case decode.run(value, decode.field(\"type\", decode.string, fn(x) { decode.success(x) })) {\n"
-  <> "      Ok(\"gleam/option.Option\") -> Ok(Nil)\n"
-  <> "      Ok(s) -> Error([JsonError(\"type\", \"expected gleam/option.Option, got \" <> s)])\n"
-  <> "      Error(_) -> Error([JsonError(\"type\", \"missing or not a string\")])\n"
-  <> "    }\n"
-  <> "  )\n"
-  <> "  case decode.run(value, decode.field(\"variant\", decode.string, fn(x) { decode.success(x) })) {\n"
-  <> "    Ok(\"None\") -> Ok(None)\n"
-  <> "    Ok(\"Some\") -> {\n"
-  <> "      case decode.run(value, decode.field(\"fields\", decode.list(of: decode.dynamic), fn(x) { decode.success(x) })) {\n"
-  <> "        Ok([inner_raw]) -> {\n"
-  <> "          use val <- result.try(decode_inner(inner_raw))\n"
-  <> "          Ok(Some(val))\n"
-  <> "        }\n"
-  <> "        Ok(_) -> Error([JsonError(\"fields\", \"expected [value] for Some\")])\n"
-  <> "        Error(_) -> Error([JsonError(\"fields\", \"expected array for Some\")])\n"
-  <> "      }\n"
-  <> "    }\n"
-  <> "    Ok(other) -> Error([JsonError(\"variant\", \"unknown Option variant: \" <> other)])\n"
-  <> "    Error(_) -> Error([JsonError(\"variant\", \"missing or not a string\")])\n"
-  <> "  }\n"
-  <> "}"
+  "pub fn json_decode_gleam_option__option(value: Dynamic, decode_inner: fn(Dynamic) -> Result(a, List(JsonError))) -> Result(Option(a), List(JsonError)) {\n  use _ <- result.try(\n    case decode.run(value, decode.field(\"type\", decode.string, fn(x) { decode.success(x) })) {\n      Ok(\"gleam/option.Option\") -> Ok(Nil)\n      Ok(s) -> Error([JsonError(\"type\", \"expected gleam/option.Option, got \" <> s)])\n      Error(_) -> Error([JsonError(\"type\", \"missing or not a string\")])\n    }\n  )\n  case decode.run(value, decode.field(\"variant\", decode.string, fn(x) { decode.success(x) })) {\n    Ok(\"None\") -> Ok(None)\n    Ok(\"Some\") -> {\n      case decode.run(value, decode.field(\"fields\", decode.list(of: decode.dynamic), fn(x) { decode.success(x) })) {\n        Ok([inner_raw]) -> {\n          use val <- result.try(decode_inner(inner_raw))\n          Ok(Some(val))\n        }\n        Ok(_) -> Error([JsonError(\"fields\", \"expected [value] for Some\")])\n        Error(_) -> Error([JsonError(\"fields\", \"expected array for Some\")])\n      }\n    }\n    Ok(other) -> Error([JsonError(\"variant\", \"unknown Option variant: \" <> other)])\n    Error(_) -> Error([JsonError(\"variant\", \"missing or not a string\")])\n  }\n}"
 }
 
 /// Emit the builtin Result encoder function.
 fn emit_result_encoder() -> String {
-  "pub fn json_encode_gleam_result__result(value, encode_ok: fn(a) -> json.Json, encode_err: fn(b) -> json.Json) -> json.Json {\n"
-  <> "  case value {\n"
-  <> "    Ok(inner) -> json.object([\n"
-  <> "      #(\"type\", json.string(\"gleam/result.Result\")),\n"
-  <> "      #(\"variant\", json.string(\"Ok\")),\n"
-  <> "      #(\"fields\", json.array([encode_ok(inner)], of: fn(x) { x })),\n"
-  <> "    ])\n"
-  <> "    Error(inner) -> json.object([\n"
-  <> "      #(\"type\", json.string(\"gleam/result.Result\")),\n"
-  <> "      #(\"variant\", json.string(\"Error\")),\n"
-  <> "      #(\"fields\", json.array([encode_err(inner)], of: fn(x) { x })),\n"
-  <> "    ])\n"
-  <> "  }\n"
-  <> "}"
+  "pub fn json_encode_gleam_result__result(value, encode_ok: fn(a) -> json.Json, encode_err: fn(b) -> json.Json) -> json.Json {\n  case value {\n    Ok(inner) -> json.object([\n      #(\"type\", json.string(\"gleam/result.Result\")),\n      #(\"variant\", json.string(\"Ok\")),\n      #(\"fields\", json.array([encode_ok(inner)], of: fn(x) { x })),\n    ])\n    Error(inner) -> json.object([\n      #(\"type\", json.string(\"gleam/result.Result\")),\n      #(\"variant\", json.string(\"Error\")),\n      #(\"fields\", json.array([encode_err(inner)], of: fn(x) { x })),\n    ])\n  }\n}"
 }
 
 /// Emit the builtin Result decoder function.
 fn emit_result_decoder() -> String {
-  "pub fn json_decode_gleam_result__result(value: Dynamic, decode_ok: fn(Dynamic) -> Result(a, List(JsonError)), decode_err: fn(Dynamic) -> Result(b, List(JsonError))) -> Result(Result(a, b), List(JsonError)) {\n"
-  <> "  use _ <- result.try(\n"
-  <> "    case decode.run(value, decode.field(\"type\", decode.string, fn(x) { decode.success(x) })) {\n"
-  <> "      Ok(\"gleam/result.Result\") -> Ok(Nil)\n"
-  <> "      Ok(s) -> Error([JsonError(\"type\", \"expected gleam/result.Result, got \" <> s)])\n"
-  <> "      Error(_) -> Error([JsonError(\"type\", \"missing or not a string\")])\n"
-  <> "    }\n"
-  <> "  )\n"
-  <> "  case decode.run(value, decode.field(\"variant\", decode.string, fn(x) { decode.success(x) })) {\n"
-  <> "    Ok(\"Ok\") -> {\n"
-  <> "      case decode.run(value, decode.field(\"fields\", decode.list(of: decode.dynamic), fn(x) { decode.success(x) })) {\n"
-  <> "        Ok([inner_raw]) -> {\n"
-  <> "          use val <- result.try(decode_ok(inner_raw))\n"
-  <> "          Ok(Ok(val))\n"
-  <> "        }\n"
-  <> "        Ok(_) -> Error([JsonError(\"fields\", \"expected [value] for Ok\")])\n"
-  <> "        Error(_) -> Error([JsonError(\"fields\", \"expected array for Ok\")])\n"
-  <> "      }\n"
-  <> "    }\n"
-  <> "    Ok(\"Error\") -> {\n"
-  <> "      case decode.run(value, decode.field(\"fields\", decode.list(of: decode.dynamic), fn(x) { decode.success(x) })) {\n"
-  <> "        Ok([inner_raw]) -> {\n"
-  <> "          use val <- result.try(decode_err(inner_raw))\n"
-  <> "          Ok(Error(val))\n"
-  <> "        }\n"
-  <> "        Ok(_) -> Error([JsonError(\"fields\", \"expected [value] for Error\")])\n"
-  <> "        Error(_) -> Error([JsonError(\"fields\", \"expected array for Error\")])\n"
-  <> "      }\n"
-  <> "    }\n"
-  <> "    Ok(other) -> Error([JsonError(\"variant\", \"unknown Result variant: \" <> other)])\n"
-  <> "    Error(_) -> Error([JsonError(\"variant\", \"missing or not a string\")])\n"
-  <> "  }\n"
-  <> "}"
+  "pub fn json_decode_gleam_result__result(value: Dynamic, decode_ok: fn(Dynamic) -> Result(a, List(JsonError)), decode_err: fn(Dynamic) -> Result(b, List(JsonError))) -> Result(Result(a, b), List(JsonError)) {\n  use _ <- result.try(\n    case decode.run(value, decode.field(\"type\", decode.string, fn(x) { decode.success(x) })) {\n      Ok(\"gleam/result.Result\") -> Ok(Nil)\n      Ok(s) -> Error([JsonError(\"type\", \"expected gleam/result.Result, got \" <> s)])\n      Error(_) -> Error([JsonError(\"type\", \"missing or not a string\")])\n    }\n  )\n  case decode.run(value, decode.field(\"variant\", decode.string, fn(x) { decode.success(x) })) {\n    Ok(\"Ok\") -> {\n      case decode.run(value, decode.field(\"fields\", decode.list(of: decode.dynamic), fn(x) { decode.success(x) })) {\n        Ok([inner_raw]) -> {\n          use val <- result.try(decode_ok(inner_raw))\n          Ok(Ok(val))\n        }\n        Ok(_) -> Error([JsonError(\"fields\", \"expected [value] for Ok\")])\n        Error(_) -> Error([JsonError(\"fields\", \"expected array for Ok\")])\n      }\n    }\n    Ok(\"Error\") -> {\n      case decode.run(value, decode.field(\"fields\", decode.list(of: decode.dynamic), fn(x) { decode.success(x) })) {\n        Ok([inner_raw]) -> {\n          use val <- result.try(decode_err(inner_raw))\n          Ok(Error(val))\n        }\n        Ok(_) -> Error([JsonError(\"fields\", \"expected [value] for Error\")])\n        Error(_) -> Error([JsonError(\"fields\", \"expected array for Error\")])\n      }\n    }\n    Ok(other) -> Error([JsonError(\"variant\", \"unknown Result variant: \" <> other)])\n    Error(_) -> Error([JsonError(\"variant\", \"missing or not a string\")])\n  }\n}"
 }
 
 /// Generate inline decode for Dict types.
 fn emit_dict_decode(
-  key: FieldType,
-  value: FieldType,
-  raw_var: String,
-  path: String,
-  pad: String,
+  key key: FieldType,
+  value value: FieldType,
+  raw_var raw_var: String,
+  path path: String,
+  pad pad: String,
 ) -> String {
   case key {
     // String-keyed dict: decode as JSON object
@@ -979,10 +937,10 @@ fn emit_dict_decode(
       <> pad
       <> "    use v <- result.try(\n"
       <> emit_raw_value_decode(
-        value,
-        "v_raw",
-        path <> ".value",
-        pad <> "      ",
+        ft: value,
+        raw_var: "v_raw",
+        path: path <> ".value",
+        pad: pad <> "      ",
       )
       <> "\n"
       <> pad
@@ -1017,10 +975,10 @@ fn emit_dict_decode(
       <> pad
       <> "            use k <- result.try(\n"
       <> emit_raw_value_decode(
-        key,
-        "k_raw",
-        path <> ".key",
-        pad <> "              ",
+        ft: key,
+        raw_var: "k_raw",
+        path: path <> ".key",
+        pad: pad <> "              ",
       )
       <> "\n"
       <> pad
@@ -1028,10 +986,10 @@ fn emit_dict_decode(
       <> pad
       <> "            use v <- result.try(\n"
       <> emit_raw_value_decode(
-        value,
-        "v_raw",
-        path <> ".value",
-        pad <> "              ",
+        ft: value,
+        raw_var: "v_raw",
+        path: path <> ".value",
+        pad: pad <> "              ",
       )
       <> "\n"
       <> pad
@@ -1069,13 +1027,13 @@ fn emit_dict_decode(
 
 /// Generate inline decode for Tuple types.
 fn emit_tuple_decode(
-  elements: List(FieldType),
-  raw_var: String,
-  path: String,
-  pad: String,
+  elements elements: List(FieldType),
+  raw_var raw_var: String,
+  path path: String,
+  pad pad: String,
 ) -> String {
-  let n = list.length(elements)
-  let n_str = int.to_string(n)
+  let element_count = list.length(elements)
+  let n_str = int.to_string(element_count)
 
   let fields_pad = pad <> "      "
   let field_decodes =
@@ -1092,10 +1050,10 @@ fn emit_tuple_decode(
       <> fields_pad
       <> "  Ok(raw) -> "
       <> emit_raw_value_decode(
-        ft,
-        "raw",
-        path <> "[" <> idx_str <> "]",
-        fields_pad <> "  ",
+        ft: ft,
+        raw_var: "raw",
+        path: path <> "[" <> idx_str <> "]",
+        pad: fields_pad <> "  ",
       )
       <> "\n"
       <> fields_pad

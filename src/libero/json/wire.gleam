@@ -6,6 +6,7 @@
 ////
 //// Produces/consumes `String` (JSON text), not `BitArray`.
 
+import gleam/bool
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/json
@@ -229,13 +230,10 @@ fn validate_contract_hash(
 }
 
 fn validate_request_id(id: Int) -> Result(Int, List(JsonError)) {
-  case id >= 0 && id <= 4_294_967_295 {
-    True -> Ok(id)
-    False ->
-      Error([
-        JsonError("request_id", "request_id outside 32-bit unsigned range"),
-      ])
-  }
+  use <- bool.guard(when: id >= 0 && id <= 4_294_967_295, return: Ok(id))
+  Error([
+    JsonError("request_id", "request_id outside 32-bit unsigned range"),
+  ])
 }
 
 // ---------- Field extraction helpers (using gleam/dynamic/decode) ----------
