@@ -4,8 +4,10 @@ import glance
 import gleam/option.{None, Some}
 import gleam/string
 import libero/gen_error.{
-  CannotReadDir, CannotReadFile, DuplicateEndpoint, ParseFailed, TypeNotFound,
-  UnresolvedTypeModule,
+  AmbiguousFallbackMapping, CannotReadDir, CannotReadFile,
+  DictKeyMustBePrimitive, DuplicateEndpoint, ParseFailed,
+  TypeIdentityHashCollision, TypeNotFound, TypeResolutionFailed,
+  UnresolvedTypeModule, WireTypeContainsTypeVar,
 }
 import simplifile
 
@@ -86,6 +88,52 @@ pub fn print_error_type_not_found_test() {
 pub fn print_error_duplicate_endpoint_test() {
   let err =
     DuplicateEndpoint(fn_name: "get_items", modules: ["server/a", "server/b"])
+  gen_error.print_error(err)
+}
+
+pub fn print_error_type_identity_hash_collision_test() {
+  let err =
+    TypeIdentityHashCollision(
+      hash: "abc123",
+      signature_a: "shared/types.Foo(Int)",
+      signature_b: "shared/types.Bar(Int)",
+    )
+  gen_error.print_error(err)
+}
+
+pub fn print_error_ambiguous_fallback_mapping_test() {
+  let err =
+    AmbiguousFallbackMapping(beam_key: "{foo, 2}", sources: [
+      "shared/types.Foo",
+      "shared/types.Bar",
+    ])
+  gen_error.print_error(err)
+}
+
+pub fn print_error_dict_key_must_be_primitive_test() {
+  let err =
+    DictKeyMustBePrimitive(
+      field_path: "admin/discounts.Discount field[2].value.key",
+      key_type_repr: "UserType(shared/types.Complex)",
+    )
+  gen_error.print_error(err)
+}
+
+pub fn print_error_wire_type_contains_type_var_test() {
+  let err =
+    WireTypeContainsTypeVar(
+      field_path: "shared/types.Wrapper field[0]",
+      var_name: "a",
+    )
+  gen_error.print_error(err)
+}
+
+pub fn print_error_type_resolution_failed_test() {
+  let err =
+    TypeResolutionFailed(
+      path: "shared/types.gleam",
+      message: "ambiguous import for Foo",
+    )
   gen_error.print_error(err)
 }
 

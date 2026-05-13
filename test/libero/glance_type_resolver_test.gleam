@@ -195,10 +195,12 @@ pub fn builtin_tuple_test() {
   let source = "pub type W { W(t: #(Int, String)) }"
   resolve(source, "W", "m", PreserveUnsupported)
   |> should.be_ok
-  |> should.equal(field_type.TupleOf(elements: [
-    field_type.IntField,
-    field_type.StringField,
-  ]))
+  |> should.equal(
+    field_type.TupleOf(elements: [
+      field_type.IntField,
+      field_type.StringField,
+    ]),
+  )
 }
 
 // -- Generic user type --
@@ -210,9 +212,11 @@ pub type W { W(box: Box(Item)) }"
 
   resolve(source, "W", "test/page", PreserveUnsupported)
   |> should.be_ok
-  |> should.equal(field_type.UserType("test/page", "Box", [
-    field_type.UserType("shared/item", "Item", []),
-  ]))
+  |> should.equal(
+    field_type.UserType("test/page", "Box", [
+      field_type.UserType("shared/item", "Item", []),
+    ]),
+  )
 }
 
 // -- Unsupported types: RejectUnsupported --
@@ -352,7 +356,12 @@ pub fn resolved_type_feeds_wire_identity_test() {
 pub type ServerAddItem { ServerAddItem(item: Item, count: Int) }"
 
   let assert Ok(fields) =
-    resolve_all_fields(source, "ServerAddItem", "page/inventory", PreserveUnsupported)
+    resolve_all_fields(
+      source,
+      "ServerAddItem",
+      "page/inventory",
+      PreserveUnsupported,
+    )
 
   should.equal(fields, [
     field_type.UserType("shared/item", "Item", []),

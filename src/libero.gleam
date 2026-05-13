@@ -25,11 +25,10 @@ import libero/walker.{type DiscoveredType}
 import simplifile
 import tom
 
-/// Consumers can construct push dispatch entries without reaching into
-/// `libero/etf/codegen_erl` directly.
-pub type PushDispatch {
-  PushDispatch(page_tag: String, type_atom: String)
-}
+/// Re-export so consumers can construct push dispatch entries without
+/// reaching into `libero/etf/codegen_erl` directly.
+pub type PushDispatch =
+  codegen_erl.PushDispatch
 
 /// The wire protocol: ETF (Erlang Term Format) or JSON.
 pub type Protocol =
@@ -103,7 +102,13 @@ pub fn main() -> Nil {
       halt(1)
     }
   }
-  let package = read_package_name()
+  let package = case read_package_name() {
+    Ok(name) -> name
+    Error(msg) -> {
+      io.println_error(msg)
+      halt(1)
+    }
+  }
   let decoders_js = generate_decoders_ffi(discovered:, endpoints:, package:)
   let decoders_gleam = generate_decoders_gleam()
 
@@ -130,11 +135,19 @@ pub fn main() -> Nil {
   // Write client-side files only when the caller opts in.
   case client_output_dir_from_env(get_env("LIBERO_CLIENT_OUT_DIR")) {
     option.Some(client_out) ->
-      write_client_files(
-        client_out: client_out,
-        js: decoders_js,
-        gleam: decoders_gleam,
-      )
+      case
+        write_client_files(
+          client_out: client_out,
+          js: decoders_js,
+          gleam: decoders_gleam,
+        )
+      {
+        Ok(Nil) -> Nil
+        Error(err) -> {
+          print_write_error(err)
+          halt(1)
+        }
+      }
     option.None -> Nil
   }
 
@@ -143,8 +156,13 @@ pub fn main() -> Nil {
   let json_contract =
     contract.generate(endpoints:, discovered:, push_types: [], ssr_models: [])
 
-  // Write JSON contract artifact
-  let _ = write_file(out_dir <> "/rpc_contract.json", json_contract)
+  case write_file(out_dir <> "/rpc_contract.json", json_contract) {
+    Ok(Nil) -> Nil
+    Error(err) -> {
+      print_write_error(err)
+      halt(1)
+    }
+  }
 
   // JSON codecs — only when explicitly opted in via LIBERO_GEN_JSON_CODECS.
   // Without this, ETF-only consumers would inherit a gleam_json dependency
@@ -155,20 +173,29 @@ pub fn main() -> Nil {
         [] -> Nil
         _ -> {
           case codegen.generate(discovered, [], []) {
-            Ok(json_codecs_src) -> {
-              let _ =
+            Ok(json_codecs_src) ->
+              case
                 write_file(
                   out_dir <> "/json_codecs.gleam",
                   format.format_gleam(json_codecs_src),
                 )
-              Nil
-            }
+              {
+                Ok(Nil) -> Nil
+                Error(err) -> {
+                  print_write_error(err)
+                  halt(1)
+                }
+              }
             Error(errors) -> {
-              io.println_error("[libero] JSON codec generation failed:")
               list.each(errors, fn(e) {
-                io.println_error("  " <> e.path <> ": " <> e.message)
+                io.println_error(gen_error.error_box(
+                  title: "JSON codec generation failed",
+                  path: e.path,
+                  body_lines: [e.message],
+                  hint: option.None,
+                ))
               })
-              Nil
+              halt(1)
             }
           }
         }
@@ -291,14 +318,6 @@ pub fn generate_wire_erl(
   endpoints endpoints: List(HandlerEndpoint),
   push_dispatches push_dispatches: List(PushDispatch),
 ) -> Result(String, GenError) {
-  let push_dispatches =
-    list.map(push_dispatches, fn(dispatch) {
-      codegen_erl.PushDispatch(
-        page_tag: dispatch.page_tag,
-        type_atom: dispatch.type_atom,
-      )
-    })
-
   codegen_erl.generate(
     module_name: wire_module,
     discovered:,
@@ -350,7 +369,7 @@ pub fn client_output_dir_from_env(
     option.Some(path) -> {
       case string.trim(path) {
         "" -> option.None
-        _ -> option.Some(path)
+        trimmed -> option.Some(trimmed)
       }
     }
     _ -> option.None
@@ -412,24 +431,52 @@ fn print_write_error(err: WriteError) -> Nil {
   io.println_error(message)
 }
 
-// nolint: discarded_result -- client writes are best-effort
 fn write_client_files(
   client_out out: String,
   js js: String,
   gleam gleam: String,
-) -> Nil {
-  let _ = simplifile.create_directory_all(out)
-  let _ = simplifile.write(out <> "/rpc_decoders_ffi.mjs", js)
-  let _ =
-    simplifile.write(out <> "/rpc_decoders.gleam", format.format_gleam(gleam))
-  Nil
+) -> Result(Nil, WriteError) {
+  use _ <- result.try(
+    simplifile.create_directory_all(out)
+    |> result.map_error(fn(cause) { CannotCreateDir(path: out, cause:) }),
+  )
+  use _ <- result.try(write_file(out <> "/rpc_decoders_ffi.mjs", js))
+  write_file(out <> "/rpc_decoders.gleam", format.format_gleam(gleam))
 }
 
-fn read_package_name() -> String {
-  let assert Ok(content) = simplifile.read("gleam.toml")
-  let assert Ok(parsed) = tom.parse(content)
-  let assert Ok(name) = tom.get_string(parsed, ["name"])
-  name
+fn read_package_name() -> Result(String, String) {
+  case simplifile.read("gleam.toml") {
+    Error(_) ->
+      Error(gen_error.error_box(
+        title: "Could not read gleam.toml",
+        path: "gleam.toml",
+        body_lines: ["File is missing or unreadable."],
+        hint: option.Some(
+          "Run libero from the project root where gleam.toml lives.",
+        ),
+      ))
+    Ok(content) ->
+      case tom.parse(content) {
+        Error(_) ->
+          Error(gen_error.error_box(
+            title: "Could not parse gleam.toml",
+            path: "gleam.toml",
+            body_lines: ["The file contains invalid TOML."],
+            hint: option.None,
+          ))
+        Ok(parsed) ->
+          case tom.get_string(parsed, ["name"]) {
+            Error(_) ->
+              Error(gen_error.error_box(
+                title: "Missing \"name\" in gleam.toml",
+                path: "gleam.toml",
+                body_lines: ["Expected a top-level `name = \"...\"` field."],
+                hint: option.None,
+              ))
+            Ok(name) -> Ok(name)
+          }
+      }
+  }
 }
 
 // nolint: avoid_panic, discarded_result -- Erlang-only @external; JS fallback is unreachable

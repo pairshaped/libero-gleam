@@ -42,7 +42,13 @@ pub fn type_to_field_type(
   }
   case t {
     glance.NamedType(name:, module: option.None, parameters:, ..) ->
-      resolve_unqualified(name:, parameters:, resolver:, current_module:, policy:)
+      resolve_unqualified(
+        name:,
+        parameters:,
+        resolver:,
+        current_module:,
+        policy:,
+      )
     glance.NamedType(name:, module: option.Some(m), parameters:, ..) -> {
       let module_path = dict.get(resolver.aliased, m) |> result.unwrap(or: m)
       use args <- result.try(list.try_map(parameters, recurse))
@@ -83,16 +89,27 @@ fn resolve_unqualified(
     Ok(TypeBinding(module_path:, type_name:)) ->
       case is_stdlib_module_path(module_path) {
         True ->
-          case field_type.builtin_field_type(name:, parameters: args, recurse: identity) {
+          case
+            field_type.builtin_field_type(
+              name:,
+              parameters: args,
+              recurse: identity,
+            )
+          {
             Ok(ft) -> Ok(ft)
             Error(Nil) ->
               Ok(field_type.UserType(module_path:, type_name:, args:))
           }
-        False ->
-          Ok(field_type.UserType(module_path:, type_name:, args:))
+        False -> Ok(field_type.UserType(module_path:, type_name:, args:))
       }
     Error(Nil) ->
-      case field_type.builtin_field_type(name:, parameters: args, recurse: identity) {
+      case
+        field_type.builtin_field_type(
+          name:,
+          parameters: args,
+          recurse: identity,
+        )
+      {
         Ok(ft) -> Ok(ft)
         Error(Nil) ->
           Ok(field_type.UserType(
@@ -105,8 +122,7 @@ fn resolve_unqualified(
 }
 
 fn is_stdlib_module_path(path: String) -> Bool {
-  path == "gleam"
-  || string.starts_with(path, "gleam/")
+  path == "gleam" || string.starts_with(path, "gleam/")
 }
 
 fn build_unqualified(

@@ -3,12 +3,13 @@
 title: Document libero ETF threat model in README
 status: todo
 type: task
-priority: normal
+priority: deferred
 tags:
     - security
     - docs
+    - deferred
 created_at: 2026-05-08T15:14:55Z
-updated_at: 2026-05-08T16:22:01Z
+updated_at: 2026-05-13T00:42:01Z
 ---
 
 Add a Security/Threat Model section to libero's README (or a SECURITY.md) that documents:

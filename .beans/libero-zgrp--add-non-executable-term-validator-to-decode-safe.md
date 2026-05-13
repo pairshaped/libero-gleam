@@ -3,12 +3,13 @@
 title: Add non-executable term validator to decode_safe
 status: todo
 type: feature
-priority: normal
+priority: deferred
 tags:
     - security
     - etf
+    - deferred
 created_at: 2026-05-08T15:14:35Z
-updated_at: 2026-05-08T16:21:58Z
+updated_at: 2026-05-13T00:42:01Z
 ---
 
 Defense in depth on top of [safe]. After binary_to_term(Bin, [safe]) succeeds, walk the term and assert it contains only ints, floats, atoms, binaries, lists, tuples, and maps. Reject pids, refs, ports, funs explicitly even though [safe] should block them.

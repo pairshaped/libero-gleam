@@ -10,8 +10,7 @@
 -module(libero_ffi).
 -export([try_call/1, encode/1, decode/1, decode_safe/1, decode_typed/2,
          identity/1, unique_id/0, run_executable_capturing/2,
-         find_executable/1, get_env/1, halt/1, ensure_decoders/0,
-         compile_module_from_source/1]).
+         find_executable/1, get_env/1, halt/1, ensure_decoders/0]).
 
 identity(X) -> X.
 
@@ -86,21 +85,3 @@ halt(Code) ->
 ensure_decoders() ->
     libero_etf_ffi:ensure_decoders().
 
-compile_module_from_source(Source) when is_binary(Source) ->
-    Str = binary_to_list(Source),
-    {ok, Tokens, _} = erl_scan:string(Str),
-    Forms = split_forms(Tokens, []),
-    Parsed = [begin {ok, F} = erl_parse:parse_form(Toks), F end || Toks <- Forms],
-    {ok, Mod, Bin} = compile:forms(Parsed, [return_errors]),
-    {module, Mod} = code:load_binary(Mod, "", Bin),
-    {ok, Mod}.
-
-split_forms([], Acc) ->
-    case Acc of
-        [] -> [];
-        _ -> [lists:reverse(Acc)]
-    end;
-split_forms([{dot, _} = Dot | Rest], Acc) ->
-    [lists:reverse([Dot | Acc]) | split_forms(Rest, [])];
-split_forms([Tok | Rest], Acc) ->
-    split_forms(Rest, [Tok | Acc]).

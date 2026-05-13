@@ -1144,7 +1144,7 @@ export function decodeTypedWire(buffer, decoderName) {
  * @param {any} msg
  * @returns {ArrayBuffer}
  */
-export function encode_call(module, requestId, msg) {
+export function encode_request(module, requestId, msg) {
   const encoder = new ETFEncoder();
   encoder.writeUint8(131); // ETF version byte
   // Envelope: {<<"module_name">>, request_id, msg_value}
@@ -1156,16 +1156,8 @@ export function encode_call(module, requestId, msg) {
   return encoder.result();
 }
 
-/**
- * Encode an outbound RPC request as a wire frame.
- * Preferred name; delegates to encode_call for compatibility.
- * @param {string} module
- * @param {number} requestId
- * @param {any} msg
- * @returns {ArrayBuffer}
- */
-export function encode_request(module, requestId, msg) {
-  return encode_call(module, requestId, msg);
+export function encode_call(module, requestId, msg) {
+  return encode_request(module, requestId, msg);
 }
 
 /**
@@ -1200,7 +1192,7 @@ export function decode_response_frame(buffer) {
     }
     // Read 32-bit big-endian unsigned (use >>> 0 to avoid signed overflow).
     const requestId = ((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4]) >>> 0;
-    const payloadResult = decode_safe(bytes.subarray(5));
+    const payloadResult = decode_safe_raw(bytes.subarray(5));
     if (payloadResult instanceof Ok) {
       return new Ok([requestId, payloadResult[0]]);
     }
@@ -1226,7 +1218,7 @@ export function decode_push_frame(buffer) {
     if (bytes[0] !== 1) {
       return new ResultError(new WireDecodeError("invalid push frame: expected tag byte 1"));
     }
-    const payloadResult = decode_safe(bytes.subarray(1));
+    const payloadResult = decode_safe_raw(bytes.subarray(1));
     if (payloadResult instanceof Ok) {
       const value = payloadResult[0];
       if (Array.isArray(value) && value.length === 2
@@ -1267,7 +1259,7 @@ export function decode_server_frame(buffer) {
         return new ResultError(new WireDecodeError("invalid response frame: too short"));
       }
       const requestId = ((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4]) >>> 0;
-      const payloadResult = decode_safe(bytes.subarray(5));
+      const payloadResult = decode_safe_raw(bytes.subarray(5));
       if (payloadResult instanceof Ok) {
         return new Ok({ kind: "response", requestId, value: payloadResult[0] });
       }
@@ -1275,7 +1267,7 @@ export function decode_server_frame(buffer) {
     }
 
     if (tag === 1) {
-      const payloadResult = decode_safe(bytes.subarray(1));
+      const payloadResult = decode_safe_raw(bytes.subarray(1));
       if (payloadResult instanceof Ok) {
         const tuple = payloadResult[0];
         if (Array.isArray(tuple) && tuple.length === 2

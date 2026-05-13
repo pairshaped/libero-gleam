@@ -966,7 +966,7 @@ pub fn encode_response_not_exported_when_no_endpoints_test() {
 
 // -- behavioral dispatch boundary tests (same-name/same-arity) ---------------
 
-@external(erlang, "libero_ffi", "compile_module_from_source")
+@external(erlang, "libero_test_ffi", "compile_module_from_source")
 fn compile_module(source: String) -> Result(atom, Nil)
 
 @external(erlang, "erlang", "apply")

@@ -17,7 +17,8 @@
 %% Rally's codegen generates an rpc_atoms module that handles this.
 decode_request(Bin) when is_binary(Bin) ->
     try erlang:binary_to_term(Bin, [safe]) of
-        {Module, RequestId, Value} when is_binary(Module), is_integer(RequestId) ->
+        {Module, RequestId, Value} when is_binary(Module), is_integer(RequestId),
+                                         RequestId >= 0, RequestId =< 4294967295 ->
             {ok, {Module, RequestId, Value}};
         _ ->
             {error, {decode_error, <<"invalid request envelope: expected {binary, integer, value} tuple">>}}

@@ -32,6 +32,7 @@ pub fn encode_request(
   msg msg: json.Json,
   contract_hash contract_hash: String,
 ) -> String {
+  let assert True = request_id >= 0 && request_id <= 4_294_967_295
   json.object([
     #("kind", json.string("request")),
     #("protocol_version", json.string(json_rpc_v1)),
@@ -54,6 +55,7 @@ pub fn decode_request(
 
   use module <- result.try(required_string_field(parsed, "module"))
   use request_id <- result.try(required_int_field(parsed, "request_id"))
+  use request_id <- result.try(validate_request_id(request_id))
   use message <- result.try(required_dynamic_field(parsed, "message"))
 
   Ok(RequestEnvelope(module:, request_id:, message:))
@@ -65,6 +67,7 @@ pub fn encode_response(
   request_id request_id: Int,
   value value: json.Json,
 ) -> String {
+  let assert True = request_id >= 0 && request_id <= 4_294_967_295
   json.object([
     #("kind", json.string("response")),
     #("protocol_version", json.string(json_rpc_v1)),
@@ -81,7 +84,10 @@ pub fn encode_error(
   errors errors: List(JsonError),
 ) -> String {
   let rid = case request_id {
-    Some(id) -> json.int(id)
+    Some(id) -> {
+      let assert True = id >= 0 && id <= 4_294_967_295
+      json.int(id)
+    }
     None -> json.null()
   }
   json.object([
@@ -135,6 +141,7 @@ fn decode_response_frame_body(
   parsed: Dynamic,
 ) -> Result(ServerFrame(Dynamic), List(JsonError)) {
   use request_id <- result.try(required_int_field(parsed, "request_id"))
+  use request_id <- result.try(validate_request_id(request_id))
   use value <- result.try(required_dynamic_field(parsed, "value"))
 
   Ok(frame.Response(request_id:, value:))
@@ -152,7 +159,7 @@ fn decode_push_frame_body(
 fn decode_error_frame_body(
   parsed: Dynamic,
 ) -> Result(ServerFrame(Dynamic), List(JsonError)) {
-  let request_id = optional_int_field(parsed, "request_id")
+  use request_id <- result.try(optional_int_field(parsed, "request_id"))
   use errors <- result.try(error_list_field(parsed, "errors"))
 
   Ok(frame.Error(request_id:, errors:))
@@ -221,6 +228,16 @@ fn validate_contract_hash(
   }
 }
 
+fn validate_request_id(id: Int) -> Result(Int, List(JsonError)) {
+  case id >= 0 && id <= 4_294_967_295 {
+    True -> Ok(id)
+    False ->
+      Error([
+        JsonError("request_id", "request_id outside 32-bit unsigned range"),
+      ])
+  }
+}
+
 // ---------- Field extraction helpers (using gleam/dynamic/decode) ----------
 
 fn required_string_field(
@@ -274,15 +291,26 @@ fn required_dynamic_field(
   }
 }
 
-fn optional_int_field(parsed: Dynamic, name: String) -> Option(Int) {
+fn optional_int_field(
+  parsed: Dynamic,
+  name: String,
+) -> Result(Option(Int), List(JsonError)) {
   let decoder = decode.field(name, decode.dynamic, decode.success)
   case decode.run(parsed, decoder) {
     Ok(dyn) ->
       case decode.run(dyn, decode.optional(decode.int)) {
-        Ok(Some(n)) -> Some(n)
-        _ -> None
+        Ok(Some(n)) ->
+          case n >= 0 && n <= 4_294_967_295 {
+            True -> Ok(Some(n))
+            False ->
+              Error([
+                JsonError(name, "request_id outside 32-bit unsigned range"),
+              ])
+          }
+        Ok(None) -> Ok(None)
+        Error(_) -> Error([JsonError(name, "expected Int or null")])
       }
-    Error(_) -> None
+    Error(_) -> Ok(None)
   }
 }
 

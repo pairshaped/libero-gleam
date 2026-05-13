@@ -3,13 +3,14 @@
 title: Add hostile-input ETF test fixtures
 status: todo
 type: task
-priority: normal
+priority: deferred
 tags:
     - security
     - etf
     - testing
+    - deferred
 created_at: 2026-05-08T15:14:45Z
-updated_at: 2026-05-08T16:21:59Z
+updated_at: 2026-05-13T00:42:01Z
 ---
 
 Test the ETF decode pipeline with adversarial inputs. Each should fail cleanly with a typed error — never crash the VM or hang.

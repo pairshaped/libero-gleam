@@ -228,21 +228,23 @@ fn parse_endpoints(
       TypeResolutionFailed(path: file_path, message:)
     }),
   )
-  Ok(list.filter_map(parsed.functions, fn(def) {
-    let glance.Definition(_, func) = def
-    case func.publicity == glance.Public {
-      False -> Error(Nil)
-      True ->
-        parse_single_endpoint(
-          func: func,
-          module_path: module_path,
-          resolver: resolver,
-          context_type_name: context_type_name,
-          custom_types: parsed.custom_types,
-          module_files: module_files,
-        )
-    }
-  }))
+  Ok(
+    list.filter_map(parsed.functions, fn(def) {
+      let glance.Definition(_, func) = def
+      case func.publicity == glance.Public {
+        False -> Error(Nil)
+        True ->
+          parse_single_endpoint(
+            func: func,
+            module_path: module_path,
+            resolver: resolver,
+            context_type_name: context_type_name,
+            custom_types: parsed.custom_types,
+            module_files: module_files,
+          )
+      }
+    }),
+  )
 }
 
 /// Build a map from unqualified type names to the full module path of their import.
@@ -354,7 +356,7 @@ fn try_resolve_msg_type(
     option.None,
   )
   case payload_params {
-    [param, ..] -> {
+    [param] -> {
       use type_ <- try_msg_param_type(param, fallback)
       case to_ft(type_) {
         field_type.UserType(module_path:, type_name:, args: []) ->
@@ -424,8 +426,7 @@ fn module_type_resolver(
   imports: List(glance.Definition(glance.Import)),
   current_module: String,
 ) -> fn(glance.Type) -> field_type.FieldType {
-  let assert Ok(resolver) =
-    glance_type_resolver.resolver_from_imports(imports)
+  let assert Ok(resolver) = glance_type_resolver.resolver_from_imports(imports)
   fn(t) {
     let assert Ok(ft) =
       glance_type_resolver.type_to_field_type(
@@ -547,4 +548,3 @@ fn extract_result_args(
     _ -> Error(Nil)
   }
 }
-

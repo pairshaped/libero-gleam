@@ -161,7 +161,6 @@ fn ffi_decode_request(
   panic as "libero/etf/wire.decode_request is a server-side function, unreachable on JavaScript target"
 }
 
-/// Backwards-compatible name for `decode_request`.
 pub fn decode_call(
   data: BitArray,
 ) -> Result(#(String, Int, Dynamic), DecodeError) {
@@ -180,10 +179,10 @@ pub fn encode_request(
   request_id request_id: Int,
   msg msg: a,
 ) -> BitArray {
+  let assert True = request_id >= 0 && request_id <= 4_294_967_295
   encode(#(module, request_id, msg))
 }
 
-/// Backwards-compatible name for `encode_request`.
 pub fn encode_call(
   module module: String,
   request_id request_id: Int,
@@ -201,6 +200,7 @@ pub fn tag_response(
   request_id request_id: Int,
   data data: BitArray,
 ) -> BitArray {
+  let assert True = request_id >= 0 && request_id <= 4_294_967_295
   <<0, request_id:32, data:bits>>
 }
 

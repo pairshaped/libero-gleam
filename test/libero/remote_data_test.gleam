@@ -66,19 +66,19 @@ pub fn unwrap_not_asked_test() {
 // -- to_option --
 
 pub fn to_option_success_test() {
-  let assert Some(42) = remote_data.to_option(Success(42))
+  let assert Some(42) = remote_data.to_option(data: Success(42))
 }
 
 pub fn to_option_loading_test() {
-  let assert None = remote_data.to_option(Loading)
+  let assert None = remote_data.to_option(data: Loading)
 }
 
 pub fn to_option_failure_test() {
-  let assert None = remote_data.to_option(Failure("err"))
+  let assert None = remote_data.to_option(data: Failure("err"))
 }
 
 pub fn to_option_not_asked_test() {
-  let assert None = remote_data.to_option(NotAsked)
+  let assert None = remote_data.to_option(data: NotAsked)
 }
 
 // -- map2 --

@@ -122,7 +122,7 @@ pub fn unwrap(data data: RemoteData(a, e), default default: a) -> a {
 }
 
 /// Convert to Option - Some for Success, None for everything else.
-pub fn to_option(data: RemoteData(a, e)) -> Option(a) {
+pub fn to_option(data data: RemoteData(a, e)) -> Option(a) {
   case data {
     Success(value) -> Some(value)
     _ -> None
