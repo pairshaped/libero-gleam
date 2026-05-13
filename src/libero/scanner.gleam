@@ -128,6 +128,22 @@ pub fn scan(
   src_dir src_dir: String,
   context_type_name context_type_name: String,
 ) -> Result(List(HandlerEndpoint), List(GenError)) {
+  scan_excluding(
+    src_dir:,
+    context_type_name:,
+    exclude_param_types: [],
+  )
+}
+
+/// Like `scan`, but filters out handler params whose resolved type matches
+/// any #(module_path, type_name) in exclude_param_types. Filtered params are
+/// removed before message-type resolution, so a handler with one message
+/// param plus an excluded param still resolves the message type correctly.
+pub fn scan_excluding(
+  src_dir src_dir: String,
+  context_type_name context_type_name: String,
+  exclude_param_types exclude_param_types: List(#(String, String)),
+) -> Result(List(HandlerEndpoint), List(GenError)) {
   use files <- result.try(
     walk_directory(path: src_dir)
     |> result.map_error(fn(cause) { [cause] }),
@@ -142,7 +158,14 @@ pub fn scan(
   let #(endpoints_rev, errors_rev) =
     list.fold(files, #([], []), fn(acc, file_path) {
       let #(eps_acc, errs_acc) = acc
-      case parse_endpoints(file_path:, context_type_name:, module_files:) {
+      case
+        parse_endpoints(
+          file_path:,
+          context_type_name:,
+          module_files:,
+          exclude_param_types:,
+        )
+      {
         Ok(eps) -> #(list.append(list.reverse(eps), eps_acc), errs_acc)
         Error(err) -> #(eps_acc, [err, ..errs_acc])
       }
@@ -219,6 +242,7 @@ fn parse_endpoints(
   file_path file_path: String,
   context_type_name context_type_name: String,
   module_files module_files: dict.Dict(String, String),
+  exclude_param_types exclude_param_types: List(#(String, String)),
 ) -> Result(List(HandlerEndpoint), GenError) {
   use parsed <- result.try(parse_module(file_path:))
   let module_path = derive_module_path(file_path: file_path)
@@ -241,6 +265,7 @@ fn parse_endpoints(
             context_type_name: context_type_name,
             custom_types: parsed.custom_types,
             module_files: module_files,
+            exclude_param_types: exclude_param_types,
           )
       }
     }),
@@ -302,6 +327,7 @@ fn parse_single_endpoint(
   context_type_name context_type_name: String,
   custom_types custom_types: List(glance.Definition(glance.CustomType)),
   module_files module_files: dict.Dict(String, String),
+  exclude_param_types exclude_param_types: List(#(String, String)),
 ) -> Result(HandlerEndpoint, Nil) {
   use <- bool.guard(
     when: !string.starts_with(func.name, "server_"),
@@ -322,6 +348,22 @@ fn parse_single_endpoint(
         policy: PreserveUnsupported,
       )
     ft
+  }
+
+  let payload_params = case exclude_param_types {
+    [] -> payload_params
+    _ ->
+      list.filter(payload_params, fn(p) {
+        case p.type_ {
+          option.Some(t) ->
+            case to_ft(t) {
+              field_type.UserType(module_path: mp, type_name: tn, ..) ->
+                !list.contains(exclude_param_types, #(mp, tn))
+              _ -> True
+            }
+          option.None -> True
+        }
+      })
   }
 
   let #(params_typed, msg_type) =

@@ -230,6 +230,20 @@ pub fn scan() -> Result(List(HandlerEndpoint), List(GenError)) {
   scanner.scan("./src", "ServerContext")
 }
 
+/// Like `scan`, but excludes handler params whose resolved type matches any
+/// #(module_path, type_name) in exclude_param_types. This lets frameworks
+/// strip server-injected params (e.g. auth identity) before message-type
+/// resolution, so the scanner sees only the client-facing payload.
+pub fn scan_excluding(
+  exclude_param_types exclude_param_types: List(#(String, String)),
+) -> Result(List(HandlerEndpoint), List(GenError)) {
+  scanner.scan_excluding(
+    src_dir: "./src",
+    context_type_name: "ServerContext",
+    exclude_param_types:,
+  )
+}
+
 /// Extract type seeds from endpoints for the walker.
 pub fn collect_seeds(
   endpoints: List(HandlerEndpoint),

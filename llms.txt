@@ -38,6 +38,11 @@ LIBERO_CLIENT_OUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
 import libero
 
 let assert Ok(endpoints) = libero.scan()                               // 1. Discover endpoints
+// Or, to exclude server-injected params (e.g. auth identity) before
+// message-type resolution:
+// let assert Ok(endpoints) = libero.scan_excluding(
+//   exclude_param_types: [#("admin/auth", "Identity")],
+// )
 let seeds = libero.collect_seeds(endpoints)                            // 2. Extract type seeds
 let assert Ok(discovered) = libero.walk(seeds)                        // 3. Walk type graph
 let dispatch_source = libero.generate_dispatch(endpoints)             // 4. Generate dispatch
@@ -49,7 +54,7 @@ Each function returns a string, so the caller owns file I/O. Internal modules (`
 
 ## What it provides
 
-1. **Scanner** (`libero/scanner`): Discovers handler endpoints by parsing Gleam source files. Looks for public functions with a `server_` prefix, a `ServerContext` parameter, and a `Result` return type.
+1. **Scanner** (`libero/scanner`): Discovers handler endpoints by parsing Gleam source files. Looks for public functions with a `server_` prefix, a `ServerContext` parameter, and a `Result` return type. `scan_excluding(exclude_param_types:)` filters out handler params whose resolved type matches any `#(module_path, type_name)` before message-type resolution, so frameworks can strip server-injected params (like auth identity) from the contract.
 
 2. **Walker** (`libero/walker`): BFS traversal of the type graph starting from scanner output. Discovers all custom types reachable from handler params and return types.
 
