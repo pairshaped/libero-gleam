@@ -43,8 +43,7 @@ pub fn server_load_data(
     scanner.scan(src_dir: src, context_type_name: "Ctx")
   let assert [ep_raw] = endpoints_raw
   let assert True = option.is_none(ep_raw.msg_type)
-  let assert True =
-    list.any(ep_raw.params, fn(p) { p.0 == "identity" })
+  let assert True = list.any(ep_raw.params, fn(p) { p.0 == "identity" })
 
   // With exclusion: identity stripped, msg_type resolves
   let assert Ok(endpoints) =
@@ -55,8 +54,7 @@ pub fn server_load_data(
     )
   let assert [ep] = endpoints
   let assert option.Some(#("pages/dashboard", "ServerLoadData")) = ep.msg_type
-  let assert False =
-    list.any(ep.params, fn(p) { p.0 == "identity" })
+  let assert False = list.any(ep.params, fn(p) { p.0 == "identity" })
   let assert [#("year", field_type.IntField)] = ep.params
 
   let assert Ok(Nil) = simplifile.delete_all([root])

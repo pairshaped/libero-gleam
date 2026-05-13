@@ -128,11 +128,7 @@ pub fn scan(
   src_dir src_dir: String,
   context_type_name context_type_name: String,
 ) -> Result(List(HandlerEndpoint), List(GenError)) {
-  scan_excluding(
-    src_dir:,
-    context_type_name:,
-    exclude_param_types: [],
-  )
+  scan_excluding(src_dir:, context_type_name:, exclude_param_types: [])
 }
 
 /// Like `scan`, but filters out handler params whose resolved type matches
