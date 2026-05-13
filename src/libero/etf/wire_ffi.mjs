@@ -1156,9 +1156,6 @@ export function encode_request(module, requestId, msg) {
   return encoder.result();
 }
 
-export function encode_call(module, requestId, msg) {
-  return encode_request(module, requestId, msg);
-}
 
 /**
  * Normalize libero decode input: Gleam BitArray ({rawBuffer}) or raw binary.

@@ -4,9 +4,8 @@ import glance
 import gleam/option.{None, Some}
 import gleam/string
 import libero/gen_error.{
-  AmbiguousFallbackMapping, CannotReadDir, CannotReadFile,
-  DictKeyMustBePrimitive, DuplicateEndpoint, ParseFailed,
-  TypeIdentityHashCollision, TypeNotFound, TypeResolutionFailed,
+  CannotReadDir, CannotReadFile, DictKeyMustBePrimitive, DuplicateEndpoint,
+  ParseFailed, TypeIdentityHashCollision, TypeNotFound, TypeResolutionFailed,
   UnresolvedTypeModule, WireTypeContainsTypeVar,
 }
 import simplifile
@@ -98,15 +97,6 @@ pub fn print_error_type_identity_hash_collision_test() {
       signature_a: "shared/types.Foo(Int)",
       signature_b: "shared/types.Bar(Int)",
     )
-  gen_error.print_error(err)
-}
-
-pub fn print_error_ambiguous_fallback_mapping_test() {
-  let err =
-    AmbiguousFallbackMapping(beam_key: "{foo, 2}", sources: [
-      "shared/types.Foo",
-      "shared/types.Bar",
-    ])
   gen_error.print_error(err)
 }
 

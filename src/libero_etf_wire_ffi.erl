@@ -1,5 +1,5 @@
 -module(libero_etf_wire_ffi).
--export([decode_request/1, decode_call/1, variant_tag/1, decode_response_frame/1, decode_push_frame/1]).
+-export([decode_request/1, variant_tag/1, decode_response_frame/1, decode_push_frame/1]).
 
 %% Decode an ETF binary, validate it's a {Binary, Integer, Value} request envelope,
 %% and return a Gleam-shaped Result: {ok, {Name, RequestId, Value}} or
@@ -29,8 +29,6 @@ decode_request(Bin) when is_binary(Bin) ->
 decode_request(_) ->
     {error, {decode_error, <<"expected a binary (BitArray)">>}}.
 
-decode_call(Bin) ->
-    decode_request(Bin).
 
 %% Extract the variant tag (constructor atom name) from a Gleam variant
 %% value as it lands on Erlang. Zero-arg variants are bare atoms; n-arg

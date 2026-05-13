@@ -161,12 +161,6 @@ fn ffi_decode_request(
   panic as "libero/etf/wire.decode_request is a server-side function, unreachable on JavaScript target"
 }
 
-pub fn decode_call(
-  data: BitArray,
-) -> Result(#(String, Int, Dynamic), DecodeError) {
-  decode_request(data)
-}
-
 // ---------- Request envelope encoder ----------
 
 /// Encode a request envelope: `{module_name, request_id, msg}` as ETF binary.
@@ -181,14 +175,6 @@ pub fn encode_request(
 ) -> BitArray {
   let assert True = request_id >= 0 && request_id <= 4_294_967_295
   encode(#(module, request_id, msg))
-}
-
-pub fn encode_call(
-  module module: String,
-  request_id request_id: Int,
-  msg msg: a,
-) -> BitArray {
-  encode_request(module:, request_id:, msg:)
 }
 
 // ---------- Frame tagging ----------

@@ -237,23 +237,17 @@ pub fn collect_seeds(
   scanner.collect_seeds(endpoints)
 }
 
-/// Walk the type graph from seeds. File paths are derived from `src/` and
-/// `../shared/src/` (if present) to support Gleam monorepo layouts where custom
-/// types live in a shared package.
+/// Walk the type graph from seeds. File paths are derived from this package's
+/// `src/` directory. Frameworks that generate clients from a different package
+/// layout should call the lower-level walker APIs with their own file list.
 pub fn walk(
   seeds: List(#(String, String)),
 ) -> Result(List(DiscoveredType), List(GenError)) {
-  use server_files <- result.try(
+  use files <- result.try(
     scanner.walk_directory("./src")
     |> result.map_error(fn(e) { [e] }),
   )
-  let shared_files = case simplifile.is_directory("../shared/src") {
-    Ok(True) ->
-      scanner.walk_directory("../shared/src")
-      |> result.unwrap(or: [])
-    _ -> []
-  }
-  walker.walk(seeds, list.append(server_files, shared_files))
+  walker.walk(seeds, files)
 }
 
 /// Re-export so consumers can build extra dispatch parameters.

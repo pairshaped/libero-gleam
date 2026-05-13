@@ -32,21 +32,7 @@ pub fn decode_request(
   etf_wire.decode_request(data)
 }
 
-pub fn decode_call(
-  data: BitArray,
-) -> Result(#(String, Int, Dynamic), DecodeError) {
-  etf_wire.decode_request(data)
-}
-
 pub fn encode_request(
-  module module: String,
-  request_id request_id: Int,
-  msg msg: a,
-) -> BitArray {
-  etf_wire.encode_request(module:, request_id:, msg:)
-}
-
-pub fn encode_call(
   module module: String,
   request_id request_id: Int,
   msg msg: a,

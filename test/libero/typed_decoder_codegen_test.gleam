@@ -356,7 +356,7 @@ pub fn float_type_hint_registration_test() {
   // back into the encoder, so user-type fields stay correct.
 }
 
-pub fn decoder_codegen_imports_shared_modules_from_shared_package_test() {
+pub fn decoder_codegen_imports_shared_modules_from_caller_package_test() {
   let types = [
     walker.DiscoveredType(
       module_path: "shared/collision",
@@ -385,8 +385,6 @@ pub fn decoder_codegen_imports_shared_modules_from_shared_package_test() {
     )
 
   let assert True =
-    string.contains(js, "from \"../../../shared/shared/collision.mjs\";")
-  let assert False =
     string.contains(js, "from \"../../../server/shared/collision.mjs\";")
 }
 

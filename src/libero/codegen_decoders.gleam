@@ -159,12 +159,11 @@ fn emit_decoder_imports(
   }
   let module_imports =
     list.map(module_paths, fn(mp) {
-      let owner_package = js_package_for_module(mp, package)
       "import * as _m_"
       <> codegen.module_to_underscored(mp)
       <> " from \""
       <> relpath_prefix
-      <> codegen.module_to_mjs_path(module_path: mp, package: owner_package)
+      <> codegen.module_to_mjs_path(module_path: mp, package:)
       <> "\";"
     })
   let remote_data_import = case endpoints {
@@ -206,16 +205,6 @@ fn emit_decoder_imports(
     ],
     "\n",
   )
-}
-
-fn js_package_for_module(
-  module_path: String,
-  default_package: String,
-) -> String {
-  case string.split(module_path, "/") {
-    ["shared", ..] -> "shared"
-    _ -> default_package
-  }
 }
 
 /// Emit per-variant class-static assignments for every discovered user
