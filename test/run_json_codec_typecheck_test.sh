@@ -97,7 +97,7 @@ pub fn main() {
     #("fixture", "Status"),
   ]
   let assert Ok(types) = walker.walk(seeds, files)
-  let assert Ok(source) = codegen.generate(types, [], [])
+  let assert Ok(source) = codegen.generate(types)
   let assert Ok(Nil) = simplifile.write("src/gen_json.gleam", source)
   io.println("Generated JSON codecs")
 }

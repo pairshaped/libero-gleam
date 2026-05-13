@@ -1,4 +1,7 @@
-//// Compatibility wrapper for the old ETF wire module path.
+//// Deprecated: use `libero/etf/wire` directly.
+////
+//// Compatibility wrapper kept for existing consumers that import
+//// `libero/wire`. New code should use `libero/etf/wire`.
 
 import gleam/dynamic.{type Dynamic}
 import libero/error.{type DecodeError}

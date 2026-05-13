@@ -26,7 +26,7 @@ pub fn generated_encoder_emits_type_and_variant_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
 
   // Encoder function exists
   string.contains(source, "fn json_encode_shared_article__article")
@@ -81,7 +81,7 @@ pub fn duplicate_variant_names_generate_distinct_codecs_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
 
   // Both encode functions exist with distinct names
   string.contains(source, "json_encode_page_a__to_client")
@@ -114,7 +114,7 @@ pub fn unlabelled_fields_encode_as_array_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
 
   // Unlabelled fields should use json.array for the fields value
   string.contains(source, "json.array(")
@@ -140,7 +140,7 @@ pub fn mixed_labelled_unlabelled_is_rejected_for_json_test() {
     ),
   ]
 
-  let result = codegen.generate(types, [], [])
+  let result = codegen.generate(types)
 
   // Should contain an error message about mixed fields
   case result {
@@ -172,7 +172,7 @@ pub fn zero_field_variant_encodes_empty_object_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
 
   // Zero-field variants should include "fields" key
   string.contains(source, "\"fields\"")
@@ -198,7 +198,7 @@ pub fn generated_codec_includes_user_module_imports_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
 
   string.contains(source, "import shared/article")
   |> should.be_true
@@ -223,7 +223,7 @@ pub fn generated_codec_uses_qualified_constructors_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
 
   // Encoder pattern uses qualified constructor (positional fields)
   string.contains(source, "article.Article(f0)")
@@ -235,7 +235,7 @@ pub fn generated_codec_uses_qualified_constructors_test() {
 }
 
 pub fn generated_codec_includes_option_result_builtins_test() {
-  let source = assert_generated(codegen.generate([], [], []))
+  let source = assert_generated(codegen.generate([]))
 
   string.contains(source, "json_encode_gleam_option__option")
   |> should.be_true
@@ -269,7 +269,7 @@ pub fn generated_codec_option_field_uses_builtin_encoder_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
 
   // Encoder for Option field calls builtin with inner encoder
   string.contains(
@@ -304,7 +304,7 @@ pub fn generated_codec_non_string_dict_encodes_as_pairs_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
 
   string.contains(source, "json.array(dict.to_list(f0)")
   |> should.be_true
@@ -348,7 +348,7 @@ pub fn duplicate_modules_use_full_underscored_aliases_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
 
   // Both modules use underscored aliases since they share last segment
   string.contains(source, "import shared/article as shared_article")
@@ -390,7 +390,7 @@ pub fn generated_codec_is_syntactically_valid_gleam_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
 
   // Verify the generated source is syntactically valid Gleam
   let assert Ok(_module) = glance.module(source)
@@ -415,7 +415,7 @@ pub fn simple_type_omits_bit_array_import_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
   source |> string.contains("gleam/bit_array") |> should.be_false()
 }
 
@@ -438,7 +438,7 @@ pub fn simple_type_omits_dict_import_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
   source |> string.contains("gleam/dict") |> should.be_false()
 }
 
@@ -461,7 +461,7 @@ pub fn simple_type_omits_list_at_helper_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
   source |> string.contains("fn list_at") |> should.be_false()
 }
 
@@ -484,7 +484,7 @@ pub fn bit_array_field_includes_bit_array_import_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
   source |> string.contains("gleam/bit_array") |> should.be_true()
 }
 
@@ -509,7 +509,7 @@ pub fn dict_field_includes_dict_import_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
   source |> string.contains("gleam/dict") |> should.be_true()
 }
 
@@ -532,7 +532,7 @@ pub fn unlabelled_fields_include_list_at_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
   source |> string.contains("fn list_at") |> should.be_true()
 }
 
@@ -557,7 +557,7 @@ pub fn labelled_tuple_field_includes_list_at_test() {
     ),
   ]
 
-  let source = assert_generated(codegen.generate(types, [], []))
+  let source = assert_generated(codegen.generate(types))
   source |> string.contains("fn list_at") |> should.be_true()
 }
 

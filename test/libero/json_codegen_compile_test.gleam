@@ -28,7 +28,7 @@ pub fn generated_codec_parses_for_simple_record_test() {
     ),
   ]
 
-  let assert Ok(source) = codegen.generate(types, [], [])
+  let assert Ok(source) = codegen.generate(types)
   let assert Ok(_) = glance.module(source)
   Nil
 }
@@ -52,7 +52,7 @@ pub fn generated_codec_no_todo_stubs_test() {
     ),
   ]
 
-  let assert Ok(source) = codegen.generate(types, [], [])
+  let assert Ok(source) = codegen.generate(types)
   string.contains(source, "todo") |> should.be_false
 }
 
@@ -75,7 +75,7 @@ pub fn generated_encoder_wraps_raw_values_as_json_test() {
     ),
   ]
 
-  let assert Ok(source) = codegen.generate(types, [], [])
+  let assert Ok(source) = codegen.generate(types)
 
   // Encoder should wrap fields in json.string(), not emit raw vars
   string.contains(source, "json.string(f0)") |> should.be_true
@@ -102,7 +102,7 @@ pub fn generated_decoder_uses_decode_run_pattern_test() {
     ),
   ]
 
-  let assert Ok(source) = codegen.generate(types, [], [])
+  let assert Ok(source) = codegen.generate(types)
 
   // Decoder should use decode.run with decode.field, not bare decode.field
   string.contains(source, "decode.run(value, decode.field(\"type\"")
@@ -137,7 +137,7 @@ pub fn generated_decoder_rejects_bare_decode_field_test() {
     ),
   ]
 
-  let assert Ok(source) = codegen.generate(types, [], [])
+  let assert Ok(source) = codegen.generate(types)
 
   // No bare "decode.field(value" or "decode.field(fields" without decode.run
   string.contains(source, "decode.field(value") |> should.be_false
@@ -163,7 +163,7 @@ pub fn generated_codec_has_encoder_and_decoder_test() {
     ),
   ]
 
-  let assert Ok(source) = codegen.generate(types, [], [])
+  let assert Ok(source) = codegen.generate(types)
 
   string.contains(source, "pub fn json_encode_shared_article__article")
   |> should.be_true
@@ -191,7 +191,7 @@ pub fn generated_codec_uses_decode_success_test() {
     ),
   ]
 
-  let assert Ok(source) = codegen.generate(types, [], [])
+  let assert Ok(source) = codegen.generate(types)
 
   // All decode.field calls should use decode.success in the closure
   string.contains(source, "decode.success") |> should.be_true
@@ -216,7 +216,7 @@ pub fn generated_encoder_checks_safe_int_range_test() {
     ),
   ]
 
-  let assert Ok(source) = codegen.generate(types, [], [])
+  let assert Ok(source) = codegen.generate(types)
 
   // Must contain safe int range constants
   string.contains(source, "-9007199254740991") |> should.be_true
@@ -245,7 +245,7 @@ pub fn generated_encoder_checks_finite_float_test() {
     ),
   ]
 
-  let assert Ok(source) = codegen.generate(types, [], [])
+  let assert Ok(source) = codegen.generate(types)
 
   // Must contain NaN/Infinity check (float multiplication uses *.)
   string.contains(source, "*. 0.0 == 0.0") |> should.be_true

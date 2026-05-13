@@ -46,8 +46,8 @@ pub type DiscoveredVariant {
 /// Maps unqualified type names and module aliases to the source module
 /// path, so we can resolve `Record` → `shared/record` or
 /// `record.Record` → `shared/record`.
-type TypeResolver {
-  TypeResolver(
+type TypeRefResolver {
+  TypeRefResolver(
     /// "Record" → "shared/record" (from `import shared/record.{type Record}`)
     unqualified: Dict(String, String),
     /// "record" → "shared/record" (from `import shared/record`, where the
@@ -99,7 +99,7 @@ fn is_primitive_type(name: String) -> Bool {
 fn is_stdlib_reference(
   name name: String,
   module module: option.Option(String),
-  resolver resolver: TypeResolver,
+  resolver resolver: TypeRefResolver,
 ) -> Bool {
   case is_primitive_type(name), module {
     False, _ -> False
@@ -305,7 +305,7 @@ fn walk_custom_type_variants(
   custom_type custom_type: glance.CustomType,
   module_path module_path: String,
   type_name type_name: String,
-  resolver resolver: TypeResolver,
+  resolver resolver: TypeRefResolver,
   shared_resolver shared_resolver: glance_type_resolver.TypeResolver,
   aliases aliases: Dict(String, glance.Type),
 ) -> Result(List(DiscoveredType), List(GenError)) {
@@ -402,7 +402,7 @@ fn is_float_type(t: glance.Type) -> Bool {
 /// filtering out visited, skipped, and primitive refs.
 fn collect_variant_field_refs(
   variant variant: glance.Variant,
-  resolver resolver: TypeResolver,
+  resolver resolver: TypeRefResolver,
   current_module current_module: String,
   visited visited: Set(#(String, String)),
 ) -> List(#(String, String)) {
@@ -426,7 +426,7 @@ fn collect_variant_field_refs(
 fn resolve_type_module(
   name name: String,
   module module: option.Option(String),
-  resolver resolver: TypeResolver,
+  resolver resolver: TypeRefResolver,
   current_module current_module: String,
 ) -> Result(String, Nil) {
   case module {
@@ -446,7 +446,7 @@ fn resolve_type_module(
 /// in the same file (not in any import).
 fn collect_type_refs(
   t t: glance.Type,
-  resolver resolver: TypeResolver,
+  resolver resolver: TypeRefResolver,
   current_module current_module: String,
 ) -> List(#(String, String)) {
   case t {
@@ -548,8 +548,8 @@ fn build_alias_map(
 
 fn build_type_resolver(
   imports: List(glance.Definition(glance.Import)),
-) -> TypeResolver {
-  TypeResolver(
+) -> TypeRefResolver {
+  TypeRefResolver(
     unqualified: scanner.build_type_import_map(imports),
     aliased: scanner.build_alias_resolution_map(imports),
     original_names: scanner.build_type_alias_originals(imports),

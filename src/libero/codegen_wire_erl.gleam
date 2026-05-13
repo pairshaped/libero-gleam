@@ -1,4 +1,7 @@
-//// Compatibility wrapper for the old ETF codegen module path.
+//// Deprecated: use `libero/etf/codegen_erl` directly.
+////
+//// Compatibility wrapper kept for existing consumers that import
+//// `libero/codegen_wire_erl`. New code should use `libero/etf/codegen_erl`.
 
 import libero/etf/codegen_erl
 import libero/gen_error.{type GenError}

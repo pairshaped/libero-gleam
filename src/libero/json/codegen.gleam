@@ -32,8 +32,6 @@ import libero/walker.{type DiscoveredType, type DiscoveredVariant}
 /// constructor has mixed labelled/unlabelled fields (rejected for JSON v1).
 pub fn generate(
   discovered: List(DiscoveredType),
-  _endpoints: List(a),
-  _push_dispatches: List(b),
 ) -> Result(String, List(JsonError)) {
   use _ <- result.try(check_no_mixed_fields(discovered))
 

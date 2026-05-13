@@ -464,7 +464,7 @@ fn generate_json_codecs(
   case discovered {
     [] -> Nil
     _ ->
-      case codegen.generate(discovered, [], []) {
+      case codegen.generate(discovered) {
         Ok(json_codecs_src) ->
           case
             write_file(
