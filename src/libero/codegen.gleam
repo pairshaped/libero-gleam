@@ -105,6 +105,23 @@ pub fn collect_endpoint_type_imports(
   include_return include_return: Bool,
   resolve_alias resolve_alias: fn(String) -> String,
 ) -> List(String) {
+  collect_endpoint_type_modules(endpoints:, include_return:)
+  |> list.map(fn(mod) {
+    let alias = resolve_alias(mod)
+    case alias == field_type.last_segment(mod) {
+      True -> "import " <> mod
+      False -> "import " <> mod <> " as " <> alias
+    }
+  })
+}
+
+/// Collect every module path referenced by endpoint parameter types and,
+/// optionally, return types. Kept separate from import rendering so callers
+/// can compare exact module paths before aliases and strings enter the mix.
+pub fn collect_endpoint_type_modules(
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+  include_return include_return: Bool,
+) -> List(String) {
   endpoints
   |> list.flat_map(fn(e) {
     let from_params =
@@ -120,13 +137,6 @@ pub fn collect_endpoint_type_imports(
   |> list.map(fn(ref) { ref.0 })
   |> list.unique()
   |> list.sort(string.compare)
-  |> list.map(fn(mod) {
-    let alias = resolve_alias(mod)
-    case alias == field_type.last_segment(mod) {
-      True -> "import " <> mod
-      False -> "import " <> mod <> " as " <> alias
-    }
-  })
 }
 
 pub fn is_dict(ft: field_type.FieldType) -> Bool {

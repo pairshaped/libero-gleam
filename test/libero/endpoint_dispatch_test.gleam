@@ -257,6 +257,37 @@ pub fn endpoint_dispatch_imports_qualified_param_types_test() {
   birdie.snap(content, title: "dispatch: qualified param type imports")
 }
 
+pub fn endpoint_dispatch_keeps_type_import_when_handler_module_is_prefix_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "app/foo",
+      fn_name: "load",
+      return_ok: field_type.NilField,
+      return_err: field_type.NilField,
+      params: [
+        #("item", field_type.UserType("app/foo_bar", "Item", [])),
+      ],
+      mutates_context: True,
+      msg_type: option.None,
+    ),
+  ]
+
+  let content =
+    codegen_dispatch.generate(
+      endpoints: endpoints,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+    )
+
+  let assert True =
+    string.contains(content, "import app/foo as app_foo_handler")
+  let assert True = string.contains(content, "import app/foo_bar")
+  Nil
+}
+
 pub fn endpoint_dispatch_imports_stdlib_param_types_test() {
   let endpoints = [
     scanner.HandlerEndpoint(

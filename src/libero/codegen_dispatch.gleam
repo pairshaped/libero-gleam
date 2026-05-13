@@ -12,6 +12,7 @@ import gleam/list
 import gleam/option
 import gleam/string
 import libero/codegen
+import libero/field_type
 import libero/scanner
 import libero/walker.{type DiscoveredType}
 import libero/wire_identity
@@ -89,15 +90,16 @@ pub fn generate_with_extra_params(
   }
   // Only emit type imports for modules NOT already covered by handler imports.
   let shared_type_imports =
-    codegen.collect_endpoint_type_imports(
-      endpoints:,
-      include_return: False,
-      resolve_alias:,
-    )
-    |> list.filter(fn(import_line) {
-      !list.any(handler_modules, fn(mod) {
-        string.contains(import_line, "import " <> mod)
-      })
+    codegen.collect_endpoint_type_modules(endpoints:, include_return: False)
+    |> list.filter(fn(module_path) {
+      !list.contains(handler_modules, module_path)
+    })
+    |> list.map(fn(module_path) {
+      let alias = resolve_alias(module_path)
+      case alias == field_type.last_segment(module_path) {
+        True -> "import " <> module_path
+        False -> "import " <> module_path <> " as " <> alias
+      }
     })
   let dict_import =
     codegen.import_if(

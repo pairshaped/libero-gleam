@@ -407,11 +407,9 @@ fn emit_unlabelled_fields_array(
   field_vars: List(String),
 ) -> String {
   let encoded =
-    list.index_map(field_vars, fn(fvar, i) {
-      let ft =
-        list.drop(v.fields, i)
-        |> list.first
-        |> result.unwrap(or: StringField)
+    list.zip(v.fields, field_vars)
+    |> list.map(fn(pair) {
+      let #(ft, fvar) = pair
       json_encode_expr(ft, fvar)
     })
   "json.array([" <> string.join(encoded, ", ") <> "], of: fn(x) { x })"
@@ -422,23 +420,23 @@ fn emit_fields_object(
   field_vars: List(String),
 ) -> String {
   let entries =
-    list.index_map(list.zip(v.field_labels, field_vars), fn(pair, i) {
-      let #(label, fvar) = pair
-      let ft =
-        list.drop(v.fields, i)
-        |> list.first
-        |> result.unwrap(or: StringField)
-      case label {
-        Some(name) ->
-          "#(\"" <> name <> "\", " <> json_encode_expr(ft, fvar) <> ")"
-        None ->
-          "#(\"_"
-          <> int.to_string(i)
-          <> "\", "
-          <> json_encode_expr(ft, fvar)
-          <> ")"
-      }
-    })
+    list.index_map(
+      list.zip(v.fields, list.zip(v.field_labels, field_vars)),
+      fn(pair, i) {
+        let #(ft, label_and_var) = pair
+        let #(label, fvar) = label_and_var
+        case label {
+          Some(name) ->
+            "#(\"" <> name <> "\", " <> json_encode_expr(ft, fvar) <> ")"
+          None ->
+            "#(\"_"
+            <> int.to_string(i)
+            <> "\", "
+            <> json_encode_expr(ft, fvar)
+            <> ")"
+        }
+      },
+    )
   "json.object([" <> string.join(entries, ", ") <> "])"
 }
 
