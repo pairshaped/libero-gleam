@@ -15,6 +15,9 @@ test/js/.wire_e2e_*.json
 test/js/.wire_e2e_build_root
 birdie_snapshots/*.new
 
+# Local Superpowers planning/spec artifacts
+docs/superpowers/
+
 # Local-only git worktrees for parallel feature work
 .worktrees/
 
@@ -25,4 +28,3 @@ src/generated@*.erl
 
 # SQLite databases (binary artifacts)
 *.db
-
