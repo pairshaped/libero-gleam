@@ -276,58 +276,71 @@ fn process_type_ast_custom(
       let custom_type = ct_def.definition
       let resolver = build_type_resolver(ast.imports)
       let aliases = build_alias_map(ast.type_aliases)
-      let assert Ok(shared_resolver) =
-        glance_type_resolver.resolver_from_imports(ast.imports)
-      let #(variants_rev, new_queue_items_rev) =
-        list.fold(custom_type.variants, #([], []), fn(acc, variant) {
-          let #(disc_acc, queue_acc) = acc
-          let float_indices = detect_float_fields(variant.fields)
-          let field_labels = list.map(variant.fields, variant_field_label)
-          let fields =
-            list.map(variant.fields, fn(field) {
-              field_type_of(
-                t: variant_field_type(field),
-                shared_resolver:,
-                aliases:,
-                current_module: module_path,
-              )
-            })
-          let disc_item =
-            DiscoveredVariant(
-              module_path: module_path,
-              variant_name: variant.name,
-              atom_name: qualified_atom_name(
-                module_path: module_path,
-                variant_name: variant.name,
+      case glance_type_resolver.resolver_from_imports(ast.imports) {
+        Error(_) ->
+          do_walk(
+            WalkerState(..state, errors: [
+              gen_error.TypeResolutionFailed(
+                path: module_path,
+                message: "ambiguous or conflicting imports in module "
+                  <> module_path,
               ),
-              float_field_indices: float_indices,
-              field_labels: field_labels,
-              fields:,
+              ..state.errors
+            ]),
+          )
+        Ok(shared_resolver) -> {
+          let #(variants_rev, new_queue_items_rev) =
+            list.fold(custom_type.variants, #([], []), fn(acc, variant) {
+              let #(disc_acc, queue_acc) = acc
+              let float_indices = detect_float_fields(variant.fields)
+              let field_labels = list.map(variant.fields, variant_field_label)
+              let fields =
+                list.map(variant.fields, fn(field) {
+                  field_type_of(
+                    t: variant_field_type(field),
+                    shared_resolver:,
+                    aliases:,
+                    current_module: module_path,
+                  )
+                })
+              let disc_item =
+                DiscoveredVariant(
+                  module_path: module_path,
+                  variant_name: variant.name,
+                  atom_name: qualified_atom_name(
+                    module_path: module_path,
+                    variant_name: variant.name,
+                  ),
+                  float_field_indices: float_indices,
+                  field_labels: field_labels,
+                  fields:,
+                )
+              let field_refs =
+                collect_variant_field_refs(
+                  variant: variant,
+                  resolver: resolver,
+                  current_module: module_path,
+                  visited: state.visited,
+                )
+              #([disc_item, ..disc_acc], list.append(field_refs, queue_acc))
+            })
+          let discovered_type =
+            DiscoveredType(
+              module_path: module_path,
+              type_name: type_name,
+              type_params: custom_type.parameters,
+              variants: list.reverse(variants_rev),
             )
-          let field_refs =
-            collect_variant_field_refs(
-              variant: variant,
-              resolver: resolver,
-              current_module: module_path,
-              visited: state.visited,
-            )
-          #([disc_item, ..disc_acc], list.append(field_refs, queue_acc))
-        })
-      let discovered_type =
-        DiscoveredType(
-          module_path: module_path,
-          type_name: type_name,
-          type_params: custom_type.parameters,
-          variants: list.reverse(variants_rev),
-        )
-      let new_queue_items = list.reverse(new_queue_items_rev)
-      do_walk(
-        WalkerState(
-          ..state,
-          queue: list.append(new_queue_items, state.queue),
-          discovered: [discovered_type, ..state.discovered],
-        ),
-      )
+          let new_queue_items = list.reverse(new_queue_items_rev)
+          do_walk(
+            WalkerState(
+              ..state,
+              queue: list.append(new_queue_items, state.queue),
+              discovered: [discovered_type, ..state.discovered],
+            ),
+          )
+        }
+      }
     }
   }
 }

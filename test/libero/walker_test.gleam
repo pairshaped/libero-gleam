@@ -211,3 +211,45 @@ fn find_type_in_module(
 ) -> Result(DiscoveredType, Nil) {
   list.find(types, fn(t) { t.type_name == name && t.module_path == module_path })
 }
+
+pub fn ambiguous_imports_return_error_not_panic_test() {
+  let dir = fixture_root <> "/ambiguous_imports/src/shared"
+  let assert Ok(Nil) = simplifile.create_directory_all(dir)
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/types.gleam",
+      "import shared/a.{type Item}
+import shared/b.{type Item}
+
+pub type Wrapper {
+  Wrapper(item: Item)
+}
+",
+    )
+  let assert Ok(Nil) = simplifile.create_directory_all(dir <> "/a")
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/a.gleam",
+      "pub type Item { ItemA }
+",
+    )
+  let assert Ok(Nil) = simplifile.create_directory_all(dir <> "/b")
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/b.gleam",
+      "pub type Item { ItemB }
+",
+    )
+
+  let assert Error(errors) = walk_all_public_types(dir)
+  let assert True =
+    list.any(errors, fn(e) {
+      case e {
+        gen_error.TypeResolutionFailed(..) -> True
+        _ -> False
+      }
+    })
+
+  let assert Ok(Nil) =
+    simplifile.delete_all([fixture_root <> "/ambiguous_imports"])
+}

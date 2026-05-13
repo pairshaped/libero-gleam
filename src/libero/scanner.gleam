@@ -412,7 +412,7 @@ fn resolve_msg_type_fields(
       use parsed <- result.try(
         parse_module(file_path:) |> result.replace_error(Nil),
       )
-      let to_ft = module_type_resolver(parsed.imports, module_path)
+      use to_ft <- result.try(module_type_resolver(parsed.imports, module_path))
       use fields <- result.try(one_variant_fields(
         type_name:,
         custom_types: parsed.custom_types,
@@ -425,17 +425,23 @@ fn resolve_msg_type_fields(
 fn module_type_resolver(
   imports: List(glance.Definition(glance.Import)),
   current_module: String,
-) -> fn(glance.Type) -> field_type.FieldType {
-  let assert Ok(resolver) = glance_type_resolver.resolver_from_imports(imports)
-  fn(t) {
-    let assert Ok(ft) =
-      glance_type_resolver.type_to_field_type(
-        type_: t,
-        resolver:,
-        current_module:,
-        policy: PreserveUnsupported,
-      )
-    ft
+) -> Result(fn(glance.Type) -> field_type.FieldType, Nil) {
+  case glance_type_resolver.resolver_from_imports(imports) {
+    Ok(resolver) ->
+      Ok(fn(t) {
+        case
+          glance_type_resolver.type_to_field_type(
+            type_: t,
+            resolver:,
+            current_module:,
+            policy: PreserveUnsupported,
+          )
+        {
+          Ok(ft) -> ft
+          Error(_) -> field_type.TypeVar("_unresolved")
+        }
+      })
+    Error(_) -> Error(Nil)
   }
 }
 
