@@ -1,4 +1,4 @@
-![Libero](https://github.com/pairshaped/libero/blob/master/libero.png?raw=true)
+![Libero](https://github.com/pairshaped/libero-gleam/blob/master/libero.png?raw=true)
 
 # Libero
 
@@ -174,17 +174,17 @@ decoded term flows through typed dispatch before reaching handler code.
 
 ## More Docs
 
-- [Contract boundary](https://github.com/pairshaped/libero/blob/master/pages/reference/contract-boundary.md):
+- [Contract boundary](https://github.com/pairshaped/libero-gleam/blob/master/pages/reference/contract-boundary.md):
   what Libero owns and what app code owns
-- [ETF wire protocol](https://github.com/pairshaped/libero/blob/master/pages/protocol/etf-wire-protocol.md):
+- [ETF wire protocol](https://github.com/pairshaped/libero-gleam/blob/master/pages/protocol/etf-wire-protocol.md):
   ETF frames, safe decode, and hashed type identity
-- [JSON wire protocol](https://github.com/pairshaped/libero/blob/master/pages/protocol/json-wire-protocol.md): readable JSON
+- [JSON wire protocol](https://github.com/pairshaped/libero-gleam/blob/master/pages/protocol/json-wire-protocol.md): readable JSON
   envelopes, validation, and contract hashes
-- [Wire type identity](https://github.com/pairshaped/libero/blob/master/pages/protocol/wire-type-identity.md):
+- [Wire type identity](https://github.com/pairshaped/libero-gleam/blob/master/pages/protocol/wire-type-identity.md):
   how custom types stay unique across protocols
-- [llms.txt](https://raw.githubusercontent.com/pairshaped/libero/master/llms.txt):
+- [llms.txt](https://raw.githubusercontent.com/pairshaped/libero-gleam/master/llms.txt):
   raw package context for language models
 
 ## License
 
-MIT. See [LICENSE](https://github.com/pairshaped/libero/blob/master/LICENSE).
+MIT. See [LICENSE](https://github.com/pairshaped/libero-gleam/blob/master/LICENSE).
