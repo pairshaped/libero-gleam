@@ -404,7 +404,7 @@ class ETFDecoder {
         const bitsInLastByte = this.readUint8();
         if (bitsInLastByte < 1 || bitsInLastByte > 8) {
           throw makeError(
-            `ETF decode: bit_binary bits-in-last-byte ${bitsInLastByte} out of range (0-8)`,
+            `ETF decode: bit_binary bits-in-last-byte ${bitsInLastByte} out of range (1-8)`,
             ERROR_BINARY_TOO_LARGE,
           );
         }

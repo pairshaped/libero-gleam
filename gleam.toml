@@ -27,11 +27,7 @@ title = "Wire Type Identity"
 path = "protocol/wire-type-identity.html"
 source = "./pages/protocol/wire-type-identity.md"
 
-# No target specified - cross-target package.
-# Erlang-only modules: libero/trace, libero/format
-# JS-only modules: (none currently)
-# Cross-target modules: libero/error, libero/etf/wire,
-#   libero/field_type, libero/remote_data, libero/gen_error
+target = "erlang"
 
 [dependencies]
 gleam_stdlib = ">= 0.69.0 and < 2.0.0"
