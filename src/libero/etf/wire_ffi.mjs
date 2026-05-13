@@ -1256,7 +1256,7 @@ export function decode_server_frame(buffer) {
         return new ResultError(new WireDecodeError("invalid response frame: too short"));
       }
       const requestId = ((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4]) >>> 0;
-      const payloadResult = decode_safe_raw(bytes.subarray(5));
+      const payloadResult = decode_safe(bytes.subarray(5));
       if (payloadResult instanceof Ok) {
         return new Ok({ kind: "response", requestId, value: payloadResult[0] });
       }
