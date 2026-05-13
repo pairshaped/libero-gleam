@@ -1,98 +1,23 @@
 // JSON wire FFI tests for libero's json/wire_ffi.mjs
 //
-// Standalone Node.js test - inlines the Gleam runtime types needed because
-// the import chain (wire_ffi.mjs -> gleam_stdlib/gleam.mjs) only resolves
-// after `gleam build --target javascript` copies files to the build output.
-// Same pattern as test/js/etf_codec_test.mjs.
+// Imports the PRODUCTION module via a custom Node loader that shims
+// gleam_stdlib and compiled-Gleam type imports. This ensures the test
+// exercises the real code, not a stale inline copy.
 //
-// Run: node test/js/json_wire_roundtrip_test.mjs
+// Run: node --import ./test/js/json_wire_loader.mjs test/js/json_wire_roundtrip_test.mjs
 
 import { strict as assert } from "assert";
 
-// ============================================================
-// Inlined Gleam runtime types
-// ============================================================
+import {
+  encode_request,
+  decode_server_frame,
+  encode_flags,
+} from "../../src/libero/json/wire_ffi.mjs";
 
-class CustomType {}
-
-class Empty {}
-class NonEmpty {
-  constructor(head, tail) {
-    this.head = head;
-    this.tail = tail;
-  }
-}
-
-class Ok {
-  constructor(value) {
-    this[0] = value;
-  }
-}
-
-class ResultError {
-  constructor(detail) {
-    this[0] = detail;
-  }
-}
-
-class Some {
-  constructor(value) {
-    this[0] = value;
-  }
-}
-class None {}
-
-// ============================================================
-// Inlined ServerFrame constructors (mirrors compiled frame.gleam)
-// ============================================================
-
-class Response extends CustomType {
-  constructor(request_id, value) {
-    super();
-    this.request_id = request_id;
-    this.value = value;
-  }
-}
-
-class Push extends CustomType {
-  constructor(module, value) {
-    super();
-    this.module = module;
-    this.value = value;
-  }
-}
-
-class FrameError extends CustomType {
-  constructor(request_id, errors) {
-    super();
-    this.request_id = request_id;
-    this.errors = errors;
-  }
-}
-
-// ============================================================
-// Inlined JsonError (mirrors compiled json/error.gleam)
-// ============================================================
-
-class JsonError extends CustomType {
-  constructor(path, message) {
-    super();
-    this.path = path;
-    this.message = message;
-  }
-}
-
-// ============================================================
-// Helpers from wire_ffi.mjs
-// ============================================================
-
-function arrayToGleamList(arr) {
-  let list = new Empty();
-  for (let i = arr.length - 1; i >= 0; i--) {
-    list = new NonEmpty(arr[i], list);
-  }
-  return list;
-}
+import { Ok, Error as ResultError, Empty, NonEmpty } from "./json_wire_shim.mjs";
+import { Some, None } from "./json_wire_shim_option.mjs";
+import { Response, Push, Error as FrameError } from "./json_wire_shim_frame.mjs";
+import { JsonError } from "./json_wire_shim_error.mjs";
 
 function gleamListToArray(list) {
   if (Array.isArray(list)) return list;
@@ -103,79 +28,6 @@ function gleamListToArray(list) {
     cur = cur.tail;
   }
   return out;
-}
-
-// ============================================================
-// Functions from wire_ffi.mjs (the unit under test)
-// ============================================================
-
-export function encode_request(module, requestId, msg, contractHash) {
-  return JSON.stringify({
-    kind: "request",
-    protocol_version: "json-rpc-v1",
-    contract_hash: contractHash,
-    module: module,
-    request_id: requestId,
-    message: msg,
-  });
-}
-
-export function decode_server_frame(data) {
-  try {
-    const parsed = JSON.parse(data);
-    if (!parsed || typeof parsed !== "object") {
-      return new ResultError(
-        new NonEmpty(new JsonError("", "expected object"), new Empty()),
-      );
-    }
-
-    const kind = parsed.kind;
-
-    if (kind === "response") {
-      return new Ok(new Response(parsed.request_id, parsed.value));
-    }
-
-    if (kind === "push") {
-      return new Ok(new Push(parsed.module, parsed.value));
-    }
-
-    if (kind === "error") {
-      const requestId =
-        parsed.request_id !== undefined && parsed.request_id !== null
-          ? new Some(parsed.request_id)
-          : new None();
-      const errors = arrayToGleamList(
-        (parsed.errors || []).map((e) => [
-          e.path || "",
-          e.message || "",
-        ]),
-      );
-      return new Ok(new FrameError(requestId, errors));
-    }
-
-    return new ResultError(
-      new NonEmpty(
-        new JsonError("kind", "unknown frame kind: " + (kind ?? "undefined")),
-        new Empty(),
-      ),
-    );
-  } catch (e) {
-    const msg =
-      e && typeof e.message === "string" ? e.message : "failed to parse JSON";
-    return new ResultError(
-      new NonEmpty(new JsonError("", msg), new Empty()),
-    );
-  }
-}
-
-export function encode_flags(value) {
-  var s = JSON.stringify(value);
-  s = s.replace(/</g, "\\u003c");
-  s = s.replace(/>/g, "\\u003e");
-  s = s.replace(/&/g, "\\u0026");
-  s = s.replace(/\u2028/g, "\\u2028");
-  s = s.replace(/\u2029/g, "\\u2029");
-  return s;
 }
 
 // ============================================================
@@ -333,6 +185,7 @@ test("decode_server_frame", "handles empty errors list", () => {
 test("decode_server_frame", "rejects unknown kind", () => {
   const frame = JSON.stringify({
     kind: "unknown_thing",
+    protocol_version: "json-rpc-v1",
   });
   const result = decode_server_frame(frame);
   assert.ok(result instanceof ResultError, "should be ResultError");
@@ -357,6 +210,17 @@ test("decode_server_frame", "rejects non-object JSON", () => {
   assert.ok(result instanceof ResultError, "should be ResultError");
 });
 
+test("decode_server_frame", "rejects missing protocol_version", () => {
+  const frame = JSON.stringify({ kind: "response", request_id: 1, value: {} });
+  const result = decode_server_frame(frame);
+  assert.ok(result instanceof ResultError, "should be ResultError");
+  const errors = gleamListToArray(result[0]);
+  assert.ok(
+    errors[0].message.includes("unsupported version"),
+    "should reject missing protocol version",
+  );
+});
+
 // ---------- encode_flags ----------
 
 console.log("\nJSON wire encode_flags:");
@@ -373,10 +237,10 @@ test("encode_flags", "escapes < > &", () => {
 });
 
 test("encode_flags", "escapes U+2028 and U+2029", () => {
-  const value = "line\u2028separator\u2029separator";
+  const value = "line separator separator";
   const encoded = encode_flags(value);
-  assert.ok(!encoded.includes("\u2028"), "should escape U+2028");
-  assert.ok(!encoded.includes("\u2029"), "should escape U+2029");
+  assert.ok(!encoded.includes(" "), "should escape U+2028");
+  assert.ok(!encoded.includes(" "), "should escape U+2029");
   assert.ok(encoded.includes("\\u2028"), "should contain \\u2028");
   assert.ok(encoded.includes("\\u2029"), "should contain \\u2029");
 });
