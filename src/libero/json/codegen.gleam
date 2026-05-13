@@ -1,4 +1,3 @@
-/////
 //// Typed JSON encoder and decoder codegen.
 ////
 //// Generates Gleam source code for per-type `json.Json` builders and

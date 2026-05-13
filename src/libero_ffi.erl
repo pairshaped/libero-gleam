@@ -23,8 +23,8 @@ decode(Bin) ->
 decode_safe(Bin) ->
     libero_etf_ffi:decode_safe(Bin).
 
-decode_typed(Bin, _DecoderName) ->
-    libero_etf_ffi:decode_typed(Bin, _DecoderName).
+decode_typed(Bin, DecoderName) ->
+    libero_etf_ffi:decode_typed(Bin, DecoderName).
 
 try_call(F) ->
     try F() of

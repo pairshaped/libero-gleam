@@ -476,6 +476,9 @@ fn module_type_resolver(
           )
         {
           Ok(ft) -> ft
+          // Currently unreachable with PreserveUnsupported policy,
+          // but kept as a defensive fallback if the resolver grows
+          // new error paths.
           Error(_) -> field_type.TypeVar("_unresolved")
         }
       })

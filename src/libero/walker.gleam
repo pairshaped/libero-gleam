@@ -76,9 +76,6 @@ type WalkerState {
 /// handled by libero's auto-wire blocks in etf/wire_ffi.mjs.
 const registry_skip_prefixes = ["libero/", "gleam/"]
 
-/// Primitive/builtin type names: not custom types, never walked.
-/// Sourced from `field_type.builtin_type_names` so scanner and walker
-/// agree on what counts as a builtin.
 /// True if a module path should not be walked by the type graph walker.
 fn is_skipped_module(module_path: String) -> Bool {
   list.any(registry_skip_prefixes, fn(prefix) {

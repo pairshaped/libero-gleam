@@ -193,6 +193,9 @@ fn ensure_atoms() -> Nil
     option.None -> ""
   }
 
+  // The outer trace.try_call catches coerce failures and pattern-match
+  // crashes (malformed message shape). Each case arm has its own inner
+  // trace.try_call around the actual handler call to isolate handler panics.
   let dispatch_known = case endpoints {
     [] -> ""
     _ -> "

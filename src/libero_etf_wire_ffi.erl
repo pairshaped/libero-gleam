@@ -14,7 +14,7 @@
 %% Note: binary_to_term/2 is called with [safe] to prevent atom
 %% exhaustion attacks. All legitimate constructor atoms must be pre-
 %% registered (via binary_to_atom) before the first RPC arrives.
-%% Rally's codegen generates an rpc_atoms module that handles this.
+%% Libero's codegen generates an rpc_atoms module that handles this.
 decode_request(Bin) when is_binary(Bin) ->
     try erlang:binary_to_term(Bin, [safe]) of
         {Module, RequestId, Value} when is_binary(Module), is_integer(RequestId),
