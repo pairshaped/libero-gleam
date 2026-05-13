@@ -335,6 +335,7 @@ pub fn float_type_hint_registration_test() {
       endpoints: endpoints,
       relpath_prefix: "../../../",
       package: "myapp",
+      dispatch_module: option.None,
     )
 
   // Float hints now ride on the variant class as `__fieldTypes`. The
@@ -380,10 +381,109 @@ pub fn decoder_codegen_imports_shared_modules_from_shared_package_test() {
       endpoints: [],
       relpath_prefix: "../../../",
       package: "server",
+      dispatch_module: option.None,
     )
 
   let assert True =
     string.contains(js, "from \"../../../shared/shared/collision.mjs\";")
   let assert False =
     string.contains(js, "from \"../../../server/shared/collision.mjs\";")
+}
+
+pub fn client_msg_statics_emit_float_hints_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/audio",
+      fn_name: "set_volume",
+      return_ok: field_type.NilField,
+      return_err: field_type.StringField,
+      params: [#("volume", field_type.FloatField)],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+    scanner.HandlerEndpoint(
+      module_path: "server/items",
+      fn_name: "get_items",
+      return_ok: field_type.NilField,
+      return_err: field_type.StringField,
+      params: [#("page", field_type.IntField)],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+    scanner.HandlerEndpoint(
+      module_path: "server/pricing",
+      fn_name: "update_prices",
+      return_ok: field_type.NilField,
+      return_err: field_type.StringField,
+      params: [
+        #("prices", field_type.ListOf(element: field_type.FloatField)),
+        #("name", field_type.StringField),
+      ],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+  ]
+
+  let statics =
+    codegen_decoders.emit_client_msg_statics(
+      endpoints,
+      "_m_generated_libero_dispatch",
+    )
+
+  let assert True =
+    string.contains(
+      statics,
+      "_m_generated_libero_dispatch.ServerSetVolume.__fieldTypes = [\"float\"];",
+    )
+  let assert False = string.contains(statics, "ServerGetItems")
+  let assert True =
+    string.contains(
+      statics,
+      "_m_generated_libero_dispatch.ServerUpdatePrices.__fieldTypes = [{ kind: \"list\", element: \"float\" }, null];",
+    )
+}
+
+pub fn generate_decoders_ffi_includes_dispatch_import_test() {
+  let js =
+    codegen_decoders.generate_decoders_ffi(
+      discovered: [],
+      endpoints: [
+        scanner.HandlerEndpoint(
+          module_path: "server/audio",
+          fn_name: "set_volume",
+          return_ok: field_type.NilField,
+          return_err: field_type.StringField,
+          params: [#("volume", field_type.FloatField)],
+          mutates_context: False,
+          msg_type: option.None,
+        ),
+      ],
+      relpath_prefix: "../../../",
+      package: "myapp",
+      dispatch_module: option.Some("generated/libero/dispatch"),
+    )
+
+  let assert True =
+    string.contains(
+      js,
+      "import * as _m_generated_libero_dispatch from \"../../../myapp/generated/libero/dispatch.mjs\";",
+    )
+  let assert True =
+    string.contains(
+      js,
+      "_m_generated_libero_dispatch.ServerSetVolume.__fieldTypes = [\"float\"];",
+    )
+}
+
+pub fn generate_decoders_ffi_no_dispatch_import_when_none_test() {
+  let js =
+    codegen_decoders.generate_decoders_ffi(
+      discovered: [],
+      endpoints: [],
+      relpath_prefix: "../../../",
+      package: "myapp",
+      dispatch_module: option.None,
+    )
+
+  let assert False = string.contains(js, "dispatch")
 }

@@ -33,7 +33,9 @@ pub fn server_get_items(
 
 Libero treats a public function as an RPC handler when its name starts with
 `server_`, it takes a `ServerContext`, and it returns either a read-only result
-or a result with an updated context.
+or a result with an updated context. The context type must appear unqualified in
+the signature (`ServerContext`, not `ctx.ServerContext`). Functions that use a
+qualified context type are silently skipped.
 
 From just this handler, Libero writes all of the surrounding RPC code for you:
 
@@ -122,6 +124,53 @@ messages by hand.
 For untrusted ETF input, decode through the generated helpers or
 `libero/etf/wire.decode_safe`. ETF safe decoding prevents atom and function-term injection,
 but callers should still set process memory limits for hostile input.
+
+## Security: ETF Threat Model
+
+Libero uses Erlang Term Format (ETF) for its primary wire protocol because ETF
+preserves type fidelity that JSON does not: Int vs Float, BitArray, and
+atom-tagged variants all survive the round trip without lossy coercion. This
+matters for a typed RPC pipeline where the contract depends on exact types.
+
+The [ERLEF serialisation guide](https://security.erlef.org/secure_coding_and_deployment_hardening/serialisation.html)
+recommends against using ETF with untrusted parties. Libero does it anyway, with
+a defense stack designed for a specific threat model.
+
+### Trust assumptions
+
+- The WebSocket endpoint requires authentication (cookie, session, or token)
+  upstream of the handler. Libero does not enforce this; your transport layer
+  must.
+- The browser is adversarial despite serving your own JS. DevTools, XSS, browser
+  extensions, and MITM (if HTTPS is broken) can all craft arbitrary ETF.
+- The server's BEAM process is trusted. Libero never decodes untrusted ETF into
+  the server without the defenses below.
+
+### Defense stack (in order)
+
+1. **Transport frame size limit.** Your WebSocket server (mist, cowboy, etc.)
+   should cap frame size. This is outside Libero but is the first gate.
+2. **`binary_to_term(Bin, [safe])`** on every decode path. This blocks atom
+   creation (atom-table exhaustion DoS) and function deserialisation
+   (remote code execution via FUN_EXT/EXPORT_EXT). Libero audits for bare
+   `binary_to_term/1` calls; none exist in the codebase.
+3. **Atom pre-registration.** The generated `rpc_atoms` module calls
+   `binary_to_atom/2` for every constructor atom at boot. With `[safe]`,
+   `binary_to_term` only succeeds for atoms that already exist in the table.
+4. **Typed dispatch.** The generated dispatch verifies the decoded term's
+   constructor tag against a known handler set before invoking any handler
+   function. Unknown tags return a wire error, not a crash.
+
+### What would weaken this model
+
+- Adding a bare `binary_to_term/1` call (without `[safe]`) on any request path.
+- Accepting ETF from unauthenticated connections.
+- Passing decoded ETF terms to `erlang:apply/3` or similar without dispatch
+  tag verification.
+- Removing atom pre-registration while still accepting ETF from browsers.
+
+If you modify Libero's decode path, verify that `[safe]` is present and that the
+decoded term flows through typed dispatch before reaching handler code.
 
 ## More Docs
 

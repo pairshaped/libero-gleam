@@ -335,10 +335,11 @@ pub fn generate_decoders_ffi(
   package package: String,
 ) -> String {
   codegen_decoders.generate_decoders_ffi(
-    discovered,
-    endpoints,
-    "../../../",
-    package,
+    discovered:,
+    endpoints:,
+    relpath_prefix: "../../../",
+    package:,
+    dispatch_module: option.Some("generated/libero/dispatch"),
   )
 }
 

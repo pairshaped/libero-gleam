@@ -22,52 +22,49 @@ pub fn generate(
   push_types push_types: List(PushContract),
   ssr_models ssr_models: List(SsrModelContract),
 ) -> String {
-  let sorted_endpoints =
-    endpoints
-    |> list.sort(fn(a, b) { string.compare(a.fn_name, b.fn_name) })
-
-  let sorted_types =
-    discovered
-    |> list.sort(fn(a, b) {
-      string.compare(
-        a.module_path <> "." <> a.type_name,
-        b.module_path <> "." <> b.type_name,
-      )
-    })
-
   let canonical =
-    json.object([
-      #("protocol_version", json.string("json-rpc-v1")),
-      #("libero_version", json.string("6.0.0")),
-      #("endpoints", json.array(sorted_endpoints, of: endpoint_json)),
-      #("push_types", json.array(push_types, of: push_contract_json)),
-      #("ssr_models", json.array(ssr_models, of: ssr_model_json)),
-      #("types", json.array(sorted_types, of: discovered_type_json)),
-    ])
-
+    canonical_contract_json(endpoints:, discovered:, push_types:, ssr_models:)
   let canonical_text = json.to_string(canonical)
   let contract_hash = compute_contract_hash(canonical_text)
 
   json.object([
-    #("protocol_version", json.string("json-rpc-v1")),
-    #("libero_version", json.string("6.0.0")),
     #("contract_hash", json.string(contract_hash)),
-    #("endpoints", json.array(sorted_endpoints, of: endpoint_json)),
-    #("push_types", json.array(push_types, of: push_contract_json)),
-    #("ssr_models", json.array(ssr_models, of: ssr_model_json)),
-    #("types", json.array(sorted_types, of: discovered_type_json)),
+    ..canonical_fields(endpoints:, discovered:, push_types:, ssr_models:)
   ])
   |> json.to_string
 }
 
-/// Generate just the contract hash from the canonical contract JSON.
-/// Useful for embedding the hash in generated protocol wire facade code.
 pub fn generate_hash(
   endpoints endpoints: List(HandlerEndpoint),
   discovered discovered: List(DiscoveredType),
   push_types push_types: List(PushContract),
   ssr_models ssr_models: List(SsrModelContract),
 ) -> String {
+  canonical_contract_json(endpoints:, discovered:, push_types:, ssr_models:)
+  |> json.to_string
+  |> compute_contract_hash
+}
+
+fn canonical_contract_json(
+  endpoints endpoints: List(HandlerEndpoint),
+  discovered discovered: List(DiscoveredType),
+  push_types push_types: List(PushContract),
+  ssr_models ssr_models: List(SsrModelContract),
+) -> json.Json {
+  json.object(canonical_fields(
+    endpoints:,
+    discovered:,
+    push_types:,
+    ssr_models:,
+  ))
+}
+
+fn canonical_fields(
+  endpoints endpoints: List(HandlerEndpoint),
+  discovered discovered: List(DiscoveredType),
+  push_types push_types: List(PushContract),
+  ssr_models ssr_models: List(SsrModelContract),
+) -> List(#(String, json.Json)) {
   let sorted_endpoints =
     endpoints
     |> list.sort(fn(a, b) { string.compare(a.fn_name, b.fn_name) })
@@ -81,17 +78,14 @@ pub fn generate_hash(
       )
     })
 
-  let canonical =
-    json.object([
-      #("protocol_version", json.string("json-rpc-v1")),
-      #("libero_version", json.string("6.0.0")),
-      #("endpoints", json.array(sorted_endpoints, of: endpoint_json)),
-      #("push_types", json.array(push_types, of: push_contract_json)),
-      #("ssr_models", json.array(ssr_models, of: ssr_model_json)),
-      #("types", json.array(sorted_types, of: discovered_type_json)),
-    ])
-
-  compute_contract_hash(json.to_string(canonical))
+  [
+    #("protocol_version", json.string("json-rpc-v1")),
+    #("libero_version", json.string("6.0.0")),
+    #("endpoints", json.array(sorted_endpoints, of: endpoint_json)),
+    #("push_types", json.array(push_types, of: push_contract_json)),
+    #("ssr_models", json.array(ssr_models, of: ssr_model_json)),
+    #("types", json.array(sorted_types, of: discovered_type_json)),
+  ]
 }
 
 fn compute_contract_hash(canonical_text: String) -> String {

@@ -5,6 +5,7 @@
 
 import gleam/int
 import gleam/list
+import gleam/option
 import gleam/set
 import gleam/string
 import libero/codegen
@@ -37,12 +38,27 @@ pub fn generate_decoders_ffi(
   endpoints endpoints: List(scanner.HandlerEndpoint),
   relpath_prefix relpath_prefix: String,
   package package: String,
+  dispatch_module dispatch_module: option.Option(String),
 ) -> String {
   let imports =
-    emit_decoder_imports(discovered:, endpoints:, relpath_prefix:, package:)
+    emit_decoder_imports(
+      discovered:,
+      endpoints:,
+      relpath_prefix:,
+      package:,
+      dispatch_module:,
+    )
   let body = emit_typed_decoders(discovered)
   let response_decoders = emit_response_decoders(endpoints)
   let class_statics = emit_class_statics(discovered)
+  let client_msg_statics = case dispatch_module {
+    option.Some(dm) ->
+      emit_client_msg_statics(
+        endpoints,
+        "_m_" <> codegen.module_to_underscored(dm),
+      )
+    option.None -> ""
+  }
   // nolint: unnecessary_string_concatenation -- codegen template
   let ctor_setters =
     "setResultCtors(Ok, ResultError);\n"
@@ -53,7 +69,7 @@ pub fn generate_decoders_ffi(
 //
 // Per-type decoder functions derived from the DiscoveredType graph.
 
-" <> imports <> "\n\n" <> ctor_setters <> class_statics <> "\n" <> body <> "\n" <> response_decoders
+" <> imports <> "\n\n" <> ctor_setters <> class_statics <> client_msg_statics <> "\n" <> body <> "\n" <> response_decoders
 }
 
 /// Emit a JS string with one decoder function per discovered type,
@@ -101,6 +117,7 @@ fn emit_decoder_imports(
   endpoints endpoints: List(scanner.HandlerEndpoint),
   relpath_prefix relpath_prefix: String,
   package package: String,
+  dispatch_module dispatch_module: option.Option(String),
 ) -> String {
   let module_paths =
     list.fold(discovered, #([], set.new()), fn(acc, t) {
@@ -167,10 +184,24 @@ fn emit_decoder_imports(
       <> relpath_prefix
       <> "libero/libero/error.mjs\";"
   }
+  let dispatch_import = case dispatch_module {
+    option.Some(dm) ->
+      "\nimport * as _m_"
+      <> codegen.module_to_underscored(dm)
+      <> " from \""
+      <> relpath_prefix
+      <> codegen.module_to_mjs_path(module_path: dm, package:)
+      <> "\";"
+    option.None -> ""
+  }
   string.join(
     [
       prelude_import,
-      stdlib_imports <> rpc_ffi_import <> remote_data_import <> rpc_error_import,
+      stdlib_imports
+        <> rpc_ffi_import
+        <> remote_data_import
+        <> rpc_error_import
+        <> dispatch_import,
       ..module_imports
     ],
     "\n",
@@ -213,6 +244,35 @@ pub fn emit_class_statics(discovered: List(DiscoveredType)) -> String {
           class_ref <> ".__fieldTypes = [" <> hints <> "];",
         ]
       })
+    })
+  case lines {
+    [] -> ""
+    _ -> string.join(lines, "\n") <> "\n"
+  }
+}
+
+pub fn emit_client_msg_statics(
+  endpoints: List(scanner.HandlerEndpoint),
+  dispatch_module_ref: String,
+) -> String {
+  let lines =
+    list.filter_map(endpoints, fn(e) {
+      let hints =
+        e.params
+        |> list.map(fn(p) { emit_float_type_hint(p.1) })
+      let needs_hints = list.any(hints, fn(h) { h != "null" })
+      case needs_hints {
+        False -> Error(Nil)
+        True -> {
+          let class_ref =
+            dispatch_module_ref
+            <> "."
+            <> codegen.to_pascal_case("server_" <> e.fn_name)
+          Ok(
+            class_ref <> ".__fieldTypes = [" <> string.join(hints, ", ") <> "];",
+          )
+        }
+      }
     })
   case lines {
     [] -> ""
