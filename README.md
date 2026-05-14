@@ -2,6 +2,9 @@
 
 # Libero
 
+[![Package Version](https://img.shields.io/hexpm/v/libero)](https://hex.pm/packages/libero)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/libero/)
+
 Libero helps a Gleam client and server share a typed RPC contract. The contract
 is the main thing: both sides agree on which calls exist, what arguments they
 take, and what each call returns.
