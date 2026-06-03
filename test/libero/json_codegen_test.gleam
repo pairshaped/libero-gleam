@@ -546,7 +546,7 @@ pub fn simple_type_omits_bit_array_import_test() {
   source |> string.contains("gleam/bit_array") |> should.be_false()
 }
 
-pub fn simple_type_omits_dict_import_test() {
+pub fn labelled_type_includes_dict_import_for_strict_fields_test() {
   let types = [
     walker.DiscoveredType(
       module_path: "shared/counter",
@@ -559,6 +559,29 @@ pub fn simple_type_omits_dict_import_test() {
           atom_name: "shared_counter__counter",
           float_field_indices: [],
           field_labels: [Some("count")],
+          fields: [field_type.IntField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types))
+  source |> string.contains("gleam/dict") |> should.be_true()
+}
+
+pub fn unlabelled_type_omits_dict_import_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/counter",
+      type_name: "Counter",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/counter",
+          variant_name: "Counter",
+          atom_name: "shared_counter__counter",
+          float_field_indices: [],
+          field_labels: [None],
           fields: [field_type.IntField],
         ),
       ],

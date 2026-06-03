@@ -247,8 +247,8 @@ pub fn generated_encoder_checks_finite_float_test() {
 
   let assert Ok(source) = codegen.generate(types)
 
-  // Must contain NaN/Infinity check (float multiplication uses *.)
-  string.contains(source, "*. 0.0 == 0.0") |> should.be_true
+  // Must contain NaN/Infinity check.
+  string.contains(source, "-. f0 == 0.0") |> should.be_true
   // Must contain the panic message
   string.contains(source, "Float must be finite") |> should.be_true
 }

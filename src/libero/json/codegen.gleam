@@ -65,7 +65,9 @@ pub fn generate(
 
   let all_fields = collect_all_fields(discovered)
   let needs_bit_array = list.any(all_fields, fn(ft) { ft == BitArrayField })
-  let needs_dict = list.any(all_fields, uses_dict)
+  let needs_field_object_validation = has_labelled_or_zero_fields(discovered)
+  let has_dict_field = list.any(all_fields, uses_dict)
+  let needs_dict = needs_field_object_validation || has_dict_field
   let needs_list_at =
     has_unlabelled_fields(discovered)
     || list.any(all_fields, fn(ft) {
@@ -75,8 +77,9 @@ pub fn generate(
       }
     })
 
-  let needs_list_or_int =
-    needs_list_at || needs_dict || list.any(all_fields, uses_list_or_tuple)
+  let needs_int = needs_list_at || needs_field_object_validation
+  let needs_list =
+    needs_list_at || has_dict_field || list.any(all_fields, uses_list_or_tuple)
   let bit_array_import = case needs_bit_array {
     True -> "import gleam/bit_array\n"
     False -> ""
@@ -85,11 +88,11 @@ pub fn generate(
     True -> "import gleam/dict\n"
     False -> ""
   }
-  let int_import = case needs_list_or_int {
+  let int_import = case needs_int {
     True -> "import gleam/int\n"
     False -> ""
   }
-  let list_import = case needs_list_or_int {
+  let list_import = case needs_list {
     True -> "import gleam/list\n"
     False -> ""
   }
@@ -324,7 +327,9 @@ fn safe_int_check(var: String) -> String {
 fn finite_float_check(var: String) -> String {
   "case "
   <> var
-  <> " *. 0.0 == 0.0 {\n"
+  <> " -. "
+  <> var
+  <> " == 0.0 {\n"
   <> "    True -> "
   <> var
   <> "\n"
@@ -455,7 +460,12 @@ fn emit_encode_clause(
   type_name type_name: String,
 ) -> String {
   let field_vars =
-    list.index_map(variant.fields, fn(_, i) { "f" <> int.to_string(i) })
+    list.index_map(variant.fields, fn(field, i) {
+      case field {
+        NilField -> "_f" <> int.to_string(i)
+        _ -> "f" <> int.to_string(i)
+      }
+    })
   let fields_expr = emit_fields_value(variant, field_vars)
   let type_str = variant.module_path <> "." <> type_name
 
@@ -591,30 +601,34 @@ fn emit_decode_clause(v: DiscoveredVariant, alias: String) -> String {
       pad
       <> "Ok(\""
       <> v.variant_name
-      <> "\") -> Ok("
+      <> "\") -> {\n"
+      <> emit_fields_extract(pad <> "  ")
+      <> emit_fields_object_size_check(
+        path: "fields",
+        expected_size: 0,
+        pad: pad <> "  ",
+      )
+      <> pad
+      <> "  Ok("
       <> alias
       <> "."
       <> v.variant_name
       <> ")\n"
+      <> pad
+      <> "}\n"
 
     _ -> {
       let all_labelled = list.all(v.field_labels, fn(l) { l != None })
-      let fields_extract =
-        pad
-        <> "  use fields <- result.try(\n"
-        <> pad
-        <> "    case decode.run(value, decode.field(\"fields\", decode.dynamic, fn(x) { decode.success(x) })) {\n"
-        <> pad
-        <> "      Error(_) -> Error([JsonError(\"fields\", \"missing\")])\n"
-        <> pad
-        <> "      Ok(f) -> Ok(f)\n"
-        <> pad
-        <> "    }\n"
-        <> pad
-        <> "  )\n"
+      let fields_extract = emit_fields_extract(pad <> "  ")
 
       let field_decodes = case all_labelled {
-        True -> emit_labelled_field_decodes(v, pad <> "  ")
+        True ->
+          emit_fields_object_size_check(
+            path: "fields",
+            expected_size: list.length(v.fields),
+            pad: pad <> "  ",
+          )
+          <> emit_labelled_field_decodes(v, pad <> "  ")
         False -> emit_unlabelled_field_decodes(v, pad <> "  ")
       }
 
@@ -641,6 +655,55 @@ fn emit_decode_clause(v: DiscoveredVariant, alias: String) -> String {
       <> "}\n"
     }
   }
+}
+
+fn emit_fields_extract(pad: String) -> String {
+  pad
+  <> "use fields <- result.try(\n"
+  <> pad
+  <> "  case decode.run(value, decode.field(\"fields\", decode.dynamic, fn(x) { decode.success(x) })) {\n"
+  <> pad
+  <> "    Error(_) -> Error([JsonError(\"fields\", \"missing\")])\n"
+  <> pad
+  <> "    Ok(f) -> Ok(f)\n"
+  <> pad
+  <> "  }\n"
+  <> pad
+  <> ")\n"
+}
+
+fn emit_fields_object_size_check(
+  path path: String,
+  expected_size expected_size: Int,
+  pad pad: String,
+) -> String {
+  let expected = int.to_string(expected_size)
+  pad
+  <> "use _ <- result.try(\n"
+  <> pad
+  <> "  case decode.run(fields, decode.dict(decode.string, decode.dynamic)) {\n"
+  <> pad
+  <> "    Ok(field_map) -> case dict.size(field_map) {\n"
+  <> pad
+  <> "      "
+  <> expected
+  <> " -> Ok(Nil)\n"
+  <> pad
+  <> "      n -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected exactly "
+  <> expected
+  <> " object fields, got \" <> int.to_string(n))])\n"
+  <> pad
+  <> "    }\n"
+  <> pad
+  <> "    Error(_) -> Error([JsonError(\""
+  <> path
+  <> "\", \"expected Object\")])\n"
+  <> pad
+  <> "  }\n"
+  <> pad
+  <> ")\n"
 }
 
 /// Generate field decode bindings for labelled fields (extracted by name).
@@ -1268,6 +1331,17 @@ fn has_unlabelled_fields(discovered: List(DiscoveredType)) -> Bool {
   list.any(discovered, fn(dt) {
     list.any(dt.variants, fn(v) {
       list.any(v.field_labels, fn(l) { l == None })
+    })
+  })
+}
+
+fn has_labelled_or_zero_fields(discovered: List(DiscoveredType)) -> Bool {
+  list.any(discovered, fn(dt) {
+    list.any(dt.variants, fn(v) {
+      case v.field_labels {
+        [] -> True
+        labels -> list.any(labels, fn(l) { l != None })
+      }
     })
   })
 }

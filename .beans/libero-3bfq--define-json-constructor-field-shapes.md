@@ -1,14 +1,14 @@
 ---
 # libero-3bfq
 title: Define JSON constructor field shapes
-status: todo
+status: completed
 type: task
 priority: high
 tags:
     - json
     - codec
 created_at: 2026-06-03T18:55:13Z
-updated_at: 2026-06-03T18:55:13Z
+updated_at: 2026-06-03T21:08:39Z
 parent: libero-lph9
 ---
 
@@ -26,3 +26,10 @@ Acceptance criteria:
 - Generated encoders and decoders use positional arrays for fully unlabelled constructors.
 - Mixed constructor fields fail generation with a diagnostic that names the type and constructor.
 - Tests cover labelled, unlabelled, empty, and mixed constructors.
+
+
+Acceptance coverage added:
+
+- `test/run_json_codec_acceptance_test.sh` verifies strict labelled constructor fields, zero-field variants, and nested custom field decoding.
+- Generated JSON decoders now reject unknown labelled fields and non-empty zero-field variants.
+- The generated codec smoke harness covers every supported field type, including nested custom types inside containers.
