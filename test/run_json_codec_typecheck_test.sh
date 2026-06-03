@@ -74,6 +74,12 @@ pub type Coords { Coords(point: #(Float, Float)) }
 pub type Optional { Optional(value: Option(Int)) }
 pub type Fallible { Fallible(result: Result(Int, String)) }
 
+// Page message shape with tuple fields. This mirrors page Msg payloads that
+// generated client code will need to encode.
+pub type PageMsg {
+  Drag(delta: #(Int, Int), selected: #(Article, Option(Int)))
+}
+
 // Unlabelled fields
 pub type Pair { Pair(String, Int) }
 
@@ -110,6 +116,7 @@ pub fn main() {
     #("fixture", "Coords"),
     #("fixture", "Optional"),
     #("fixture", "Fallible"),
+    #("fixture", "PageMsg"),
     #("fixture", "Pair"),
     #("fixture", "Status"),
   ]
@@ -243,6 +250,13 @@ fn roundtrip_pair(value: fixture.Pair) -> fixture.Pair {
   decoded
 }
 
+fn roundtrip_page_msg(value: fixture.PageMsg) -> fixture.PageMsg {
+  let encoded = gen_json.json_encode_fixture__page_msg(value)
+  let assert Ok(raw) = json.parse(json.to_string(encoded), decode.dynamic)
+  let assert Ok(decoded) = gen_json.json_decode_fixture__page_msg(raw)
+  decoded
+}
+
 fn roundtrip_status(value: fixture.Status) -> fixture.Status {
   let encoded = gen_json.json_encode_fixture__status(value)
   let assert Ok(raw) = json.parse(json.to_string(encoded), decode.dynamic)
@@ -313,6 +327,7 @@ fn assert_container_roundtrips() {
   assert roundtrip_optional(fixture.Optional(None)) == fixture.Optional(None)
   assert roundtrip_fallible(fixture.Fallible(Ok(7))) == fixture.Fallible(Ok(7))
   assert roundtrip_fallible(fixture.Fallible(Error("nope"))) == fixture.Fallible(Error("nope"))
+  assert roundtrip_page_msg(fixture.Drag(#(3, -4), #(article(), Some(9)))) == fixture.Drag(#(3, -4), #(article(), Some(9)))
   assert roundtrip_pair(fixture.Pair("count", 2)) == fixture.Pair("count", 2)
   assert roundtrip_status(fixture.Draft) == fixture.Draft
   assert roundtrip_status(fixture.Published) == fixture.Published

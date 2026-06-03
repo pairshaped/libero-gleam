@@ -1,14 +1,14 @@
 ---
 # libero-8ey2
 title: Decide and implement tuple handling in typed JSON
-status: todo
+status: completed
 type: task
 priority: high
 tags:
     - json
     - codec
 created_at: 2026-06-03T18:54:47Z
-updated_at: 2026-06-03T18:54:47Z
+updated_at: 2026-06-03T21:35:17Z
 parent: libero-lph9
 ---
 
@@ -24,3 +24,12 @@ Acceptance criteria:
 - If supported, tuple fields are positional and nested user types still route through generated JSON encoders and decoders.
 - If rejected, generation fails before runtime with a useful error message.
 - Tests cover tuple fields in user types and tuple use in page message fields.
+
+
+
+Completion notes:
+
+- Decision: `typed-json-v1` supports tuples as JSON arrays in tuple order.
+- Tuple behavior is documented in `pages/protocol/json-wire-protocol.md` and pinned in the canonical typed JSON contract snapshot.
+- `test/run_json_codec_typecheck_test.sh` now includes a page-message-shaped `PageMsg` fixture with tuple fields and a nested user type inside a tuple.
+- The generated codec matrix typechecks and round-trips the tuple page message on both Erlang and JavaScript.
