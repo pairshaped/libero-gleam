@@ -6,9 +6,12 @@
 ////
 //// Produces/consumes `String` (JSON text), not `BitArray`.
 
+import gleam/bit_array
 import gleam/bool
+import gleam/dict
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -18,6 +21,14 @@ import libero/frame.{type ServerFrame}
 import libero/json/error.{type JsonError, JsonError}
 
 const json_rpc_v1 = "json-rpc-v1"
+
+const max_json_input_bytes = 1_048_576
+
+const max_json_depth = 128
+
+const max_json_collection_length = 16_384
+
+const max_json_string_bytes = 1_048_576
 
 // ---------- Types ----------
 
@@ -197,10 +208,118 @@ pub fn coerce(value: a) -> b {
 // ---------- JSON parsing ----------
 
 fn parse_json(data: String) -> Result(Dynamic, List(JsonError)) {
+  use _ <- result.try(validate_input_size(data))
   case json.parse(from: data, using: decode.dynamic) {
-    Ok(v) -> Ok(v)
+    Ok(v) -> {
+      use _ <- result.try(validate_json_structure(v, depth: 0, path: ""))
+      Ok(v)
+    }
     Error(_) -> Error([JsonError("", "failed to parse JSON")])
   }
+}
+
+fn validate_input_size(data: String) -> Result(Nil, List(JsonError)) {
+  let size = data |> bit_array.from_string |> bit_array.byte_size
+  use <- bool.guard(when: size <= max_json_input_bytes, return: Ok(Nil))
+  Error([
+    JsonError(
+      "",
+      "JSON input exceeds "
+        <> int_to_string(max_json_input_bytes)
+        <> " byte limit",
+    ),
+  ])
+}
+
+fn validate_json_structure(
+  value value: Dynamic,
+  depth depth: Int,
+  path path: String,
+) -> Result(Nil, List(JsonError)) {
+  use <- bool.guard(
+    when: depth > max_json_depth,
+    return: Error([
+      JsonError(path, "JSON nesting depth exceeds limit"),
+    ]),
+  )
+
+  case decode.run(value, decode.string) {
+    Ok(s) -> validate_json_string(s, path)
+    Error(_) ->
+      case decode.run(value, decode.list(of: decode.dynamic)) {
+        Ok(items) -> validate_json_array(items, depth, path)
+        Error(_) ->
+          case decode.run(value, decode.dict(decode.string, decode.dynamic)) {
+            Ok(entries) -> validate_json_object(entries, depth, path)
+            Error(_) -> Ok(Nil)
+          }
+      }
+  }
+}
+
+fn validate_json_string(
+  s: String,
+  path: String,
+) -> Result(Nil, List(JsonError)) {
+  let size = s |> bit_array.from_string |> bit_array.byte_size
+  use <- bool.guard(when: size <= max_json_string_bytes, return: Ok(Nil))
+  Error([
+    JsonError(
+      path,
+      "JSON string exceeds "
+        <> int_to_string(max_json_string_bytes)
+        <> " byte limit",
+    ),
+  ])
+}
+
+fn validate_json_array(
+  items items: List(Dynamic),
+  depth depth: Int,
+  path path: String,
+) -> Result(Nil, List(JsonError)) {
+  let count = list.length(items)
+  use <- bool.guard(
+    when: count > max_json_collection_length,
+    return: Error([
+      JsonError(path, "JSON array exceeds collection length limit"),
+    ]),
+  )
+  list.try_each(items, fn(item) {
+    validate_json_structure(item, depth: depth + 1, path: path <> "[]")
+  })
+}
+
+fn validate_json_object(
+  entries entries: dict.Dict(String, Dynamic),
+  depth depth: Int,
+  path path: String,
+) -> Result(Nil, List(JsonError)) {
+  use <- bool.guard(
+    when: dict.size(entries) > max_json_collection_length,
+    return: Error([
+      JsonError(path, "JSON object exceeds collection length limit"),
+    ]),
+  )
+  dict.fold(entries, Ok(Nil), fn(acc, key, item) {
+    use _ <- result.try(acc)
+    validate_json_structure(
+      item,
+      depth: depth + 1,
+      path: append_path(path, key),
+    )
+  })
+}
+
+fn append_path(path: String, segment: String) -> String {
+  case path {
+    "" -> segment
+    _ -> path <> "." <> segment
+  }
+}
+
+fn int_to_string(value: Int) -> String {
+  int.to_string(value)
 }
 
 // ---------- Validation helpers ----------

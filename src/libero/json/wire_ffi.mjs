@@ -28,6 +28,12 @@ import { Some, None } from "../../../gleam_stdlib/gleam/option.mjs";
 import { Response, Push, Error as FrameError } from "../frame.mjs";
 import { JsonError } from "./error.mjs";
 
+const MAX_JSON_INPUT_BYTES = 1_048_576;
+const MAX_JSON_DEPTH = 128;
+const MAX_JSON_COLLECTION_LENGTH = 16_384;
+const MAX_JSON_STRING_BYTES = 1_048_576;
+const utf8Encoder = new TextEncoder();
+
 // ---------- Helpers ----------
 
 /**
@@ -41,6 +47,119 @@ function arrayToGleamList(arr) {
     list = new NonEmpty(arr[i], list);
   }
   return list;
+}
+
+function errorResult(path, message) {
+  return new ResultError(
+    new NonEmpty(new JsonError(path, message), new Empty()),
+  );
+}
+
+function byteLength(value) {
+  return utf8Encoder.encode(value).byteLength;
+}
+
+function validateInputSize(data) {
+  if (byteLength(data) <= MAX_JSON_INPUT_BYTES) {
+    return null;
+  }
+
+  return {
+    path: "",
+    message: "JSON input exceeds " + MAX_JSON_INPUT_BYTES + " byte limit",
+  };
+}
+
+function appendPath(path, segment) {
+  return path === "" ? segment : path + "." + segment;
+}
+
+function validateJsonStructure(value, depth = 0, path = "") {
+  if (depth > MAX_JSON_DEPTH) {
+    return {
+      path,
+      message: "JSON nesting depth exceeds " + MAX_JSON_DEPTH,
+    };
+  }
+
+  if (typeof value === "string") {
+    if (byteLength(value) <= MAX_JSON_STRING_BYTES) {
+      return null;
+    }
+
+    return {
+      path,
+      message: "JSON string exceeds " + MAX_JSON_STRING_BYTES + " byte limit",
+    };
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length > MAX_JSON_COLLECTION_LENGTH) {
+      return {
+        path,
+        message:
+          "JSON array exceeds " + MAX_JSON_COLLECTION_LENGTH + " item limit",
+      };
+    }
+
+    for (let i = 0; i < value.length; i++) {
+      const error = validateJsonStructure(
+        value[i],
+        depth + 1,
+        appendPath(path, String(i)),
+      );
+      if (error) return error;
+    }
+
+    return null;
+  }
+
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value);
+    if (entries.length > MAX_JSON_COLLECTION_LENGTH) {
+      return {
+        path,
+        message:
+          "JSON object exceeds " +
+          MAX_JSON_COLLECTION_LENGTH +
+          " field limit",
+      };
+    }
+
+    for (const [key, child] of entries) {
+      const error = validateJsonStructure(
+        child,
+        depth + 1,
+        appendPath(path, key),
+      );
+      if (error) return error;
+    }
+  }
+
+  return null;
+}
+
+function parseLimitedJson(data) {
+  const inputError = validateInputSize(data);
+  if (inputError) {
+    return { error: inputError };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(data);
+  } catch (e) {
+    const msg =
+      e && typeof e.message === "string" ? e.message : "failed to parse JSON";
+    return { error: { path: "", message: msg } };
+  }
+
+  const structureError = validateJsonStructure(parsed);
+  if (structureError) {
+    return { error: structureError };
+  }
+
+  return { value: parsed };
 }
 
 // ---------- Encode ----------
@@ -76,64 +195,49 @@ export function encode_request(module, requestId, msg, contractHash) {
  * @returns {any} Ok(Response|Push|FrameError) or ResultError(List(JsonError))
  */
 export function decode_server_frame(data) {
-  try {
-    const parsed = JSON.parse(data);
-    if (!parsed || typeof parsed !== "object") {
-      return new ResultError(
-        new NonEmpty(new JsonError("", "expected object"), new Empty()),
-      );
-    }
+  const limited = parseLimitedJson(data);
+  if (limited.error) {
+    return errorResult(limited.error.path, limited.error.message);
+  }
 
-    const kind = parsed.kind;
-    const protocolVersion = parsed.protocol_version;
+  const parsed = limited.value;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return errorResult("", "expected object");
+  }
 
-    if (protocolVersion !== "json-rpc-v1") {
-      return new ResultError(
-        new NonEmpty(
-          new JsonError(
-            "protocol_version",
-            "unsupported version: " + (protocolVersion ?? "undefined"),
-          ),
-          new Empty(),
-        ),
-      );
-    }
+  const kind = parsed.kind;
+  const protocolVersion = parsed.protocol_version;
 
-    if (kind === "response") {
-      return new Ok(new Response(parsed.request_id, parsed.value));
-    }
-
-    if (kind === "push") {
-      return new Ok(new Push(parsed.module, parsed.value));
-    }
-
-    if (kind === "error") {
-      const requestId =
-        parsed.request_id !== undefined && parsed.request_id !== null
-          ? new Some(parsed.request_id)
-          : new None();
-      const errors = arrayToGleamList(
-        (parsed.errors || []).map((e) => [
-          e.path || "",
-          e.message || "",
-        ]),
-      );
-      return new Ok(new FrameError(requestId, errors));
-    }
-
-    return new ResultError(
-      new NonEmpty(
-        new JsonError("kind", "unknown frame kind: " + (kind ?? "undefined")),
-        new Empty(),
-      ),
-    );
-  } catch (e) {
-    const msg =
-      e && typeof e.message === "string" ? e.message : "failed to parse JSON";
-    return new ResultError(
-      new NonEmpty(new JsonError("", msg), new Empty()),
+  if (protocolVersion !== "json-rpc-v1") {
+    return errorResult(
+      "protocol_version",
+      "unsupported version: " + (protocolVersion ?? "undefined"),
     );
   }
+
+  if (kind === "response") {
+    return new Ok(new Response(parsed.request_id, parsed.value));
+  }
+
+  if (kind === "push") {
+    return new Ok(new Push(parsed.module, parsed.value));
+  }
+
+  if (kind === "error") {
+    const requestId =
+      parsed.request_id !== undefined && parsed.request_id !== null
+        ? new Some(parsed.request_id)
+        : new None();
+    const errors = arrayToGleamList(
+      (parsed.errors || []).map((e) => [
+        e.path || "",
+        e.message || "",
+      ]),
+    );
+    return new Ok(new FrameError(requestId, errors));
+  }
+
+  return errorResult("kind", "unknown frame kind: " + (kind ?? "undefined"));
 }
 
 // ---------- SSR flags ----------
@@ -164,16 +268,12 @@ export function encode_flags(value) {
  * @returns {any} Ok(parsed_value) or ResultError(List(JsonError))
  */
 export function decode_flags_typed(flags, _decoderName) {
-  try {
-    const parsed = JSON.parse(flags);
-    return new Ok(parsed);
-  } catch (e) {
-    const msg =
-      e && typeof e.message === "string" ? e.message : "failed to parse JSON";
-    return new ResultError(
-      new NonEmpty(new JsonError("", msg), new Empty()),
-    );
+  const limited = parseLimitedJson(flags);
+  if (limited.error) {
+    return errorResult(limited.error.path, limited.error.message);
   }
+
+  return new Ok(limited.value);
 }
 
 /**

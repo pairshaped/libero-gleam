@@ -144,3 +144,44 @@ pub fn decode_server_frame_unknown_kind_test() {
     Ok(_) -> should.fail()
   }
 }
+
+pub fn decode_request_rejects_oversized_json_input_test() {
+  let data = string.repeat("x", times: 1_048_577)
+
+  case wire.decode_request(data, expected_hash: "any") {
+    Error(errors) -> {
+      list.any(errors, fn(e) { string.contains(e.message, "byte limit") })
+      |> should.be_true()
+    }
+    Ok(_) -> should.fail()
+  }
+}
+
+pub fn decode_server_frame_rejects_deeply_nested_json_test() {
+  let nested =
+    string.repeat("[", times: 130) <> "0" <> string.repeat("]", times: 130)
+  let data =
+    "{\"kind\":\"response\",\"protocol_version\":\"json-rpc-v1\",\"request_id\":1,\"value\":"
+    <> nested
+    <> "}"
+
+  case wire.decode_server_frame(data) {
+    Error(errors) -> {
+      list.any(errors, fn(e) { string.contains(e.message, "nesting depth") })
+      |> should.be_true()
+    }
+    Ok(_) -> should.fail()
+  }
+}
+
+pub fn decode_flags_typed_rejects_oversized_json_input_test() {
+  let data = string.repeat("x", times: 1_048_577)
+
+  case wire.decode_flags_typed(data, fn(_) { Ok(Nil) }) {
+    Error(errors) -> {
+      list.any(errors, fn(e) { string.contains(e.message, "byte limit") })
+      |> should.be_true()
+    }
+    Ok(_) -> should.fail()
+  }
+}

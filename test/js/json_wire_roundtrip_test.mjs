@@ -12,6 +12,7 @@ import {
   encode_request,
   decode_server_frame,
   encode_flags,
+  decode_flags_typed,
 } from "../../src/libero/json/wire_ffi.mjs";
 
 import { Ok, Error as ResultError, Empty, NonEmpty } from "./json_wire_shim.mjs";
@@ -28,6 +29,17 @@ function gleamListToArray(list) {
     cur = cur.tail;
   }
   return out;
+}
+
+function assertErrorIncludes(result, text) {
+  assert.ok(result instanceof ResultError, "should be ResultError");
+  const errors = gleamListToArray(result[0]);
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0] instanceof JsonError);
+  assert.ok(
+    errors[0].message.includes(text),
+    `expected error to include ${text}, got ${errors[0].message}`,
+  );
 }
 
 // ============================================================
@@ -221,6 +233,19 @@ test("decode_server_frame", "rejects missing protocol_version", () => {
   );
 });
 
+test("decode_server_frame", "rejects oversized JSON input", () => {
+  const result = decode_server_frame("x".repeat(1_048_577));
+  assertErrorIncludes(result, "byte limit");
+});
+
+test("decode_server_frame", "rejects deeply nested JSON", () => {
+  const nested = "[".repeat(130) + "0" + "]".repeat(130);
+  const frame =
+    `{"kind":"response","protocol_version":"json-rpc-v1","request_id":1,"value":${nested}}`;
+  const result = decode_server_frame(frame);
+  assertErrorIncludes(result, "nesting depth");
+});
+
 // ---------- encode_flags ----------
 
 console.log("\nJSON wire encode_flags:");
@@ -251,6 +276,15 @@ test("encode_flags", "preserves normal JSON", () => {
   const parsed = JSON.parse(encoded);
   assert.equal(parsed.hello, "world");
   assert.equal(parsed.count, 42);
+});
+
+// ---------- decode_flags_typed ----------
+
+console.log("\nJSON wire decode_flags_typed:");
+
+test("decode_flags_typed", "rejects oversized JSON input", () => {
+  const result = decode_flags_typed("x".repeat(1_048_577), "ignored");
+  assertErrorIncludes(result, "byte limit");
 });
 
 // ============================================================
