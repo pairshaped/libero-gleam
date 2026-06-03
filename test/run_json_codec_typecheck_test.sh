@@ -81,6 +81,10 @@ pub type PageMsg {
   Drag(delta: #(Int, Int), selected: #(Article, Option(Int)))
 }
 
+pub type ClientContextMsg {
+  SignedIn(profile: Wrapper, recent: List(Option(Article)))
+}
+
 // Unlabelled fields
 pub type Pair { Pair(String, Int) }
 
@@ -157,6 +161,7 @@ pub fn main() {
     #("fixture", "Optional"),
     #("fixture", "Fallible"),
     #("fixture", "PageMsg"),
+    #("fixture", "ClientContextMsg"),
     #("fixture", "Pair"),
     #("fixture", "Status"),
   ]
@@ -200,6 +205,11 @@ pub fn main() {
           module: "pages/article",
           type_module: "fixture",
           type_name: "Article",
+        ),
+        contract.PushContract(
+          module: "__ClientContext__",
+          type_module: "fixture",
+          type_name: "ClientContextMsg",
         ),
       ],
       ssr_models: [
@@ -366,6 +376,13 @@ fn roundtrip_status(value: fixture.Status) -> fixture.Status {
   decoded
 }
 
+fn client_context_msg() -> fixture.ClientContextMsg {
+  fixture.SignedIn(
+    profile: fixture.Wrapper(article()),
+    recent: [Some(article()), None],
+  )
+}
+
 fn assert_response_helper_uses_typed_json() {
   let response =
     dict.new()
@@ -397,6 +414,16 @@ fn assert_ssr_helper_uses_typed_json() {
   let flags = gen_json.json_encode_ssr_fixture__article(article())
   let assert Ok(decoded) = gen_json.json_decode_ssr_fixture__article(flags)
   assert decoded == article()
+}
+
+fn assert_client_context_helper_uses_typed_json() {
+  let encoded =
+    gen_json.json_encode_client_context_fixture__client_context_msg(
+      client_context_msg(),
+    )
+  let assert Ok(decoded) =
+    gen_json.json_decode_client_context_fixture__client_context_msg(encoded)
+  assert decoded == client_context_msg()
 }
 
 fn assert_invalid_blob_fails() {
@@ -467,6 +494,7 @@ fn assert_container_roundtrips() {
   assert_response_helper_uses_typed_json()
   assert_push_helper_uses_typed_json()
   assert_ssr_helper_uses_typed_json()
+  assert_client_context_helper_uses_typed_json()
   assert roundtrip_pair(fixture.Pair("count", 2)) == fixture.Pair("count", 2)
   assert roundtrip_status(fixture.Draft) == fixture.Draft
   assert roundtrip_status(fixture.Published) == fixture.Published

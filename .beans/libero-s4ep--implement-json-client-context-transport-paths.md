@@ -1,14 +1,14 @@
 ---
 # libero-s4ep
 title: Implement JSON client-context transport paths
-status: todo
+status: completed
 type: task
 priority: high
 tags:
     - json
     - client-context
 created_at: 2026-06-03T18:55:13Z
-updated_at: 2026-06-03T18:55:13Z
+updated_at: 2026-06-03T22:11:35Z
 parent: libero-lph9
 ---
 
@@ -25,3 +25,12 @@ Acceptance criteria:
 - Client context values can round-trip through JSON when they contain supported Gleam shapes.
 - Unsupported shapes fail at generation or decode with clear diagnostics.
 - Tests cover client context containing a custom user type and a nested supported container.
+
+
+
+Completion notes:
+
+- JSON codec generation now treats push contracts with module `__ClientContext__` as client-context transport helpers.
+- Generated client-context encode helpers frame values as JSON push frames after calling the same per-type generated JSON encoder used by RPC, push, and SSR.
+- Generated client-context decode helpers validate the incoming frame is a `__ClientContext__` push before routing the payload through the matching per-type generated JSON decoder.
+- Tests cover a client-context message containing a nested custom `Wrapper` and `List(Option(Article))`, round-tripped on Erlang and JavaScript.

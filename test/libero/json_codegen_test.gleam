@@ -211,6 +211,11 @@ pub fn transport_codecs_include_push_and_ssr_wrappers_test() {
             type_module: "shared/article",
             type_name: "Article",
           ),
+          contract.PushContract(
+            module: "__ClientContext__",
+            type_module: "shared/article",
+            type_name: "Article",
+          ),
         ],
         ssr_models: [
           contract.SsrModelContract(
@@ -223,6 +228,8 @@ pub fn transport_codecs_include_push_and_ssr_wrappers_test() {
     )
 
   string.contains(source, "import libero/json/wire as json_wire")
+  |> should.be_true
+  string.contains(source, "import libero/frame")
   |> should.be_true
   string.contains(source, "pub fn json_encode_push_shared_article__article")
   |> should.be_true
@@ -244,6 +251,23 @@ pub fn transport_codecs_include_push_and_ssr_wrappers_test() {
     source,
     "json_wire.decode_flags_typed(flags:, decoder: json_decode_shared_article__article)",
   )
+  |> should.be_true
+  string.contains(
+    source,
+    "pub fn json_encode_client_context_shared_article__article",
+  )
+  |> should.be_true
+  string.contains(
+    source,
+    "json_wire.encode_push(module: \"__ClientContext__\", value: json_encode_shared_article__article(value))",
+  )
+  |> should.be_true
+  string.contains(
+    source,
+    "pub fn json_decode_client_context_shared_article__article",
+  )
+  |> should.be_true
+  string.contains(source, "expected client-context push frame")
   |> should.be_true
 }
 
