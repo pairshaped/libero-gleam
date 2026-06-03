@@ -1,7 +1,7 @@
 //// Libero: RPC plumbing library for Gleam.
 ////
-//// Provides handler scanning, dispatch codegen, ETF wire protocol,
-//// and decoder generation.
+//// Provides handler scanning, JSON dispatch codegen, JSON wire contract
+//// generation, and secondary ETF wire helpers.
 ////
 //// Run `gleam run -m libero` to generate the RPC pipeline into
 //// `src/generated/libero/`. Or call the library functions directly
@@ -12,13 +12,15 @@ import gleam/list
 import gleam/option
 import gleam/result
 import gleam/string
+import libero/codegen
 import libero/codegen_decoders
 import libero/codegen_dispatch
 import libero/etf/codegen_erl
 import libero/format
 import libero/gen_error.{type GenError}
-import libero/json/codegen
+import libero/json/codegen as json_codegen
 import libero/json/contract
+import libero/json/error.{type JsonError}
 import libero/protocol
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType}
@@ -49,6 +51,10 @@ const default_atoms_module = "generated@rpc_atoms"
 
 const default_wire_module = "generated@rpc_wire"
 
+const default_client_msg_module = "generated/libero/messages"
+
+const default_json_codecs_module = "generated/libero/json_codecs"
+
 const default_context_module = "server_context"
 
 type WriteError {
@@ -73,6 +79,110 @@ pub fn main() -> Nil {
       halt(1)
     }
   }
+  case env_flag(get_env("LIBERO_GEN_ETF")) {
+    True -> generate_etf_default(endpoints, discovered)
+    False -> generate_json_default(endpoints, discovered)
+  }
+}
+
+fn generate_json_default(
+  endpoints: List(HandlerEndpoint),
+  discovered: List(DiscoveredType),
+) -> Nil {
+  let contract_types =
+    include_generated_client_msg(
+      discovered:,
+      endpoints:,
+      client_msg_module: default_client_msg_module,
+    )
+  let contract_hash =
+    contract.generate_hash(
+      endpoints:,
+      discovered: contract_types,
+      push_types: [],
+      ssr_models: [],
+    )
+  let dispatch_src =
+    generate_json_dispatch(
+      endpoints:,
+      client_msg_module: default_client_msg_module,
+      json_codecs_module: default_json_codecs_module,
+      contract_hash:,
+    )
+  let client_msg_src = generate_client_msg_module(endpoints)
+  let json_codecs_src = case
+    generate_json_codecs_source(
+      discovered:,
+      endpoints:,
+      client_msg_module: default_client_msg_module,
+    )
+  {
+    Ok(src) -> src
+    Error(errors) -> {
+      print_json_codec_errors(errors)
+      halt(1)
+    }
+  }
+  let json_contract =
+    contract.generate(
+      endpoints:,
+      discovered: contract_types,
+      push_types: [],
+      ssr_models: [],
+    )
+
+  case
+    write_generated_files(
+      dispatch_src:,
+      client_msg_src:,
+      json_codecs_src:,
+      json_contract:,
+    )
+  {
+    Ok(Nil) -> Nil
+    Error(err) -> {
+      print_write_error(err)
+      halt(1)
+    }
+  }
+
+  // Write client-side files only when the caller opts in.
+  case client_output_dir_from_env(get_env("LIBERO_CLIENT_OUT_DIR")) {
+    option.Some(client_out) ->
+      case
+        write_client_files(
+          client_out: client_out,
+          client_msg_src:,
+          json_codecs_src:,
+          json_contract:,
+        )
+      {
+        Ok(Nil) -> Nil
+        Error(err) -> {
+          print_write_error(err)
+          halt(1)
+        }
+      }
+    option.None -> Nil
+  }
+
+  io.println(
+    "wrote "
+    <> out_dir
+    <> "/dispatch.gleam, "
+    <> out_dir
+    <> "/messages.gleam, "
+    <> out_dir
+    <> "/json_codecs.gleam, "
+    <> out_dir
+    <> "/rpc_contract.json",
+  )
+}
+
+fn generate_etf_default(
+  endpoints: List(HandlerEndpoint),
+  discovered: List(DiscoveredType),
+) -> Nil {
   let atoms_module = default_atoms_module
   let wire_module = default_wire_module
   let dispatch_src =
@@ -111,11 +221,13 @@ pub fn main() -> Nil {
   }
   let decoders_js = generate_decoders_ffi(discovered:, endpoints:, package:)
   let decoders_gleam = generate_decoders_gleam()
+  let json_contract =
+    contract.generate(endpoints:, discovered:, push_types: [], ssr_models: [])
 
   let atoms_path = "src/" <> atoms_module <> ".erl"
   let wire_path = "src/" <> wire_module <> ".erl"
   case
-    write_generated_files(
+    write_etf_generated_files(
       dispatch_src:,
       decoders_js:,
       decoders_gleam:,
@@ -123,6 +235,7 @@ pub fn main() -> Nil {
       atoms_erl:,
       wire_path:,
       wire_erl:,
+      json_contract:,
     )
   {
     Ok(Nil) -> Nil
@@ -132,11 +245,10 @@ pub fn main() -> Nil {
     }
   }
 
-  // Write client-side files only when the caller opts in.
   case client_output_dir_from_env(get_env("LIBERO_CLIENT_OUT_DIR")) {
     option.Some(client_out) ->
       case
-        write_client_files(
+        write_etf_client_files(
           client_out: client_out,
           js: decoders_js,
           gleam: decoders_gleam,
@@ -151,34 +263,6 @@ pub fn main() -> Nil {
     option.None -> Nil
   }
 
-  // JSON contract artifact (always generated — public artifact,
-  // no dependency pressure).
-  let json_contract =
-    contract.generate(endpoints:, discovered:, push_types: [], ssr_models: [])
-
-  case write_file(out_dir <> "/rpc_contract.json", json_contract) {
-    Ok(Nil) -> Nil
-    Error(err) -> {
-      print_write_error(err)
-      halt(1)
-    }
-  }
-
-  // JSON codecs — only when explicitly opted in via LIBERO_GEN_JSON_CODECS.
-  // Without this, ETF-only consumers would inherit a gleam_json dependency
-  // through the generated json_codecs.gleam.
-  case get_env("LIBERO_GEN_JSON_CODECS") {
-    option.Some(val) if val == "1" || val == "true" ->
-      generate_json_codecs(discovered, endpoints, out_dir)
-    _ -> Nil
-  }
-
-  let json_codecs_msg = case get_env("LIBERO_GEN_JSON_CODECS") {
-    option.Some(val) if val == "1" || val == "true" ->
-      ", " <> out_dir <> "/json_codecs.gleam"
-    _ -> ""
-  }
-
   io.println(
     "wrote "
     <> out_dir
@@ -188,9 +272,98 @@ pub fn main() -> Nil {
     <> wire_path
     <> ", "
     <> out_dir
-    <> "/rpc_contract.json"
-    <> json_codecs_msg,
+    <> "/rpc_contract.json",
   )
+}
+
+pub fn generate_client_msg_module(
+  endpoints endpoints: List(HandlerEndpoint),
+) -> String {
+  let resolve_alias = codegen.build_alias_resolver(endpoints:)
+  let imports =
+    codegen.collect_endpoint_type_imports(
+      endpoints:,
+      include_return: False,
+      resolve_alias:,
+    )
+    |> string.join("\n")
+    |> fn(src) {
+      case src {
+        "" -> ""
+        _ -> src <> "\n"
+      }
+    }
+  let dict_import =
+    codegen.import_if(
+      endpoints:,
+      predicate: codegen.is_dict,
+      import_line: "import gleam/dict.{type Dict}",
+    )
+  let option_import =
+    codegen.import_if(
+      endpoints:,
+      predicate: codegen.is_option,
+      import_line: "import gleam/option.{type Option}",
+    )
+  let variants = case endpoints {
+    [] -> ["  NoClientMsg"]
+    _ -> codegen.emit_client_msg_variants(endpoints:, resolve_alias:)
+  }
+
+  "//// Code generated by libero. DO NOT EDIT.\n\n"
+  <> dict_import
+  <> option_import
+  <> case dict_import <> option_import {
+    "" -> ""
+    _ -> "\n"
+  }
+  <> imports
+  <> "\n"
+  <> "pub type ClientMsg {\n"
+  <> string.join(variants, "\n")
+  <> "\n}"
+}
+
+fn include_generated_client_msg(
+  discovered discovered: List(DiscoveredType),
+  endpoints endpoints: List(HandlerEndpoint),
+  client_msg_module client_msg_module: String,
+) -> List(DiscoveredType) {
+  case endpoints {
+    [] -> discovered
+    _ ->
+      list.append(discovered, [
+        json_codegen.client_msg_discovered_type(
+          endpoints:,
+          module_path: client_msg_module,
+          type_name: "ClientMsg",
+        ),
+      ])
+  }
+}
+
+fn generate_json_codecs_source(
+  discovered discovered: List(DiscoveredType),
+  endpoints endpoints: List(HandlerEndpoint),
+  client_msg_module client_msg_module: String,
+) -> Result(String, List(JsonError)) {
+  json_codegen.generate_transport_codecs(
+    discovered:,
+    endpoints:,
+    client_msg_module_path: client_msg_module,
+    client_msg_type_name: "ClientMsg",
+  )
+}
+
+fn print_json_codec_errors(errors: List(JsonError)) -> Nil {
+  list.each(errors, fn(e) {
+    io.println_error(gen_error.error_box(
+      title: "JSON codec generation failed",
+      path: e.path,
+      body_lines: [e.message],
+      hint: option.None,
+    ))
+  })
 }
 
 /// Scan `src/` for handler endpoints.
@@ -379,6 +552,15 @@ pub fn generate_json_contract(
   contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
 }
 
+pub fn generate_json_contract_hash(
+  endpoints endpoints: List(HandlerEndpoint),
+  discovered discovered: List(DiscoveredType),
+  push_types push_types: List(contract.PushContract),
+  ssr_models ssr_models: List(contract.SsrModelContract),
+) -> String {
+  contract.generate_hash(endpoints:, discovered:, push_types:, ssr_models:)
+}
+
 /// Resolve the optional client output directory from environment config.
 /// Set `LIBERO_CLIENT_OUT_DIR` to opt in to client-side decoder writes.
 pub fn client_output_dir_from_env(
@@ -397,12 +579,39 @@ pub fn client_output_dir_from_env(
 
 fn write_generated_files(
   dispatch_src dispatch_src: String,
+  client_msg_src client_msg_src: String,
+  json_codecs_src json_codecs_src: String,
+  json_contract json_contract: String,
+) -> Result(Nil, WriteError) {
+  use _ <- result.try(
+    simplifile.create_directory_all(out_dir)
+    |> result.map_error(fn(cause) { CannotCreateDir(path: out_dir, cause:) }),
+  )
+  use _ <- result.try(write_file(
+    out_dir <> "/dispatch.gleam",
+    format.format_gleam(dispatch_src),
+  ))
+  use _ <- result.try(write_file(
+    out_dir <> "/messages.gleam",
+    format.format_gleam(client_msg_src),
+  ))
+  use _ <- result.try(write_file(
+    out_dir <> "/json_codecs.gleam",
+    format.format_gleam(json_codecs_src),
+  ))
+  use _ <- result.try(write_file(out_dir <> "/rpc_contract.json", json_contract))
+  Ok(Nil)
+}
+
+fn write_etf_generated_files(
+  dispatch_src dispatch_src: String,
   decoders_js decoders_js: String,
   decoders_gleam decoders_gleam: String,
   atoms_path atoms_path: String,
   atoms_erl atoms_erl: String,
   wire_path wire_path: String,
   wire_erl wire_erl: String,
+  json_contract json_contract: String,
 ) -> Result(Nil, WriteError) {
   use _ <- result.try(
     simplifile.create_directory_all(out_dir)
@@ -422,6 +631,7 @@ fn write_generated_files(
   ))
   use _ <- result.try(write_file(atoms_path, atoms_erl))
   use _ <- result.try(write_file(wire_path, wire_erl))
+  use _ <- result.try(write_file(out_dir <> "/rpc_contract.json", json_contract))
   Ok(Nil)
 }
 
@@ -451,6 +661,27 @@ fn print_write_error(err: WriteError) -> Nil {
 }
 
 fn write_client_files(
+  client_out out: String,
+  client_msg_src client_msg_src: String,
+  json_codecs_src json_codecs_src: String,
+  json_contract json_contract: String,
+) -> Result(Nil, WriteError) {
+  use _ <- result.try(
+    simplifile.create_directory_all(out)
+    |> result.map_error(fn(cause) { CannotCreateDir(path: out, cause:) }),
+  )
+  use _ <- result.try(write_file(
+    out <> "/messages.gleam",
+    format.format_gleam(client_msg_src),
+  ))
+  use _ <- result.try(write_file(
+    out <> "/json_codecs.gleam",
+    format.format_gleam(json_codecs_src),
+  ))
+  write_file(out <> "/rpc_contract.json", json_contract)
+}
+
+fn write_etf_client_files(
   client_out out: String,
   js js: String,
   gleam gleam: String,
@@ -498,47 +729,10 @@ fn read_package_name() -> Result(String, String) {
   }
 }
 
-fn generate_json_codecs(
-  discovered: List(walker.DiscoveredType),
-  endpoints: List(HandlerEndpoint),
-  out_dir: String,
-) -> Nil {
-  case discovered, endpoints {
-    [], [] -> Nil
-    _, _ ->
-      case
-        codegen.generate_transport_codecs(
-          discovered:,
-          endpoints:,
-          client_msg_module_path: "generated/libero/dispatch",
-          client_msg_type_name: "ClientMsg",
-        )
-      {
-        Ok(json_codecs_src) ->
-          case
-            write_file(
-              out_dir <> "/json_codecs.gleam",
-              format.format_gleam(json_codecs_src),
-            )
-          {
-            Ok(Nil) -> Nil
-            Error(err) -> {
-              print_write_error(err)
-              halt(1)
-            }
-          }
-        Error(errors) -> {
-          list.each(errors, fn(e) {
-            io.println_error(gen_error.error_box(
-              title: "JSON codec generation failed",
-              path: e.path,
-              body_lines: [e.message],
-              hint: option.None,
-            ))
-          })
-          halt(1)
-        }
-      }
+fn env_flag(value: option.Option(String)) -> Bool {
+  case value {
+    option.Some("1") | option.Some("true") -> True
+    _ -> False
   }
 }
 

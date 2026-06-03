@@ -380,7 +380,9 @@ fn emit_ssr_helpers(ssr_models: List(contract.SsrModelContract)) -> String {
   |> string.join("\n\n")
 }
 
-fn client_msg_discovered_type(
+/// Build the generated transport `ClientMsg` type used by JSON request
+/// envelopes. The caller owns where that type lives by passing `module_path`.
+pub fn client_msg_discovered_type(
   endpoints endpoints: List(scanner.HandlerEndpoint),
   module_path module_path: String,
   type_name type_name: String,

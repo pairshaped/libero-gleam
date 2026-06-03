@@ -1,14 +1,14 @@
 ---
 # libero-r8s2
 title: Switch generated transport defaults to JSON
-status: todo
+status: completed
 type: task
 priority: high
 tags:
     - json
     - transport
 created_at: 2026-06-03T18:55:13Z
-updated_at: 2026-06-03T18:55:13Z
+updated_at: 2026-06-03T22:29:36Z
 parent: libero-lph9
 ---
 
@@ -26,3 +26,9 @@ Acceptance criteria:
 - ETF-specific code paths are still tested if they remain supported, but they are clearly secondary.
 - Documentation and examples describe JSON as the primary transport codec.
 - The switch does not remove contract hash or version validation.
+
+
+
+Completed: the default `gleam run -m libero` path now writes JSON dispatch, generated `messages.gleam`, typed JSON codecs, and `rpc_contract.json` without requiring `LIBERO_GEN_JSON_CODECS`. ETF generation remains available through explicit `LIBERO_GEN_ETF=1`, and the ETF JS E2E setup now opts into that mode instead of relying on ETF as the default. README now describes JSON as the primary generated transport and documents the ETF opt-in. Added tests for the separate generated ClientMsg module and contract hash helper.
+
+Validation: `gleam test --target erlang`, `gleam format --check src test`, `bash test/run_json_codec_typecheck_test.sh`, `bash test/run_json_codec_acceptance_test.sh`, `node --import ./test/js/json_wire_loader.mjs test/js/json_wire_roundtrip_test.mjs`, `beans check`, `git diff --check`, and direct default/ETF generator smoke checks passed. `test/run_js_tests.sh` still fails in the older ETF wire E2E dispatch manifest because it sends whole encoded custom records for field-expanded ClientMsg handlers; tracked separately as low-priority ETF bean `libero-6rl7`.
