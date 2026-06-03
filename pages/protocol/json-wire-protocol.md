@@ -7,6 +7,21 @@ contract as ETF, but carries type identity as readable JSON fields.
 JSON is an RPC protocol. It serializes Libero requests, responses, pushes, and
 SSR flags. It is not a REST resource format.
 
+The canonical typed value contract is named `typed-json-v1`. Every JSON
+transport path that carries a user value uses this contract:
+
+- RPC request `message`.
+- RPC response `value`.
+- Push `value`.
+- SSR flag payloads.
+- Page message fields.
+- Client-context values.
+
+Transport envelopes add routing, request IDs, protocol versions, and contract
+hashes. They do not define private value dialects. Values inside those envelopes
+must be produced by generated JSON encoders and consumed by generated JSON
+decoders for `typed-json-v1`.
+
 ## Pros And Cons
 
 JSON is a good fit when values need to be readable outside the BEAM or consumed
@@ -127,7 +142,8 @@ protocol envelope.
 
 ## Typed Values
 
-Custom types use a readable object shape:
+`typed-json-v1` is the only JSON representation for generated Libero user
+values. Custom types use a readable object shape:
 
 ```json
 {
@@ -221,21 +237,22 @@ For the shared identity rules behind both ETF and JSON, see
 
 ## Built-In Shapes
 
-| Gleam type | JSON shape |
-|------------|------------|
-| `String` | JSON string |
-| `Bool` | JSON boolean |
-| `Int` | JSON integer within JavaScript safe integer range |
-| `Float` | JSON number, excluding `NaN`, `Infinity`, and `-Infinity` |
-| `Nil` | `null` |
-| `List(a)` | JSON array |
-| `Dict(String, a)` | JSON object |
-| `Dict(Int, a)` | JSON array of two-item arrays |
-| `Dict(Bool, a)` | JSON array of two-item arrays |
-| `Tuple` | JSON array in tuple order |
-| `BitArray` | Tagged object with padded base64url data |
-| `Option(a)` | Typed custom shape with variants `Some` and `None` |
-| `Result(a, e)` | Typed custom shape with variants `Ok` and `Error` |
+| Gleam type | JSON shape | Notes |
+|------------|------------|-------|
+| `String` | JSON string | Unicode text. |
+| `Bool` | JSON boolean | `true` or `false`. |
+| `Int` | JSON integer | Must be within JavaScript safe integer range. |
+| `Float` | JSON number | `NaN`, `Infinity`, and `-Infinity` are rejected. |
+| `Nil` | `null` | No other sentinel value is accepted. |
+| `List(a)` | JSON array | Elements use their own typed JSON shape. |
+| `Dict(String, a)` | JSON object | Values use their own typed JSON shape. |
+| `Dict(Int, a)` | JSON array of two-item arrays | Keys stay numbers, not strings. |
+| `Dict(Bool, a)` | JSON array of two-item arrays | Keys stay booleans, not strings. |
+| `#(...)` tuple | JSON array | Positional values in tuple order. |
+| `BitArray` | Tagged object | `{ "encoding": "base64url", "data": "..." }`. |
+| `Option(a)` | Typed custom shape | `gleam/option.Option` with variants `Some` and `None`. |
+| `Result(a, e)` | Typed custom shape | `gleam/result.Result` with variants `Ok` and `Error`. |
+| User custom type | Typed custom shape | `type`, `variant`, and `fields`. |
 
 `Option(a)` does not use `null` as a shortcut. `None` and `Some(None)` are
 different Gleam values, so JSON keeps them distinct.
@@ -253,6 +270,52 @@ with ordinary strings:
   "data": "AAECAw=="
 }
 ```
+
+Tuple values use JSON arrays in tuple order:
+
+```json
+["count", 2]
+```
+
+Nested user types always route through their own generated encoder or decoder,
+even when they appear inside `List`, `Dict`, tuple, `Option`, `Result`, or
+another custom type.
+
+## Unsupported Shapes
+
+JSON generation fails before runtime for shapes that cannot be represented by
+`typed-json-v1` without losing type information:
+
+- Constructor fields that mix labelled and unlabelled fields.
+- `Dict` keys other than `String`, `Int`, or `Bool`.
+- Generic type variables that survive to the wire boundary.
+- Unresolved or private user types.
+
+Tuple support is currently positional. If that changes, the
+`typed_value_contract` name must change and snapshots must be updated.
+
+## Contract Artifact
+
+The generated `rpc_contract.json` artifact records the JSON RPC protocol and the
+typed value contract:
+
+```json
+{
+  "contract_hash": "...",
+  "protocol_version": "json-rpc-v1",
+  "typed_value_contract": "typed-json-v1",
+  "libero_version": "6.0.0",
+  "endpoints": [],
+  "push_types": [],
+  "ssr_models": [],
+  "types": []
+}
+```
+
+`contract_hash` is computed from the canonical artifact fields without the hash
+field itself. It covers endpoints, push types, SSR models, reachable user types,
+the JSON protocol version, and the typed value contract name. A request whose
+hash does not match the server contract is rejected before `message` decode.
 
 ## Validation
 

@@ -8,6 +8,8 @@ import libero/field_type.{type FieldType}
 import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType, type DiscoveredVariant}
 
+pub const typed_value_contract_v1 = "typed-json-v1"
+
 pub type PushContract {
   PushContract(module: String, type_module: String, type_name: String)
 }
@@ -80,6 +82,7 @@ fn canonical_fields(
 
   [
     #("protocol_version", json.string("json-rpc-v1")),
+    #("typed_value_contract", json.string(typed_value_contract_v1)),
     #("libero_version", json.string("6.0.0")),
     #("endpoints", json.array(sorted_endpoints, of: endpoint_json)),
     #("push_types", json.array(push_types, of: push_contract_json)),
