@@ -1,14 +1,14 @@
 ---
 # libero-zap9
 title: Add JSON contract snapshots and compatibility gates
-status: todo
+status: completed
 type: task
 priority: high
 tags:
     - json
     - testing
 created_at: 2026-06-03T18:55:13Z
-updated_at: 2026-06-03T18:55:13Z
+updated_at: 2026-06-03T21:36:49Z
 parent: libero-lph9
 ---
 
@@ -25,3 +25,13 @@ Acceptance criteria:
 - Snapshot coverage includes labelled constructors, unlabelled constructors, rejected mixed constructors, BitArray, dicts or maps, tuples or tuple rejection, Option, Result, and nested user types.
 - Runtime tests prove mismatched contract hash or version is rejected before payload decode.
 - Error messages identify whether failure came from contract mismatch, unsupported shape, or invalid JSON value.
+
+
+
+Completion notes:
+
+- Contract snapshot coverage is pinned by `test/birdie_snapshots/canonical_typed_json_contract_artifact.accepted`.
+- Generated value fixtures now cover labelled, unlabelled, zero-field, BitArray, Dict(String/Int/Bool), tuple, Option, Result, nested user types, and a page-message-shaped tuple payload on Erlang and JavaScript.
+- Rejected mixed constructors and unsupported Dict keys are covered by JSON codegen diagnostics tests.
+- Runtime compatibility gates now prove protocol-version and contract-hash mismatches are reported before malformed request/message bodies are inspected.
+- Invalid JSON value diagnostics are covered by strict field validation and malformed BitArray acceptance tests.

@@ -104,6 +104,33 @@ pub fn protocol_version_mismatch_test() {
   }
 }
 
+pub fn protocol_version_mismatch_is_checked_before_request_body_test() {
+  let data = "{\"kind\":\"request\",\"protocol_version\":\"json-rpc-v2\"}"
+
+  case wire.decode_request(data, expected_hash: "any") {
+    Error([first, ..]) -> {
+      first.path |> should.equal("protocol_version")
+      string.contains(first.message, "unsupported version")
+      |> should.be_true()
+    }
+    _ -> should.fail()
+  }
+}
+
+pub fn contract_hash_mismatch_is_checked_before_message_body_test() {
+  let data =
+    "{\"kind\":\"request\",\"protocol_version\":\"json-rpc-v1\",\"contract_hash\":\"wrong\"}"
+
+  case wire.decode_request(data, expected_hash: "expected") {
+    Error([first, ..]) -> {
+      first.path |> should.equal("contract_hash")
+      string.contains(first.message, "contract hash mismatch")
+      |> should.be_true()
+    }
+    _ -> should.fail()
+  }
+}
+
 pub fn decode_server_frame_unknown_kind_test() {
   let data = "{\"kind\":\"unknown\",\"protocol_version\":\"json-rpc-v1\"}"
 
