@@ -169,7 +169,7 @@ pub fn main() -> Nil {
   // through the generated json_codecs.gleam.
   case get_env("LIBERO_GEN_JSON_CODECS") {
     option.Some(val) if val == "1" || val == "true" ->
-      generate_json_codecs(discovered, out_dir)
+      generate_json_codecs(discovered, endpoints, out_dir)
     _ -> Nil
   }
 
@@ -459,12 +459,20 @@ fn read_package_name() -> Result(String, String) {
 
 fn generate_json_codecs(
   discovered: List(walker.DiscoveredType),
+  endpoints: List(HandlerEndpoint),
   out_dir: String,
 ) -> Nil {
-  case discovered {
-    [] -> Nil
-    _ ->
-      case codegen.generate(discovered) {
+  case discovered, endpoints {
+    [], [] -> Nil
+    _, _ ->
+      case
+        codegen.generate_transport_codecs(
+          discovered:,
+          endpoints:,
+          client_msg_module_path: "generated/libero/dispatch",
+          client_msg_type_name: "ClientMsg",
+        )
+      {
         Ok(json_codecs_src) ->
           case
             write_file(

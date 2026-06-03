@@ -20,11 +20,13 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import libero/codegen
 import libero/field_type.{
   type FieldType, BitArrayField, BoolField, DictOf, FloatField, IntField, ListOf,
   NilField, OptionOf, ResultOf, StringField, TupleOf, TypeVar, UserType,
 }
 import libero/json/error.{type JsonError, JsonError}
+import libero/scanner
 import libero/walker.{type DiscoveredType, type DiscoveredVariant}
 
 /// Generate Gleam source for JSON typed encoders and decoders.
@@ -139,6 +141,54 @@ pub fn generate(
     <> "\n\n"
     <> builtin_decoders
     <> "\n",
+  )
+}
+
+/// Generate JSON codecs for discovered user types plus the generated transport
+/// `ClientMsg` type built from handler endpoints.
+///
+/// Browser/page code should use this generated `ClientMsg` codec before passing
+/// request messages to `libero/json/wire.encode_request`.
+pub fn generate_transport_codecs(
+  discovered discovered: List(DiscoveredType),
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+  client_msg_module_path client_msg_module_path: String,
+  client_msg_type_name client_msg_type_name: String,
+) -> Result(String, List(JsonError)) {
+  let all_types = case endpoints {
+    [] -> discovered
+    _ ->
+      list.append(discovered, [
+        client_msg_discovered_type(
+          endpoints:,
+          module_path: client_msg_module_path,
+          type_name: client_msg_type_name,
+        ),
+      ])
+  }
+  generate(all_types)
+}
+
+fn client_msg_discovered_type(
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+  module_path module_path: String,
+  type_name type_name: String,
+) -> DiscoveredType {
+  walker.DiscoveredType(
+    module_path:,
+    type_name:,
+    type_params: [],
+    variants: list.map(endpoints, fn(endpoint) {
+      let variant_name = codegen.to_pascal_case("server_" <> endpoint.fn_name)
+      walker.DiscoveredVariant(
+        module_path:,
+        variant_name:,
+        atom_name: walker.qualified_atom_name(module_path:, variant_name:),
+        float_field_indices: [],
+        field_labels: list.map(endpoint.params, fn(param) { Some(param.0) }),
+        fields: list.map(endpoint.params, fn(param) { param.1 }),
+      )
+    }),
   )
 }
 

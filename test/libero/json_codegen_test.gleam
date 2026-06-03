@@ -5,6 +5,7 @@ import gleam/string
 import gleeunit/should
 import libero/field_type
 import libero/json/codegen
+import libero/scanner
 import libero/walker
 
 pub fn generated_encoder_emits_type_and_variant_test() {
@@ -92,6 +93,79 @@ pub fn duplicate_variant_names_generate_distinct_codecs_test() {
   string.contains(source, "page/a.ToClient")
   |> should.be_true
   string.contains(source, "page/b.ToClient")
+  |> should.be_true
+}
+
+pub fn transport_codecs_include_generated_client_msg_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/article",
+      type_name: "Article",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/article",
+          variant_name: "Article",
+          atom_name: "shared_article__article",
+          float_field_indices: [],
+          field_labels: [Some("title")],
+          fields: [field_type.StringField],
+        ),
+      ],
+    ),
+  ]
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "pages/article",
+      fn_name: "send_drag",
+      return_ok: field_type.NilField,
+      return_err: field_type.StringField,
+      params: [
+        #(
+          "items",
+          field_type.ListOf(
+            field_type.OptionOf(
+              field_type.UserType("shared/article", "Article", []),
+            ),
+          ),
+        ),
+        #(
+          "selected",
+          field_type.TupleOf([
+            field_type.UserType("shared/article", "Article", []),
+            field_type.IntField,
+          ]),
+        ),
+      ],
+      mutates_context: False,
+      msg_type: None,
+    ),
+  ]
+
+  let source =
+    assert_generated(codegen.generate_transport_codecs(
+      discovered: types,
+      endpoints:,
+      client_msg_module_path: "generated/libero/dispatch",
+      client_msg_type_name: "ClientMsg",
+    ))
+
+  string.contains(source, "import generated/libero/dispatch")
+  |> should.be_true
+  string.contains(
+    source,
+    "pub fn json_encode_generated_libero_dispatch__client_msg",
+  )
+  |> should.be_true
+  string.contains(source, "generated/libero/dispatch.ClientMsg")
+  |> should.be_true
+  string.contains(source, "\"ServerSendDrag\"")
+  |> should.be_true
+  string.contains(source, "json_encode_shared_article__article(x)")
+  |> should.be_true
+  string.contains(source, "json_encode_shared_article__article(f1.0)")
+  |> should.be_true
+  string.contains(source, "json_decode_shared_article__article(inner_raw)")
   |> should.be_true
 }
 

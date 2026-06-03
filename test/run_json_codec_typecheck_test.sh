@@ -30,6 +30,7 @@ TOML
 sed -i '' "s|LIBERO_PATH|$ROOT_DIR|" gleam.toml
 
 mkdir -p src
+mkdir -p src/generated/libero
 
 # Fixture types covering every FieldType branch
 cat > src/fixture.gleam <<'GLEAM'
@@ -90,9 +91,23 @@ pub type Status {
 }
 GLEAM
 
+cat > src/generated/libero/dispatch.gleam <<'GLEAM'
+import fixture
+import gleam/option.{type Option}
+
+pub type ClientMsg {
+  ServerDrag(
+    items: List(Option(fixture.Article)),
+    selected: #(fixture.Article, Int),
+  )
+}
+GLEAM
+
 # Generation script that calls libero's codegen API
 cat > src/generate.gleam <<'GLEAM'
 import gleam/io
+import gleam/option.{None}
+import libero/field_type
 import libero/scanner
 import libero/walker
 import libero/json/codegen
@@ -121,7 +136,38 @@ pub fn main() {
     #("fixture", "Status"),
   ]
   let assert Ok(types) = walker.walk(seeds, files)
-  let assert Ok(source) = codegen.generate(types)
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "pages/article",
+      fn_name: "drag",
+      return_ok: field_type.NilField,
+      return_err: field_type.StringField,
+      params: [
+        #(
+          "items",
+          field_type.ListOf(field_type.OptionOf(
+            field_type.UserType("fixture", "Article", []),
+          )),
+        ),
+        #(
+          "selected",
+          field_type.TupleOf([
+            field_type.UserType("fixture", "Article", []),
+            field_type.IntField,
+          ]),
+        ),
+      ],
+      mutates_context: False,
+      msg_type: None,
+    ),
+  ]
+  let assert Ok(source) =
+    codegen.generate_transport_codecs(
+      discovered: types,
+      endpoints:,
+      client_msg_module_path: "generated/libero/dispatch",
+      client_msg_type_name: "ClientMsg",
+    )
   let assert Ok(Nil) = simplifile.write("src/gen_json.gleam", source)
   io.println("Generated JSON codecs")
 }
@@ -135,6 +181,7 @@ gleam check --target javascript
 
 cat > src/codec_smoke.gleam <<'GLEAM'
 import fixture
+import generated/libero/dispatch
 import gen_json
 import gleam/dict
 import gleam/dynamic/decode
@@ -257,6 +304,14 @@ fn roundtrip_page_msg(value: fixture.PageMsg) -> fixture.PageMsg {
   decoded
 }
 
+fn roundtrip_client_msg(value: dispatch.ClientMsg) -> dispatch.ClientMsg {
+  let encoded = gen_json.json_encode_generated_libero_dispatch__client_msg(value)
+  let assert Ok(raw) = json.parse(json.to_string(encoded), decode.dynamic)
+  let assert Ok(decoded) =
+    gen_json.json_decode_generated_libero_dispatch__client_msg(raw)
+  decoded
+}
+
 fn roundtrip_status(value: fixture.Status) -> fixture.Status {
   let encoded = gen_json.json_encode_fixture__status(value)
   let assert Ok(raw) = json.parse(json.to_string(encoded), decode.dynamic)
@@ -328,6 +383,7 @@ fn assert_container_roundtrips() {
   assert roundtrip_fallible(fixture.Fallible(Ok(7))) == fixture.Fallible(Ok(7))
   assert roundtrip_fallible(fixture.Fallible(Error("nope"))) == fixture.Fallible(Error("nope"))
   assert roundtrip_page_msg(fixture.Drag(#(3, -4), #(article(), Some(9)))) == fixture.Drag(#(3, -4), #(article(), Some(9)))
+  assert roundtrip_client_msg(dispatch.ServerDrag([Some(article())], #(article(), 7))) == dispatch.ServerDrag([Some(article())], #(article(), 7))
   assert roundtrip_pair(fixture.Pair("count", 2)) == fixture.Pair("count", 2)
   assert roundtrip_status(fixture.Draft) == fixture.Draft
   assert roundtrip_status(fixture.Published) == fixture.Published

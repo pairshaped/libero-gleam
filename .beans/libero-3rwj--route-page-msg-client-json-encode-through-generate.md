@@ -1,14 +1,14 @@
 ---
 # libero-3rwj
 title: Route page Msg client JSON encode through generated codecs
-status: todo
+status: completed
 type: task
 priority: high
 tags:
     - json
     - page-msg
 created_at: 2026-06-03T18:55:13Z
-updated_at: 2026-06-03T18:55:13Z
+updated_at: 2026-06-03T21:53:47Z
 parent: libero-lph9
 ---
 
@@ -24,3 +24,12 @@ Acceptance criteria:
 - Nested user types inside lists, dicts, options, results, tuples if supported, and constructor fields follow the same path.
 - Decode failures surface as typed JSON errors with useful field or path context.
 - Tests include a page message carrying at least one nested user type.
+
+
+
+Completion notes:
+
+- JSON codegen now has `generate_transport_codecs`, which appends the generated transport `ClientMsg` type to the same typed JSON codec generation path as discovered user types.
+- CLI JSON codec generation now uses the transport-aware codec generator, so `json_codecs.gleam` includes `generated/libero/dispatch.ClientMsg` when endpoints exist.
+- Tests prove a generated `ClientMsg` encoder routes nested user types through generated JSON user-type encoders, including a nested user type inside `List(Option(_))` and inside a tuple.
+- `test/run_json_codec_typecheck_test.sh` now compiles and round-trips a generated-dispatch-style `ClientMsg` JSON codec on both Erlang and JavaScript.
