@@ -5,11 +5,11 @@ status: todo
 type: feature
 priority: deferred
 tags:
-    - security
     - etf
     - deferred
+    - security
 created_at: 2026-05-08T15:14:35Z
-updated_at: 2026-05-13T00:42:01Z
+updated_at: 2026-06-03T18:55:26Z
 ---
 
 Defense in depth on top of [safe]. After binary_to_term(Bin, [safe]) succeeds, walk the term and assert it contains only ints, floats, atoms, binaries, lists, tuples, and maps. Reject pids, refs, ports, funs explicitly even though [safe] should block them.

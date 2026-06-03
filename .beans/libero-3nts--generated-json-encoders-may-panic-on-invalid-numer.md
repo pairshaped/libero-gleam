@@ -3,13 +3,14 @@
 title: Generated JSON encoders may panic on invalid numeric values (json/codegen.gleam:217-242)
 status: todo
 type: task
-priority: deferred
+priority: normal
 tags:
+    - json
     - code-review
     - minor
-    - deferred
 created_at: 2026-05-13T00:39:01Z
-updated_at: 2026-05-13T00:42:01Z
+updated_at: 2026-06-03T18:55:26Z
+parent: libero-lph9
 ---
 
 Imported from code-review.md finding 24 (Minor).

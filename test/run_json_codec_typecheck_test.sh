@@ -108,4 +108,51 @@ gleam run -m generate
 echo "=== Typechecking generated codecs ==="
 gleam check
 
+cat > src/codec_smoke.gleam <<'GLEAM'
+import fixture
+import gen_json
+import gleam/dynamic/decode
+import gleam/io
+import gleam/json
+import libero/json/error.{type JsonError, JsonError}
+
+fn assert_blob_roundtrip(bits: BitArray) {
+  let encoded = gen_json.json_encode_fixture__blob(fixture.Blob(bits))
+  let assert Ok(raw) = json.parse(json.to_string(encoded), decode.dynamic)
+  let assert Ok(fixture.Blob(decoded)) = gen_json.json_decode_fixture__blob(raw)
+  assert decoded == bits
+}
+
+fn assert_invalid_blob_fails() {
+  let invalid =
+    "{\"type\":\"fixture.Blob\",\"variant\":\"Blob\",\"fields\":{\"data\":{\"encoding\":\"base64url\",\"data\":\"!not-base64!\"}}}"
+  let assert Ok(raw) = json.parse(invalid, decode.dynamic)
+  let assert Error(errors) = gen_json.json_decode_fixture__blob(raw)
+  assert_has_error_path(errors, "fields.data.data")
+}
+
+fn assert_has_error_path(errors: List(JsonError), expected_path: String) {
+  case errors {
+    [JsonError(path:, ..), ..] -> {
+      case path == expected_path {
+        True -> Nil
+        False -> panic as "unexpected JsonError path"
+      }
+    }
+    [] -> panic as "expected at least one JsonError"
+  }
+}
+
+pub fn main() {
+  assert_blob_roundtrip(<<>>)
+  assert_blob_roundtrip(<<0, 1, 2, 3>>)
+  assert_blob_roundtrip(<<0, 255, 128>>)
+  assert_invalid_blob_fails()
+  io.println("PASS: Generated BitArray JSON codec smoke tests")
+}
+GLEAM
+
+echo "=== Running generated codec smoke tests ==="
+gleam run -m codec_smoke
+
 echo "PASS: Generated JSON codecs typecheck successfully"

@@ -230,14 +230,29 @@ For the shared identity rules behind both ETF and JSON, see
 | `Nil` | `null` |
 | `List(a)` | JSON array |
 | `Dict(String, a)` | JSON object |
-| `Dict(k, v)` for non-string `k` | JSON array of two-item arrays |
+| `Dict(Int, a)` | JSON array of two-item arrays |
+| `Dict(Bool, a)` | JSON array of two-item arrays |
 | `Tuple` | JSON array in tuple order |
-| `BitArray` | Base64 string with standard padding |
+| `BitArray` | Tagged object with padded base64url data |
 | `Option(a)` | Typed custom shape with variants `Some` and `None` |
 | `Result(a, e)` | Typed custom shape with variants `Ok` and `Error` |
 
 `Option(a)` does not use `null` as a shortcut. `None` and `Some(None)` are
 different Gleam values, so JSON keeps them distinct.
+
+`Dict` keys must be `String`, `Int`, or `Bool`. Other key types are rejected
+during generation because JSON cannot preserve their identity without inventing
+a lossy stringification rule.
+
+`BitArray` values use an explicit object shape so binary data cannot be confused
+with ordinary strings:
+
+```json
+{
+  "encoding": "base64url",
+  "data": "AAECAw=="
+}
+```
 
 ## Validation
 
@@ -256,7 +271,9 @@ Generated JSON decoders validate before constructing typed values:
 - Field values must match expected types.
 - `Int` values must be safe JSON integers.
 - `Float` values must be finite.
-- `BitArray` strings must be valid base64 with padding.
+- `BitArray` values must use the tagged base64url object shape.
+- Unsupported wire shapes, such as non-primitive `Dict` keys or unresolved type
+  variables, fail during generation.
 
 Errors include a path and message:
 

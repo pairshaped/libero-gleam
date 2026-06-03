@@ -34,6 +34,7 @@ pub fn generate(
   discovered: List(DiscoveredType),
 ) -> Result(String, List(JsonError)) {
   use _ <- result.try(check_no_mixed_fields(discovered))
+  use _ <- result.try(check_supported_field_types(discovered))
 
   let aliases = build_module_alias_map(discovered)
 
@@ -171,6 +172,105 @@ fn has_mixed_fields(labels: List(Option(String))) -> Bool {
   has_labelled && has_unlabelled
 }
 
+fn check_supported_field_types(
+  discovered: List(DiscoveredType),
+) -> Result(Nil, List(JsonError)) {
+  let errors =
+    list.flat_map(discovered, fn(dt) {
+      list.flat_map(dt.variants, fn(v) {
+        v.fields
+        |> list.index_map(fn(field, index) { #(field, index) })
+        |> list.flat_map(fn(pair) {
+          let #(field, index) = pair
+          check_supported_field_type(
+            field,
+            dt.module_path
+              <> "."
+              <> dt.type_name
+              <> "."
+              <> v.variant_name
+              <> ".field["
+              <> int.to_string(index)
+              <> "]",
+          )
+        })
+      })
+    })
+
+  case errors {
+    [] -> Ok(Nil)
+    _ -> Error(errors)
+  }
+}
+
+fn check_supported_field_type(ft: FieldType, path: String) -> List(JsonError) {
+  case ft {
+    IntField
+    | FloatField
+    | StringField
+    | BoolField
+    | BitArrayField
+    | NilField -> []
+
+    TypeVar(name:) -> [
+      JsonError(
+        path: path,
+        message: "type variable " <> name <> " cannot cross the JSON wire",
+      ),
+    ]
+
+    UserType(args:, ..) ->
+      args
+      |> list.index_map(fn(arg, index) { #(arg, index) })
+      |> list.flat_map(fn(pair) {
+        let #(arg, index) = pair
+        check_supported_field_type(
+          arg,
+          path <> ".arg[" <> int.to_string(index) <> "]",
+        )
+      })
+
+    ListOf(element:) -> check_supported_field_type(element, path <> ".element")
+
+    OptionOf(inner:) -> check_supported_field_type(inner, path <> ".inner")
+
+    ResultOf(ok:, err:) ->
+      list.append(
+        check_supported_field_type(ok, path <> ".ok"),
+        check_supported_field_type(err, path <> ".err"),
+      )
+
+    DictOf(key:, value:) -> {
+      let key_errors = case key {
+        IntField | StringField | BoolField -> []
+        _ -> [
+          JsonError(
+            path: path,
+            message: "Dict key type "
+              <> field_type.to_canonical_token(key)
+              <> " is not supported by JSON transport; use Int, String, or Bool keys",
+          ),
+        ]
+      }
+      list.append(
+        key_errors,
+        check_supported_field_type(value, path <> ".value"),
+      )
+    }
+
+    TupleOf(elements:) ->
+      elements
+      |> list.index_map(fn(element, index) { #(element, index) })
+      |> list.flat_map(fn(pair) {
+        let #(element, index) = pair
+        check_supported_field_type(
+          element,
+          path <> ".element[" <> int.to_string(index) <> "]",
+        )
+      })
+  }
+}
+
 /// Build a map from module path to import alias for all modules referenced
 /// by discovered types. Uses the last `/`-separated segment as the alias.
 /// When two modules share the same last segment, the full underscored path
@@ -241,7 +341,10 @@ fn json_encode_expr(ft: FieldType, var: String) -> String {
     FloatField -> "json.float(" <> finite_float_check(var) <> ")"
     BoolField -> "json.bool(" <> var <> ")"
     NilField -> "json.null()"
-    BitArrayField -> "json.string(bit_array.base64_encode(" <> var <> ", True))"
+    BitArrayField ->
+      "json.object([#(\"encoding\", json.string(\"base64url\")), #(\"data\", json.string(bit_array.base64_url_encode("
+      <> var
+      <> ", True)))])"
     UserType(module_path:, type_name:, ..) -> {
       let qual =
         walker.qualified_atom_name(
@@ -766,21 +869,35 @@ fn emit_raw_value_decode(
       pad
       <> "case decode.run("
       <> raw_var
-      <> ", decode.string) {\n"
+      <> ", decode.field(\"encoding\", decode.string, fn(x) { decode.success(x) })) {\n"
       <> pad
-      <> "  Ok(s) -> case bit_array.base64_decode(s) {\n"
+      <> "  Ok(\"base64url\") -> case decode.run("
+      <> raw_var
+      <> ", decode.field(\"data\", decode.string, fn(x) { decode.success(x) })) {\n"
       <> pad
-      <> "    Ok(bits) -> Ok(bits)\n"
+      <> "    Ok(s) -> case bit_array.base64_url_decode(s) {\n"
+      <> pad
+      <> "      Ok(bits) -> Ok(bits)\n"
+      <> pad
+      <> "      Error(_) -> Error([JsonError(\""
+      <> path
+      <> ".data\", \"expected valid base64url BitArray data\")])\n"
+      <> pad
+      <> "    }\n"
       <> pad
       <> "    Error(_) -> Error([JsonError(\""
       <> path
-      <> "\", \"expected valid base64 BitArray\")])\n"
+      <> ".data\", \"missing or not a string\")])\n"
       <> pad
       <> "  }\n"
       <> pad
+      <> "  Ok(other) -> Error([JsonError(\""
+      <> path
+      <> ".encoding\", \"expected base64url BitArray encoding, got \" <> other)])\n"
+      <> pad
       <> "  Error(_) -> Error([JsonError(\""
       <> path
-      <> "\", \"expected String (base64 BitArray)\")])\n"
+      <> ".encoding\", \"missing or not a string\")])\n"
       <> pad
       <> "}"
 

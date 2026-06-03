@@ -3,12 +3,14 @@
 title: Redo ETF vs JSON benchmarks with real APIs
 status: todo
 type: task
-priority: deferred
+priority: normal
 tags:
     - benchmark
-    - deferred
+    - json
+    - transport
 created_at: 2026-05-12T12:42:10Z
-updated_at: 2026-05-13T00:42:01Z
+updated_at: 2026-06-03T18:55:26Z
+parent: libero-lph9
 ---
 
 The old benchmark docs and scripts were removed because they hand-modeled Libero wire behavior instead of exercising the current generated/public APIs. Rebuild the benchmark suite against real Libero ETF and JSON helpers and generated request/response/decoder code.

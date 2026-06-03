@@ -314,6 +314,133 @@ pub fn generated_codec_non_string_dict_encodes_as_pairs_test() {
   |> should.be_true
 }
 
+pub fn generated_codec_bool_dict_key_is_supported_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/toggles",
+      type_name: "Toggles",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/toggles",
+          variant_name: "Toggles",
+          atom_name: "shared_toggles__toggles",
+          float_field_indices: [],
+          field_labels: [Some("entries")],
+          fields: [
+            field_type.DictOf(field_type.BoolField, field_type.StringField),
+          ],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types))
+
+  string.contains(source, "json.bool(k)")
+  |> should.be_true
+}
+
+pub fn generated_codec_rejects_float_dict_key_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/bad_lookup",
+      type_name: "BadLookup",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/bad_lookup",
+          variant_name: "BadLookup",
+          atom_name: "shared_bad_lookup__bad_lookup",
+          float_field_indices: [],
+          field_labels: [Some("entries")],
+          fields: [
+            field_type.DictOf(field_type.FloatField, field_type.StringField),
+          ],
+        ),
+      ],
+    ),
+  ]
+
+  case codegen.generate(types) {
+    Ok(_) -> should.fail()
+    Error(errors) -> {
+      let messages = list.map(errors, fn(e) { e.message })
+      list.any(messages, fn(m) {
+        string.contains(m, "Dict key type float is not supported")
+      })
+      |> should.be_true
+    }
+  }
+}
+
+pub fn generated_codec_rejects_user_type_dict_key_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/bad_lookup",
+      type_name: "BadLookup",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/bad_lookup",
+          variant_name: "BadLookup",
+          atom_name: "shared_bad_lookup__bad_lookup",
+          float_field_indices: [],
+          field_labels: [Some("entries")],
+          fields: [
+            field_type.DictOf(
+              field_type.UserType("shared/item", "Item", []),
+              field_type.StringField,
+            ),
+          ],
+        ),
+      ],
+    ),
+  ]
+
+  case codegen.generate(types) {
+    Ok(_) -> should.fail()
+    Error(errors) -> {
+      let messages = list.map(errors, fn(e) { e.message })
+      list.any(messages, fn(m) {
+        string.contains(m, "Dict key type <type:shared/item|Item>")
+      })
+      |> should.be_true
+    }
+  }
+}
+
+pub fn generated_codec_rejects_type_variable_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/box",
+      type_name: "Box",
+      type_params: ["a"],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/box",
+          variant_name: "Box",
+          atom_name: "shared_box__box",
+          float_field_indices: [],
+          field_labels: [Some("value")],
+          fields: [field_type.TypeVar("a")],
+        ),
+      ],
+    ),
+  ]
+
+  case codegen.generate(types) {
+    Ok(_) -> should.fail()
+    Error(errors) -> {
+      let messages = list.map(errors, fn(e) { e.message })
+      list.any(messages, fn(m) {
+        string.contains(m, "type variable a cannot cross the JSON wire")
+      })
+      |> should.be_true
+    }
+  }
+}
+
 pub fn duplicate_modules_use_full_underscored_aliases_test() {
   let types = [
     walker.DiscoveredType(
@@ -486,6 +613,67 @@ pub fn bit_array_field_includes_bit_array_import_test() {
 
   let source = assert_generated(codegen.generate(types))
   source |> string.contains("gleam/bit_array") |> should.be_true()
+}
+
+pub fn bit_array_field_encodes_as_tagged_base64url_object_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/blob",
+      type_name: "Blob",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/blob",
+          variant_name: "Blob",
+          atom_name: "shared_blob__blob",
+          float_field_indices: [],
+          field_labels: [Some("data")],
+          fields: [field_type.BitArrayField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types))
+
+  source
+  |> string.contains("#(\"encoding\", json.string(\"base64url\"))")
+  |> should.be_true()
+  source
+  |> string.contains("bit_array.base64_url_encode(f0, True)")
+  |> should.be_true()
+}
+
+pub fn bit_array_field_decoder_expects_tagged_base64url_object_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/blob",
+      type_name: "Blob",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/blob",
+          variant_name: "Blob",
+          atom_name: "shared_blob__blob",
+          float_field_indices: [],
+          field_labels: [Some("data")],
+          fields: [field_type.BitArrayField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types))
+
+  source
+  |> string.contains("decode.field(\"encoding\", decode.string")
+  |> should.be_true()
+  source
+  |> string.contains("Ok(\"base64url\")")
+  |> should.be_true()
+  source
+  |> string.contains("bit_array.base64_url_decode(s)")
+  |> should.be_true()
 }
 
 pub fn dict_field_includes_dict_import_test() {

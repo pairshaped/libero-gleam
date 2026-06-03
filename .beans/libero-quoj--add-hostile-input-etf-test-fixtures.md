@@ -10,7 +10,7 @@ tags:
     - testing
     - deferred
 created_at: 2026-05-08T15:14:45Z
-updated_at: 2026-05-13T00:42:01Z
+updated_at: 2026-06-03T18:55:26Z
 ---
 
 Test the ETF decode pipeline with adversarial inputs. Each should fail cleanly with a typed error — never crash the VM or hang.

@@ -3,13 +3,14 @@
 title: Add Erlang-side resource caps for ETF decode
 status: todo
 type: bug
-priority: high
+priority: deferred
 tags:
+    - deferred
     - security
     - etf
     - wire
 created_at: 2026-05-08T15:14:20Z
-updated_at: 2026-05-09T16:54:35Z
+updated_at: 2026-06-03T18:55:26Z
 ---
 
 The JS ETF decoder (rpc_ffi.mjs) enforces MAX_COLLECTION_LEN=16M and MAX_BINARY_BYTES=64M to prevent a malicious frame from triggering gigabyte allocations. The Erlang side has no equivalent: libero_ffi:decode_safe/1 calls erlang:binary_to_term(Bin, [safe]) directly, which will happily decode arbitrarily large lists/tuples or deeply nested structures up to whatever mist's frame limit allows.
