@@ -124,6 +124,7 @@ gleam run -m generate
 
 echo "=== Typechecking generated codecs ==="
 gleam check
+gleam check --target javascript
 
 cat > src/codec_smoke.gleam <<'GLEAM'
 import fixture
@@ -367,7 +368,10 @@ pub fn main() {
 }
 GLEAM
 
-echo "=== Running generated codec smoke tests ==="
+echo "=== Running generated codec smoke tests on Erlang ==="
 gleam run -m codec_smoke
 
-echo "PASS: Generated JSON codecs typecheck successfully"
+echo "=== Running generated codec smoke tests on JavaScript ==="
+gleam run --target javascript -m codec_smoke
+
+echo "PASS: Generated JSON codecs typecheck and run successfully on Erlang and JavaScript"

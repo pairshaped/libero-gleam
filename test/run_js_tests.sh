@@ -4,6 +4,9 @@ set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT_DIR"
 
+test/run_json_codec_typecheck_test.sh
+test/run_json_codec_acceptance_test.sh
+
 test/js/wire_e2e_setup.sh
 
 node test/js/etf_codec_test.mjs

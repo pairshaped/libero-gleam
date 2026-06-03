@@ -147,3 +147,4 @@ GLEAM
 
 echo "=== Running JSON codec acceptance tests ==="
 gleam run -m codec_acceptance
+gleam run --target javascript -m codec_acceptance
