@@ -1,14 +1,14 @@
 ---
 # libero-pofq
 title: Use one typed JSON dialect for push RPC and SSR
-status: todo
+status: completed
 type: task
 priority: high
 tags:
     - json
     - transport
 created_at: 2026-06-03T18:55:13Z
-updated_at: 2026-06-03T18:55:13Z
+updated_at: 2026-06-03T22:08:23Z
 parent: libero-lph9
 ---
 
@@ -24,3 +24,13 @@ Acceptance criteria:
 - Representative fixtures for all three paths have matching typed value shapes for the same user type.
 - Contract hash and version checks run before accepting a payload generated from a different graph.
 - Tests fail if one path emits a special-case shape for the same type.
+
+
+
+Completion notes:
+
+- Generated JSON codecs now include endpoint response helpers, so RPC responses encode handler `Result` values through the same typed JSON value contract as request `ClientMsg` fields.
+- Added generated JSON server dispatch that validates protocol version and contract hash via `libero/json/wire.decode_request` before decoding `ClientMsg`, then routes handler responses through `json_encode_response_*` helpers.
+- JSON dispatch takes `ClientMsg` from a separate module so `dispatch`, `json_codecs`, and message constructors avoid circular imports.
+- Generated push and SSR helpers now frame values only after calling the per-type generated JSON encoders, and SSR decode routes through the matching generated decoder.
+- Tests and fixtures cover the same custom `Article` type through RPC request/response, push, and SSR on Erlang and JavaScript, plus Erlang typechecking of generated JSON dispatch.

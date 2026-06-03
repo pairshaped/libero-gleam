@@ -272,6 +272,47 @@ pub fn generate_dispatch_with_extra_params(
   )
 }
 
+/// Generate the JSON server dispatch module source.
+///
+/// JSON dispatch expects `ClientMsg` to live in `client_msg_module` so the
+/// generated dispatch can import both that type module and `json_codecs_module`
+/// without creating a circular import.
+pub fn generate_json_dispatch(
+  endpoints endpoints: List(HandlerEndpoint),
+  client_msg_module client_msg_module: String,
+  json_codecs_module json_codecs_module: String,
+  contract_hash contract_hash: String,
+) -> String {
+  codegen_dispatch.generate_json(
+    endpoints:,
+    context_module: default_context_module,
+    context_type_name: "ServerContext",
+    wire_module_tag: "rpc",
+    client_msg_module:,
+    json_codecs_module:,
+    contract_hash:,
+  )
+}
+
+pub fn generate_json_dispatch_with_extra_params(
+  endpoints endpoints: List(HandlerEndpoint),
+  client_msg_module client_msg_module: String,
+  json_codecs_module json_codecs_module: String,
+  contract_hash contract_hash: String,
+  extra_params extra_params: List(ExtraParam),
+) -> String {
+  codegen_dispatch.generate_json_with_extra_params(
+    endpoints:,
+    context_module: default_context_module,
+    context_type_name: "ServerContext",
+    wire_module_tag: "rpc",
+    client_msg_module:,
+    json_codecs_module:,
+    contract_hash:,
+    extra_params:,
+  )
+}
+
 /// Generate the Erlang atoms pre-registration file content.
 /// Module name uses Gleam's @-separated convention (e.g. "generated@rpc_atoms").
 pub fn generate_atoms(

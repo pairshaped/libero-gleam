@@ -211,6 +211,69 @@ pub fn dispatch_decodes_wire_message_before_variant_tag_test() {
     )
 }
 
+pub fn json_dispatch_uses_generated_typed_json_codecs_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "save_article",
+      return_ok: field_type.UserType("shared/article", "Article", []),
+      return_err: field_type.StringField,
+      params: [
+        #("article", field_type.UserType("shared/article", "Article", [])),
+      ],
+      mutates_context: False,
+      msg_type: option.None,
+    ),
+  ]
+
+  let content =
+    codegen_dispatch.generate_json(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      client_msg_module: "generated/libero/messages",
+      json_codecs_module: "generated/libero/json_codecs",
+      contract_hash: "abc123",
+    )
+
+  let assert True = string.contains(content, "import libero/json/wire")
+  let assert True =
+    string.contains(
+      content,
+      "import generated/libero/json_codecs as json_codecs",
+    )
+  let assert True =
+    string.contains(
+      content,
+      "wire.decode_request(data, expected_hash: \"abc123\")",
+    )
+  let assert True =
+    string.contains(content, "import generated/libero/messages as client_msg")
+  let assert True =
+    string.contains(
+      content,
+      "json_codecs.json_decode_generated_libero_messages__client_msg(message)",
+    )
+  let assert True =
+    string.contains(
+      content,
+      "handler.server_save_article(article, server_context)",
+    )
+  let assert True =
+    string.contains(
+      content,
+      "let value = json_codecs.json_encode_response_save_article(result)",
+    )
+  let assert True =
+    string.contains(content, "#(wire.encode_response(request_id:, value:)")
+  let assert True =
+    string.contains(
+      content,
+      "wire.encode_error(request_id: Some(request_id), errors:)",
+    )
+}
+
 pub fn endpoint_dispatch_imports_qualified_param_types_test() {
   let endpoints = [
     scanner.HandlerEndpoint(

@@ -5,6 +5,7 @@ import gleam/string
 import gleeunit/should
 import libero/field_type
 import libero/json/codegen
+import libero/json/contract
 import libero/scanner
 import libero/walker
 
@@ -118,8 +119,10 @@ pub fn transport_codecs_include_generated_client_msg_test() {
     scanner.HandlerEndpoint(
       module_path: "pages/article",
       fn_name: "send_drag",
-      return_ok: field_type.NilField,
-      return_err: field_type.StringField,
+      return_ok: field_type.UserType("shared/article", "Article", []),
+      return_err: field_type.ListOf(
+        field_type.UserType("shared/article", "Article", []),
+      ),
       params: [
         #(
           "items",
@@ -166,6 +169,81 @@ pub fn transport_codecs_include_generated_client_msg_test() {
   string.contains(source, "json_encode_shared_article__article(f1.0)")
   |> should.be_true
   string.contains(source, "json_decode_shared_article__article(inner_raw)")
+  |> should.be_true
+  string.contains(source, "pub fn json_encode_response_send_drag")
+  |> should.be_true
+  string.contains(
+    source,
+    "json_encode_gleam_result__result(value, fn(x) { json_encode_shared_article__article(x) }, fn(x) { json.array(x, of: fn(x) { json_encode_shared_article__article(x) }) })",
+  )
+  |> should.be_true
+}
+
+pub fn transport_codecs_include_push_and_ssr_wrappers_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/article",
+      type_name: "Article",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/article",
+          variant_name: "Article",
+          atom_name: "shared_article__article",
+          float_field_indices: [],
+          field_labels: [Some("title")],
+          fields: [field_type.StringField],
+        ),
+      ],
+    ),
+  ]
+
+  let source =
+    assert_generated(
+      codegen.generate_transport_codecs_with_push_and_ssr(
+        discovered: types,
+        endpoints: [],
+        client_msg_module_path: "generated/libero/messages",
+        client_msg_type_name: "ClientMsg",
+        push_types: [
+          contract.PushContract(
+            module: "public/pages/article",
+            type_module: "shared/article",
+            type_name: "Article",
+          ),
+        ],
+        ssr_models: [
+          contract.SsrModelContract(
+            route_module: "public/pages/article",
+            type_module: "shared/article",
+            type_name: "Article",
+          ),
+        ],
+      ),
+    )
+
+  string.contains(source, "import libero/json/wire as json_wire")
+  |> should.be_true
+  string.contains(source, "pub fn json_encode_push_shared_article__article")
+  |> should.be_true
+  string.contains(
+    source,
+    "json_wire.encode_push(module:, value: json_encode_shared_article__article(value))",
+  )
+  |> should.be_true
+  string.contains(source, "pub fn json_encode_ssr_shared_article__article")
+  |> should.be_true
+  string.contains(
+    source,
+    "json_wire.encode_flags(json_encode_shared_article__article(value))",
+  )
+  |> should.be_true
+  string.contains(source, "pub fn json_decode_ssr_shared_article__article")
+  |> should.be_true
+  string.contains(
+    source,
+    "json_wire.decode_flags_typed(flags:, decoder: json_decode_shared_article__article)",
+  )
   |> should.be_true
 }
 
