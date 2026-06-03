@@ -338,6 +338,12 @@ Generated JSON decoders validate before constructing typed values:
 - Unsupported wire shapes, such as non-primitive `Dict` keys or unresolved type
   variables, fail during generation.
 
+Generated JSON encoders sit on the trusted side of the boundary. They receive
+typed application values after your program has already constructed them. If an
+encoder sees an `Int` outside the JavaScript safe integer range or a non-finite
+`Float`, it panics instead of emitting JSON that the decoder would later reject.
+Those values should only be possible through FFI or unsafe construction.
+
 Errors include a path and message:
 
 ```text

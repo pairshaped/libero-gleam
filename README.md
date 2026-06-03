@@ -132,6 +132,11 @@ JSON is Libero's primary generated transport. Fresh generated apps use
 `libero/json/wire`, typed JSON codecs, and a contract hash/version check without
 opt-in configuration.
 
+Generated JSON decoders treat wire input as untrusted and return structured
+errors. Generated encoders assume trusted typed application values; if FFI or
+unsafe construction gives them an out-of-range `Int` or non-finite `Float`, they
+panic rather than emit JSON the decoder would reject.
+
 Libero still keeps ETF helpers for BEAM-first integrations that intentionally
 choose them. Both protocols are owned by the generated contract boundary: app
 code should call Libero helpers instead of assembling wire messages by hand.
