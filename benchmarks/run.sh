@@ -86,6 +86,10 @@ awk -F, '
       etf_key = key ",etf"
       group = target[key] "," stage[key]
 
+      if (!(json_key in total_ns) || !(etf_key in total_ns)) {
+        continue
+      }
+
       if (group != previous_group) {
         print "### " target_label(target[key]) ": " stage_label(stage[key])
         print ""
@@ -105,9 +109,6 @@ awk -F, '
   }
 
   function description(target, stage, payload, etf_iterations, json_iterations) {
-    if (etf_iterations == "") {
-      return diagnostic_description(stage, payload) " " json_iterations " JSON iterations. No matching ETF stage."
-    }
     if (json_iterations == etf_iterations) {
       return comparable_description(target, stage, payload) " " json_iterations " iterations per codec."
     }
@@ -125,19 +126,6 @@ awk -F, '
       return "Decodes the " payload_label(payload) " response payload on " target_label(target) "."
     }
     return "Measures " stage_label(stage) " for " payload_label(payload) " on " target_label(target) "."
-  }
-
-  function diagnostic_description(stage, payload) {
-    if (stage == "client_response_parse_only") {
-      return "Parses the " payload_label(payload) " JSON response without wire validation or typed rebuild."
-    }
-    if (stage == "client_response_typed_decode") {
-      return "Rebuilds the " payload_label(payload) " typed value from an already extracted JSON response value."
-    }
-    if (stage == "client_response_wire_decode") {
-      return "Decodes the " payload_label(payload) " JSON response frame without typed rebuild."
-    }
-    return "Measures " stage_label(stage) " for " payload_label(payload) "."
   }
 
   function target_label(value) {
@@ -228,11 +216,9 @@ awk -F, '
   echo "- ETF helper modules were generated through Libero's public generator APIs so the benchmark can call \`generated@rpc_wire\` without compiling the old ETF dispatch module."
   echo "- BEAM server encode rows include generated response helpers plus wire frame encoding."
   echo "- BEAM server request decode rows include wire request decode plus generated \`ClientMsg\` decode."
-  echo "- JS JSON parse-only rows use \`gleam/json.parse\` without wire frame validation or generated typed payload rebuild."
-  echo "- JS JSON wire-decode rows include \`libero/json/wire.decode_server_frame\` and stop before generated typed payload rebuild."
-  echo "- JS JSON typed-decode rows reuse an already extracted response \`value\` and measure generated typed payload rebuild only."
   echo "- JS client response decode rows include wire frame decode plus generated typed payload rebuild for JSON. ETF uses the generated decoder registration path."
-  echo "- Each result subsection compares ETF and JSON for one target, stage, and payload. The \`Ratio\` column is JSON divided by ETF for the same metric. Rows without a matching ETF stage leave the ratio blank."
+  echo "- Each result subsection compares ETF and JSON for one target, stage, and payload. The \`Ratio\` column is JSON divided by ETF for the same metric."
+  echo "- CSV files include additional JSON-only diagnostic rows, such as parse-only, wire-decode-only, and typed-decode-only measurements. The Markdown report omits those rows because they have no ETF baseline."
   echo "- Warmup: 50 untimed iterations per row."
   echo
   echo "## Results"
