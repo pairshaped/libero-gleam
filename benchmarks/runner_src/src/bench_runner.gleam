@@ -258,6 +258,24 @@ fn run_case(
     ),
   )
 
+  print(
+    bench_timing.run(
+      target: "beam",
+      codec: "etf_full_data_precheck",
+      stage: "server_request_decode",
+      payload: name,
+      iterations:,
+      bytes: bit_array.byte_size(etf_request),
+      operation: fn() {
+        let assert Ok(#(_, request_id, message)) =
+          etf_wire.decode_request(etf_request)
+        let _ = etf_helpers.validate_data_term(message)
+        let _ = etf_helpers.decode_client_msg(message)
+        request_id
+      },
+    ),
+  )
+
   etf_wire.set_strict_data_terms(True)
   print(
     bench_timing.run(

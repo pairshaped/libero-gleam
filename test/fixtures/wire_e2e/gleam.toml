@@ -13,6 +13,8 @@ shared = { path = "../shared" }
 libero = { path = "../../../.." }
 
 [tools.libero]
+gen_etf = true
+client_out_dir = "../clients/web/src/generated/libero"
 port = 8080
 server.generated_dir = "src/server/generated"
 shared.src_dir = "../shared/src/shared"

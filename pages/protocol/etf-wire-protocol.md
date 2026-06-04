@@ -142,11 +142,15 @@ reject trailing bytes after the decoded term.
 Safe ETF decoding does not by itself limit input size, nesting depth, or every
 BEAM runtime term class. `libero/etf/wire.set_strict_data_terms(True)` enables
 an extra BEAM validator that rejects pids, refs, ports, and functions after
-decode. It is disabled by default because it double-walks payloads before
-generated typed decoding. Proper Libero clients do not emit those terms. Code
-that accepts hostile hand-written ETF should also set process memory limits and
-use Libero helpers that validate the decoded shape before constructing typed
-values.
+decode. It is disabled by default because it still walks payloads before
+generated typed decoding. The configured strict mode uses a fast term-kind
+validator without detailed path construction; the path-building validator is
+kept for diagnostics. On OTP 29 / Gleam 1.17 benchmark payloads, configured
+strict mode was about 1.25-1.56x slower than default ETF request decode, while
+the path-building precheck was about 4.5-7.3x slower. Proper Libero clients do
+not emit those terms. Code that accepts hostile hand-written ETF should also set
+process memory limits and use Libero helpers that validate the decoded shape
+before constructing typed values.
 
 `libero/etf/wire.set_js_term_depth_limit(512)` enables the optional recursive
 term depth cap in the generated JavaScript ETF decoder. `0` disables the cap,

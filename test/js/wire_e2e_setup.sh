@@ -40,7 +40,7 @@ perl -0pi -e "s#libero = \\{ path = \"[^\"]+\" \\}#libero = { path = \"$ROOT_DIR
 (
   cd "$STAGED_FIXTURE/server"
   cp -R "$STAGED_FIXTURE/shared/src/shared" "src/shared"
-  LIBERO_GEN_ETF=1 LIBERO_CLIENT_OUT_DIR="../clients/web/src/generated/libero" gleam run -m libero -- gen
+  gleam run -m libero -- gen
   rm -rf "src/shared"
   gleam build --target erlang
 )

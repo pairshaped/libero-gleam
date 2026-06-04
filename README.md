@@ -92,6 +92,19 @@ routes, reconnect behavior, and app-specific routing stay outside the generator.
 If your client lives in another package, mirror the generated JSON client files
 into that package:
 
+```toml
+[tools.libero]
+client_out_dir = "../clients/web/src/generated/libero"
+```
+
+Then run:
+
+```sh
+gleam run -m libero
+```
+
+For one-off scripts, the environment variable still overrides `gleam.toml`:
+
 ```sh
 LIBERO_CLIENT_OUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
 ```
@@ -144,6 +157,19 @@ code should call Libero helpers instead of assembling wire messages by hand.
 To generate the older ETF dispatch and decoder files instead of the JSON
 default:
 
+```toml
+[tools.libero]
+gen_etf = true
+```
+
+Then run:
+
+```sh
+gleam run -m libero
+```
+
+For one-off scripts, the environment variable still overrides `gleam.toml`:
+
 ```sh
 LIBERO_GEN_ETF=1 gleam run -m libero
 ```
@@ -193,11 +219,15 @@ a defense stack designed for a specific threat model.
 
 `libero/etf/wire.set_strict_data_terms(True)` enables an extra BEAM validator
 that rejects runtime terms such as pids, refs, ports, and functions after
-decode. It is disabled by default because it recursively walks the full request
-before generated typed decoding walks it again, which made BEAM ETF request
-decode about 5-6x slower in benchmarks. Proper Libero clients do not emit those
-terms. Enable it if you intentionally accept hand-written ETF from untrusted
-non-Libero clients.
+decode. It is disabled by default because it still walks the full request before
+generated typed decoding walks legitimate values again. The configured strict
+mode uses a fast term-kind validator that does not build detailed error paths;
+the older path-building precheck is kept for diagnostics and benchmarking.
+Benchmarks on OTP 29 / Gleam 1.17 showed the path-building precheck around
+4.5-7.3x slower than default ETF request decode, while configured strict mode
+was around 1.25-1.56x slower. Proper Libero clients do not emit those terms.
+Enable it if you intentionally accept hand-written ETF from untrusted non-Libero
+clients.
 
 `libero/etf/wire.set_js_term_depth_limit(512)` enables the optional recursive
 term depth cap in the generated JavaScript ETF decoder. `0` disables the cap,

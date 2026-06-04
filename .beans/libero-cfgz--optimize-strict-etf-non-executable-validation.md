@@ -1,7 +1,7 @@
 ---
 # libero-cfgz
 title: Optimize strict ETF non-executable validation
-status: todo
+status: completed
 type: task
 priority: deferred
 tags:
@@ -9,7 +9,7 @@ tags:
     - performance
     - security
 created_at: 2026-06-04T03:32:43Z
-updated_at: 2026-06-04T03:32:43Z
+updated_at: 2026-06-04T04:34:47Z
 ---
 
 Investigate how to make Libero's strict ETF non-executable term validation cheap enough to enable selectively or by default.

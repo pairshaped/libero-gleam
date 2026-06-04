@@ -29,3 +29,6 @@ pub fn encode_response_load_matrix(
 
 @external(erlang, "generated@rpc_wire", "decode_client_msg")
 pub fn decode_client_msg(value: Dynamic) -> Dynamic
+
+@external(erlang, "libero_etf_ffi", "validate_data_term")
+pub fn validate_data_term(value: Dynamic) -> Dynamic

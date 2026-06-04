@@ -58,6 +58,10 @@ const default_json_codecs_module = "generated/libero/json_codecs"
 
 const default_context_module = "server_context"
 
+pub type LiberoConfig {
+  LiberoConfig(gen_etf: Bool, client_out_dir: option.Option(String))
+}
+
 type WriteError {
   CannotCreateDir(path: String, cause: simplifile.FileError)
   CannotWriteFile(path: String, cause: simplifile.FileError)
@@ -65,6 +69,13 @@ type WriteError {
 
 /// Run the full generation pipeline, writing files to `src/generated/libero/`.
 pub fn main() -> Nil {
+  let config = case read_libero_config() {
+    Ok(config) -> config
+    Error(msg) -> {
+      io.println_error(msg)
+      halt(1)
+    }
+  }
   let endpoints = case scan() {
     Ok(eps) -> eps
     Error(errors) -> {
@@ -80,15 +91,18 @@ pub fn main() -> Nil {
       halt(1)
     }
   }
-  case env_flag(get_env("LIBERO_GEN_ETF")) {
-    True -> generate_etf_default(endpoints, discovered)
-    False -> generate_json_default(endpoints, discovered)
+  let client_out =
+    resolve_client_output_dir(config, get_env("LIBERO_CLIENT_OUT_DIR"))
+  case resolve_gen_etf(config, get_env("LIBERO_GEN_ETF")) {
+    True -> generate_etf_default(endpoints, discovered, client_out)
+    False -> generate_json_default(endpoints, discovered, client_out)
   }
 }
 
 fn generate_json_default(
   endpoints: List(HandlerEndpoint),
   discovered: List(DiscoveredType),
+  client_out client_out: option.Option(String),
 ) -> Nil {
   let contract_types =
     include_generated_client_msg(
@@ -148,7 +162,7 @@ fn generate_json_default(
   }
 
   // Write client-side files only when the caller opts in.
-  case client_output_dir_from_env(get_env("LIBERO_CLIENT_OUT_DIR")) {
+  case client_out {
     option.Some(client_out) ->
       case
         write_client_files(
@@ -183,6 +197,7 @@ fn generate_json_default(
 fn generate_etf_default(
   endpoints: List(HandlerEndpoint),
   discovered: List(DiscoveredType),
+  client_out client_out: option.Option(String),
 ) -> Nil {
   let atoms_module = default_atoms_module
   let wire_module = default_wire_module
@@ -260,7 +275,7 @@ fn generate_etf_default(
     }
   }
 
-  case client_output_dir_from_env(get_env("LIBERO_CLIENT_OUT_DIR")) {
+  case client_out {
     option.Some(client_out) ->
       case
         write_etf_client_files(
@@ -584,7 +599,49 @@ pub fn generate_json_contract_hash(
 pub fn client_output_dir_from_env(
   env_value: option.Option(String),
 ) -> option.Option(String) {
+  optional_output_dir(env_value)
+}
+
+pub fn config_from_toml(content: String) -> Result(LiberoConfig, String) {
+  case tom.parse(content) {
+    Error(_) -> Error("The file contains invalid TOML.")
+    Ok(parsed) -> {
+      use gen_etf <- result.try(
+        optional_config_bool(parsed, ["tools", "libero", "gen_etf"]),
+      )
+      use client_out_dir <- result.try(
+        optional_config_string(parsed, ["tools", "libero", "client_out_dir"]),
+      )
+      Ok(LiberoConfig(
+        gen_etf: option.unwrap(gen_etf, False),
+        client_out_dir: optional_output_dir(client_out_dir),
+      ))
+    }
+  }
+}
+
+pub fn resolve_gen_etf(
+  config: LiberoConfig,
+  env_value: option.Option(String),
+) -> Bool {
   case env_value {
+    option.Some(_) -> env_flag(env_value)
+    option.None -> config.gen_etf
+  }
+}
+
+pub fn resolve_client_output_dir(
+  config: LiberoConfig,
+  env_value: option.Option(String),
+) -> option.Option(String) {
+  case env_value {
+    option.Some(_) -> client_output_dir_from_env(env_value)
+    option.None -> config.client_out_dir
+  }
+}
+
+fn optional_output_dir(value: option.Option(String)) -> option.Option(String) {
+  case value {
     option.Some(path) -> {
       case string.trim(path) {
         "" -> option.None
@@ -592,6 +649,42 @@ pub fn client_output_dir_from_env(
       }
     }
     _ -> option.None
+  }
+}
+
+fn optional_config_bool(
+  parsed: dict.Dict(String, tom.Toml),
+  key: List(String),
+) -> Result(option.Option(Bool), String) {
+  case tom.get_bool(parsed, key) {
+    Ok(value) -> Ok(option.Some(value))
+    Error(tom.NotFound(_)) -> Ok(option.None)
+    Error(tom.WrongType(_, _, got)) ->
+      Error(
+        "Expected `"
+        <> string.join(key, ".")
+        <> "` to be a Bool, got "
+        <> got
+        <> ".",
+      )
+  }
+}
+
+fn optional_config_string(
+  parsed: dict.Dict(String, tom.Toml),
+  key: List(String),
+) -> Result(option.Option(String), String) {
+  case tom.get_string(parsed, key) {
+    Ok(value) -> Ok(option.Some(value))
+    Error(tom.NotFound(_)) -> Ok(option.None)
+    Error(tom.WrongType(_, _, got)) ->
+      Error(
+        "Expected `"
+        <> string.join(key, ".")
+        <> "` to be a String, got "
+        <> got
+        <> ".",
+      )
   }
 }
 
@@ -715,6 +808,33 @@ fn write_etf_client_files(
   ))
   use _ <- result.try(write_file(out <> "/rpc_decoders_ffi.mjs", js))
   write_file(out <> "/rpc_decoders.gleam", format.format_gleam(gleam))
+}
+
+fn read_libero_config() -> Result(LiberoConfig, String) {
+  case simplifile.read("gleam.toml") {
+    Error(_) ->
+      Error(gen_error.error_box(
+        title: "Could not read gleam.toml",
+        path: "gleam.toml",
+        body_lines: ["File is missing or unreadable."],
+        hint: option.Some(
+          "Run libero from the project root where gleam.toml lives.",
+        ),
+      ))
+    Ok(content) ->
+      case config_from_toml(content) {
+        Ok(config) -> Ok(config)
+        Error(msg) ->
+          Error(gen_error.error_box(
+            title: "Could not read Libero config",
+            path: "gleam.toml",
+            body_lines: [msg],
+            hint: option.Some(
+              "Use `[tools.libero]` with `gen_etf = true` or `client_out_dir = \"...\"`.",
+            ),
+          ))
+      }
+  }
 }
 
 fn read_package_name() -> Result(String, String) {

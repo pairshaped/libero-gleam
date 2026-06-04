@@ -8,6 +8,18 @@ import libero/etf/wire
 @external(erlang, "libero_test_ffi", "encoded_pid")
 fn encoded_pid() -> BitArray
 
+@external(erlang, "libero_test_ffi", "encoded_ref")
+fn encoded_ref() -> BitArray
+
+@external(erlang, "libero_test_ffi", "encoded_port")
+fn encoded_port() -> BitArray
+
+@external(erlang, "libero_test_ffi", "encoded_fun")
+fn encoded_fun() -> BitArray
+
+@external(erlang, "libero_test_ffi", "encoded_external_fun")
+fn encoded_external_fun() -> BitArray
+
 @external(erlang, "libero_test_ffi", "encoded_unknown_atom")
 fn encoded_unknown_atom() -> BitArray
 
@@ -47,14 +59,33 @@ pub fn strict_data_terms_default_disabled_test() {
 }
 
 pub fn decode_safe_strict_data_terms_rejects_pid_test() {
+  assert_strict_data_terms_rejects(encoded_pid(), "pid")
+}
+
+pub fn decode_safe_strict_data_terms_rejects_ref_test() {
+  assert_strict_data_terms_rejects(encoded_ref(), "reference")
+}
+
+pub fn decode_safe_strict_data_terms_rejects_port_test() {
+  assert_strict_data_terms_rejects(encoded_port(), "port")
+}
+
+pub fn decode_safe_strict_data_terms_rejects_fun_test() {
+  assert_strict_data_terms_rejects(encoded_fun(), "function")
+}
+
+pub fn decode_safe_strict_data_terms_rejects_external_fun_test() {
+  assert_strict_data_terms_rejects(encoded_external_fun(), "function")
+}
+
+fn assert_strict_data_terms_rejects(encoded: BitArray, expected: String) {
   wire.set_strict_data_terms(True)
-  let result: Result(Dynamic, error.DecodeError) =
-    wire.decode_safe(encoded_pid())
+  let result: Result(Dynamic, error.DecodeError) = wire.decode_safe(encoded)
   wire.set_strict_data_terms(False)
 
   let assert Error(error.DecodeError(message: message)) = result
   let assert True = string.contains(message, "non_executable_term")
-  let assert True = string.contains(message, "pid")
+  let assert True = string.contains(message, expected)
 }
 
 pub fn decode_safe_garbage_input_test() {

@@ -3,9 +3,9 @@
 -module(libero_etf_ffi).
 -export([encode/1, decode/1, decode_safe/1, decode_typed/2,
          identity/1, ensure_decoders/0, validate_data_term/1,
-         maybe_validate_data_term/1, set_strict_data_terms/1,
-         strict_data_terms_enabled/0, set_js_term_depth_limit/1,
-         js_term_depth_limit/0]).
+         validate_data_term_fast/1, maybe_validate_data_term/1,
+         set_strict_data_terms/1, strict_data_terms_enabled/0,
+         set_js_term_depth_limit/1, js_term_depth_limit/0]).
 
 -define(STRICT_DATA_TERMS_KEY, {libero, etf_strict_data_terms}).
 
@@ -48,7 +48,7 @@ strict_data_terms_enabled() ->
 
 maybe_validate_data_term(Term) ->
     case strict_data_terms_enabled() of
-        true -> validate_data_term(Term);
+        true -> validate_data_term_fast(Term);
         false -> ok
     end.
 
@@ -75,6 +75,47 @@ apply_decode_term(Term) ->
 
 validate_data_term(Term) ->
     validate_data_term(Term, <<"$">>, 0).
+
+validate_data_term_fast(Term)
+        when is_integer(Term); is_float(Term); is_atom(Term); is_bitstring(Term) ->
+    ok;
+validate_data_term_fast(Term) when is_pid(Term) ->
+    error({non_executable_term, pid});
+validate_data_term_fast(Term) when is_reference(Term) ->
+    error({non_executable_term, reference});
+validate_data_term_fast(Term) when is_port(Term) ->
+    error({non_executable_term, port});
+validate_data_term_fast(Term) when is_function(Term) ->
+    error({non_executable_term, function});
+validate_data_term_fast(Term) when is_tuple(Term) ->
+    validate_tuple_fast(Term, 1, tuple_size(Term));
+validate_data_term_fast(Term) when is_list(Term) ->
+    validate_list_fast(Term);
+validate_data_term_fast(Term) when is_map(Term) ->
+    maps:fold(
+        fun(K, V, ok) ->
+            ok = validate_data_term_fast(K),
+            validate_data_term_fast(V)
+        end,
+        ok,
+        Term
+    );
+validate_data_term_fast(_Term) ->
+    error(unsupported_term).
+
+validate_tuple_fast(_Term, Index, Size) when Index > Size ->
+    ok;
+validate_tuple_fast(Term, Index, Size) ->
+    ok = validate_data_term_fast(element(Index, Term)),
+    validate_tuple_fast(Term, Index + 1, Size).
+
+validate_list_fast([]) ->
+    ok;
+validate_list_fast([Head | Tail]) ->
+    ok = validate_data_term_fast(Head),
+    validate_list_fast(Tail);
+validate_list_fast(Tail) ->
+    validate_data_term_fast(Tail).
 
 validate_data_term(Term, _Path, _Depth)
         when is_integer(Term); is_float(Term); is_atom(Term); is_bitstring(Term) ->
