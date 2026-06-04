@@ -11,6 +11,7 @@
 
 import { Ok, Error as ResultError, CustomType, Empty, NonEmpty, BitArray } from "../../../gleam_stdlib/gleam.mjs";
 import { Some, None } from "../../../gleam_stdlib/gleam/option.mjs";
+import GleamDict from "../../../gleam_stdlib/dict.mjs";
 import {
   from_list as dictFromList,
   to_list as dictToList,
@@ -784,13 +785,9 @@ class ETFEncoder {
       return;
     }
 
-    // Gleam stdlib Dict (HAMT object). Detected by duck-typing on the
-    // internal `root` + `size` fields of gleam_stdlib's persistent hash
-    // map implementation. This is coupled to stdlib internals: if the
-    // HAMT representation changes (different field names, different data
-    // structure), this branch silently stops matching and falls through
-    // to the unsupported-value error. Verify after gleam_stdlib upgrades.
-    if (value && typeof value === "object" && "root" in value && "size" in value) {
+    // Gleam stdlib Dict (HAMT object). Use stdlib's exported class rather
+    // than matching internal field names such as `root` and `size`.
+    if (value instanceof GleamDict) {
       this.encodeMap(
         new Map(gleamListToArray(dictToList(value))),
         typeHint?.kind === "dict" ? typeHint.key : undefined,
@@ -994,7 +991,7 @@ function toRawShape(value) {
   }
   // Gleam Dict → JS array of [key, value] pairs (recursively
   // raw-shape both sides). decode_dict_of expects this shape.
-  if (value && typeof value === "object" && value.root !== undefined && value.size !== undefined) {
+  if (value instanceof GleamDict) {
     const list = dictToList(value);
     const pairs = [];
     let cur = list;

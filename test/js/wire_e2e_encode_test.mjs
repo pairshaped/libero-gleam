@@ -174,4 +174,10 @@ for (const [name, _msg, expected] of cases) {
   assert.equal(actual.term, expected, name);
 }
 
+assert.throws(
+  () => wire.encode_request("rpc", 7, { root: null, size: 0 }),
+  /unsupported value type/,
+  "plain objects with root/size fields are not Gleam Dicts",
+);
+
 console.log(`wire e2e encode test passed (${cases.length} cases)`);
