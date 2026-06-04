@@ -459,6 +459,27 @@ pub fn float_type_hint_registration_test() {
   // back into the encoder, so user-type fields stay correct.
 }
 
+pub fn decoder_codegen_initializes_constructor_metadata_lazily_test() {
+  let js =
+    codegen_decoders.generate_decoders_ffi(
+      discovered: sample_status_enum(),
+      endpoints: [],
+      relpath_prefix: "../../../",
+      package: "myapp",
+      dependency_packages: [],
+      dispatch_module: option.None,
+    )
+
+  let assert Ok(#(before_ensure, ensure_and_after)) =
+    string.split_once(js, "export function ensure_decoders()")
+
+  let assert False = string.contains(before_ensure, ".__wireAtom =")
+  let assert False = string.contains(before_ensure, "registerAtomDecoder(")
+  let assert True = string.contains(ensure_and_after, ".__wireAtom =")
+  let assert True = string.contains(ensure_and_after, "registerAtomDecoder(")
+  let assert True = string.contains(ensure_and_after, "if (_decodersReady)")
+}
+
 pub fn decoder_codegen_imports_shared_modules_from_caller_package_test() {
   let types = [
     walker.DiscoveredType(

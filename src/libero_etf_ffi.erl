@@ -27,7 +27,7 @@ decode_safe(Bin) ->
         ok = maybe_validate_data_term(Term),
         apply_decode_term(Term)
     of
-        Term -> {ok, Term}
+        Decoded -> {ok, Decoded}
     catch
         _:Reason ->
             Msg = erlang:iolist_to_binary(

@@ -13,7 +13,11 @@ export function decode_shared_item_item(term) {
   );
 }
 
-registerAtomDecoder("a9192bf366", "decode_shared_item_item", decode_shared_item_item);
+let _decodersReady = false;
 
-
-export function ensure_decoders() { return true; }
+export function ensure_decoders() {
+  if (_decodersReady) return true;
+  registerAtomDecoder("a9192bf366", "decode_shared_item_item", decode_shared_item_item);
+  _decodersReady = true;
+  return true;
+}

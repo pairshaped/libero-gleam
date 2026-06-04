@@ -10,8 +10,12 @@ export function decode_shared_line_item_status(term) {
   throw new DecodeError("unknown variant atom: " + String(term));
 }
 
-registerAtomDecoder("e50a687284", "decode_shared_line_item_status", decode_shared_line_item_status);
-registerAtomDecoder("7664fc8036", "decode_shared_line_item_status", decode_shared_line_item_status);
+let _decodersReady = false;
 
-
-export function ensure_decoders() { return true; }
+export function ensure_decoders() {
+  if (_decodersReady) return true;
+  registerAtomDecoder("e50a687284", "decode_shared_line_item_status", decode_shared_line_item_status);
+  registerAtomDecoder("7664fc8036", "decode_shared_line_item_status", decode_shared_line_item_status);
+  _decodersReady = true;
+  return true;
+}

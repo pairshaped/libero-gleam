@@ -20,6 +20,7 @@ pub fn config_from_toml_defaults_without_libero_table_test() {
     use_json: False,
     erlang_output_dir: "src/generated/libero",
     js_output_dir: option.None,
+    type_seeds: [],
   )) = libero.config_from_toml("name = \"app\"")
 }
 
@@ -35,7 +36,26 @@ js_output_dir = \"../clients/web/src/generated/libero\"
     use_json: True,
     erlang_output_dir: "src/server/generated",
     js_output_dir: option.Some("../clients/web/src/generated/libero"),
+    type_seeds: [],
   )) = libero.config_from_toml(toml)
+}
+
+pub fn config_from_toml_reads_type_seeds_test() {
+  let toml =
+    "
+[tools.libero]
+type_seeds = [
+  \"admin/pages/games.ServerMsg\",
+  \"admin/pages/games.LoadResult\",
+  \"broadcasts.Event\",
+]
+"
+  let assert Ok(config) = libero.config_from_toml(toml)
+  let assert [
+    #("admin/pages/games", "ServerMsg"),
+    #("admin/pages/games", "LoadResult"),
+    #("broadcasts", "Event"),
+  ] = config.type_seeds
 }
 
 pub fn config_from_toml_defaults_blank_output_dirs_test() {
@@ -49,6 +69,7 @@ js_output_dir = \"   \"
     use_json: False,
     erlang_output_dir: "src/generated/libero",
     js_output_dir: option.None,
+    type_seeds: [],
   )) = libero.config_from_toml(toml)
 }
 
@@ -62,6 +83,7 @@ client_out_dir = \"../clients/web/src/generated/libero\"
     use_json: False,
     erlang_output_dir: "src/generated/libero",
     js_output_dir: option.None,
+    type_seeds: [],
   )) = libero.config_from_toml(toml)
 }
 
@@ -75,6 +97,7 @@ gen_etf = true
     use_json: False,
     erlang_output_dir: "src/generated/libero",
     js_output_dir: option.None,
+    type_seeds: [],
   )) = libero.config_from_toml(toml)
 }
 
@@ -95,6 +118,7 @@ pub fn env_use_json_overrides_toml_config_test() {
       use_json: True,
       erlang_output_dir: "src/generated/libero",
       js_output_dir: option.None,
+      type_seeds: [],
     )
   let assert False = libero.resolve_use_json(config, option.Some("0"))
   let assert True = libero.resolve_use_json(config, option.None)
@@ -106,6 +130,7 @@ pub fn env_js_output_overrides_toml_config_test() {
       use_json: False,
       erlang_output_dir: "src/generated/libero",
       js_output_dir: option.Some("from/toml"),
+      type_seeds: [],
     )
 
   let assert option.Some("from/env") =

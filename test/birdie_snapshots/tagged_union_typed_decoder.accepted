@@ -24,10 +24,14 @@ export function decode_shared_notification_notification(term) {
   }
 }
 
-registerAtomDecoder("b010c12384", "decode_shared_notification_notification", decode_shared_notification_notification);
-registerAtomDecoder("326bdc0db9", "decode_shared_notification_notification", decode_shared_notification_notification);
-registerAtomDecoder("affa55a329", "decode_shared_notification_notification", decode_shared_notification_notification);
-registerAtomDecoder("113eb8ea33", "decode_shared_notification_notification", decode_shared_notification_notification);
+let _decodersReady = false;
 
-
-export function ensure_decoders() { return true; }
+export function ensure_decoders() {
+  if (_decodersReady) return true;
+  registerAtomDecoder("b010c12384", "decode_shared_notification_notification", decode_shared_notification_notification);
+  registerAtomDecoder("326bdc0db9", "decode_shared_notification_notification", decode_shared_notification_notification);
+  registerAtomDecoder("affa55a329", "decode_shared_notification_notification", decode_shared_notification_notification);
+  registerAtomDecoder("113eb8ea33", "decode_shared_notification_notification", decode_shared_notification_notification);
+  _decodersReady = true;
+  return true;
+}

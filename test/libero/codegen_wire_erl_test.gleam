@@ -1315,6 +1315,30 @@ pub fn decode_safe_rejects_over_depth_recursive_custom_types_test() {
   let assert True = string.contains(message, "wire_depth_exceeded")
 }
 
+pub fn decode_safe_returns_decoded_wire_module_terms_test() {
+  let dt =
+    typ("public/pages/games/wire", "ServerMsg", [
+      variant("public/pages/games/wire", "PublicGamesLoad", []),
+    ])
+  let assert Ok(source) =
+    codegen_wire_erl.generate(
+      module_name: "decode_safe_rewrite_test",
+      discovered: [dt],
+      endpoints: [],
+      push_dispatches: [],
+    )
+  let assert Ok(mod) = compile_module(source)
+
+  let hash = hash_for("public/pages/games/wire", "PublicGamesLoad", [])
+  set_wire_module(mod)
+  let result: Result(atom, error.DecodeError) =
+    wire.decode_safe(term_to_binary(binary_to_atom(hash)))
+  clear_wire_module()
+
+  let assert Ok(decoded) = result
+  let assert True = decoded == binary_to_atom("public_games_load")
+}
+
 pub fn encode_response_uses_correct_encoder_for_same_name_types_test() {
   let waiver_a_type = UserType("waivers", "Waiver", [])
   let waiver_b_type = UserType("waivers/id_", "Waiver", [])

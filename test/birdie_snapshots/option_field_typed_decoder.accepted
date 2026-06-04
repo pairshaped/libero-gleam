@@ -11,7 +11,11 @@ export function decode_shared_opt_type_opt_wrapper(term) {
   );
 }
 
-registerAtomDecoder("24735379b4", "decode_shared_opt_type_opt_wrapper", decode_shared_opt_type_opt_wrapper);
+let _decodersReady = false;
 
-
-export function ensure_decoders() { return true; }
+export function ensure_decoders() {
+  if (_decodersReady) return true;
+  registerAtomDecoder("24735379b4", "decode_shared_opt_type_opt_wrapper", decode_shared_opt_type_opt_wrapper);
+  _decodersReady = true;
+  return true;
+}

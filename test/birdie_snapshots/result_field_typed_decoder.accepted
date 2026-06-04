@@ -11,7 +11,11 @@ export function decode_shared_result_type_wrapper(term) {
   );
 }
 
-registerAtomDecoder("90013c04b8", "decode_shared_result_type_wrapper", decode_shared_result_type_wrapper);
+let _decodersReady = false;
 
-
-export function ensure_decoders() { return true; }
+export function ensure_decoders() {
+  if (_decodersReady) return true;
+  registerAtomDecoder("90013c04b8", "decode_shared_result_type_wrapper", decode_shared_result_type_wrapper);
+  _decodersReady = true;
+  return true;
+}

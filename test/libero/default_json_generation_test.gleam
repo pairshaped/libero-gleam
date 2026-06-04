@@ -49,6 +49,32 @@ pub fn generated_json_contract_can_include_client_msg_type_test() {
   |> should.be_true()
 }
 
+pub fn generated_etf_codec_module_wraps_neutral_runtime_test() {
+  let source =
+    libero.generate_etf_codec_module(
+      atoms_module: "generated@rpc_atoms",
+      decoders_module: "generated/libero/rpc_decoders",
+    )
+
+  string.contains(source, "import generated/libero/rpc_decoders")
+  |> should.be_true()
+  string.contains(source, "import libero/etf/wire as etf_wire")
+  |> should.be_true()
+  string.contains(
+    source,
+    "@external(erlang, \"generated@rpc_atoms\", \"ensure\")",
+  )
+  |> should.be_true()
+  string.contains(source, "pub fn ensure() -> Nil")
+  |> should.be_true()
+  string.contains(source, "pub fn encode(value: a) -> BitArray")
+  |> should.be_true()
+  string.contains(source, "pub fn decode(bytes: BitArray)")
+  |> should.be_true()
+  string.contains(source, "api/to_client") |> should.be_false()
+  string.contains(source, "api/to_server") |> should.be_false()
+}
+
 pub fn json_contract_hash_helper_returns_contract_hash_test() {
   let endpoints = [save_article_endpoint()]
   let discovered = [

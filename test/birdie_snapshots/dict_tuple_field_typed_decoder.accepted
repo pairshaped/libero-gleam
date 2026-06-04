@@ -12,7 +12,11 @@ export function decode_shared_compound_compound(term) {
   );
 }
 
-registerAtomDecoder("2d8d14cff4", "decode_shared_compound_compound", decode_shared_compound_compound);
+let _decodersReady = false;
 
-
-export function ensure_decoders() { return true; }
+export function ensure_decoders() {
+  if (_decodersReady) return true;
+  registerAtomDecoder("2d8d14cff4", "decode_shared_compound_compound", decode_shared_compound_compound);
+  _decodersReady = true;
+  return true;
+}
