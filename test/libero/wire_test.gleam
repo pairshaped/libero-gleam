@@ -6,6 +6,7 @@
 
 import gleam/dynamic.{type Dynamic}
 import gleam/option.{None, Some}
+import gleam/string
 import libero/error
 import libero/etf/wire
 import libero/frame
@@ -237,6 +238,9 @@ fn coerce(value: a) -> Dynamic
 @external(erlang, "gleam_stdlib", "identity")
 fn unsafe_coerce(value: Dynamic) -> a
 
+@external(erlang, "libero_test_ffi", "encoded_request_with_pid")
+fn encoded_request_with_pid() -> BitArray
+
 pub fn encode_request_decode_request_roundtrip_string_test() {
   let encoded =
     wire.encode_request(module: "core/messages", request_id: 10, msg: "hello")
@@ -259,4 +263,11 @@ pub fn encode_request_decode_request_roundtrip_tuple_test() {
   let assert Ok(#("my/module", 30, msg)) = wire.decode_request(encoded)
   let decoded: #(String, Int) = wire.coerce(msg)
   let assert #("a", 1) = decoded
+}
+
+pub fn decode_request_rejects_non_executable_term_in_envelope_test() {
+  let result = wire.decode_request(encoded_request_with_pid())
+  let assert Error(error.DecodeError(message: message)) = result
+  let assert True = string.contains(message, "non_executable_term")
+  let assert True = string.contains(message, "pid")
 }

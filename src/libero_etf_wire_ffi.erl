@@ -17,11 +17,22 @@
 %% Libero's codegen generates an rpc_atoms module that handles this.
 decode_request(Bin) when is_binary(Bin) ->
     try erlang:binary_to_term(Bin, [safe]) of
-        {Module, RequestId, Value} when is_binary(Module), is_integer(RequestId),
-                                         RequestId >= 0, RequestId =< 4294967295 ->
-            {ok, {Module, RequestId, Value}};
-        _ ->
-            {error, {decode_error, <<"invalid request envelope: expected {binary, integer, value} tuple">>}}
+        Term ->
+            case catch libero_etf_ffi:validate_data_term(Term) of
+                ok ->
+                    case Term of
+                        {Module, RequestId, Value}
+                                when is_binary(Module), is_integer(RequestId),
+                                     RequestId >= 0, RequestId =< 4294967295 ->
+                            {ok, {Module, RequestId, Value}};
+                        _ ->
+                            {error, {decode_error, <<"invalid request envelope: expected {binary, integer, value} tuple">>}}
+                    end;
+                {'EXIT', {Reason, _Stack}} ->
+                    {error, {decode_error, erlang:iolist_to_binary(io_lib:format("~p", [Reason]))}};
+                {'EXIT', Reason} ->
+                    {error, {decode_error, erlang:iolist_to_binary(io_lib:format("~p", [Reason]))}}
+            end
     catch
         _:_ ->
             {error, {decode_error, <<"invalid ETF binary">>}}

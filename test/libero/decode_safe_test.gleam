@@ -1,7 +1,20 @@
 //// Tests for wire.decode_safe - the Result-returning decoder.
 
+import gleam/string
 import libero/error
 import libero/etf/wire
+
+@external(erlang, "libero_test_ffi", "encoded_pid")
+fn encoded_pid() -> BitArray
+
+@external(erlang, "libero_test_ffi", "encoded_ref")
+fn encoded_ref() -> BitArray
+
+@external(erlang, "libero_test_ffi", "encoded_fun")
+fn encoded_fun() -> BitArray
+
+@external(erlang, "libero_test_ffi", "encoded_port")
+fn encoded_port() -> BitArray
 
 pub fn decode_safe_valid_int_test() {
   let encoded = wire.encode(42)
@@ -35,4 +48,32 @@ pub fn decode_safe_truncated_etf_test() {
   // Valid ETF version byte (131) followed by incomplete data
   let result: Result(Int, error.DecodeError) = wire.decode_safe(<<131>>)
   let assert Error(error.DecodeError(message: _)) = result
+}
+
+pub fn decode_safe_rejects_pid_test() {
+  let result: Result(Int, error.DecodeError) = wire.decode_safe(encoded_pid())
+  let assert Error(error.DecodeError(message: message)) = result
+  let assert True = string.contains(message, "non_executable_term")
+  let assert True = string.contains(message, "pid")
+}
+
+pub fn decode_safe_rejects_ref_test() {
+  let result: Result(Int, error.DecodeError) = wire.decode_safe(encoded_ref())
+  let assert Error(error.DecodeError(message: message)) = result
+  let assert True = string.contains(message, "non_executable_term")
+  let assert True = string.contains(message, "reference")
+}
+
+pub fn decode_safe_rejects_fun_test() {
+  let result: Result(Int, error.DecodeError) = wire.decode_safe(encoded_fun())
+  let assert Error(error.DecodeError(message: message)) = result
+  let assert True = string.contains(message, "non_executable_term")
+  let assert True = string.contains(message, "function")
+}
+
+pub fn decode_safe_rejects_port_test() {
+  let result: Result(Int, error.DecodeError) = wire.decode_safe(encoded_port())
+  let assert Error(error.DecodeError(message: message)) = result
+  let assert True = string.contains(message, "non_executable_term")
+  let assert True = string.contains(message, "port")
 }

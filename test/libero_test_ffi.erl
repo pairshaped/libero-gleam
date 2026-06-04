@@ -3,7 +3,8 @@
 -module(libero_test_ffi).
 -export([apply2/4, apply_catch/3, compile_module_from_source/1,
          deep_tuple/1, deep_tree/3, set_wire_module/1, clear_wire_module/0,
-         term_to_binary/1]).
+         term_to_binary/1, encoded_pid/0, encoded_ref/0, encoded_fun/0,
+         encoded_port/0, encoded_request_with_pid/0]).
 
 apply2(Mod, Fun, Arg1, Arg2) ->
     erlang:apply(Mod, Fun, [Arg1, Arg2]).
@@ -54,3 +55,18 @@ clear_wire_module() ->
 
 term_to_binary(Term) ->
     erlang:term_to_binary(Term).
+
+encoded_pid() ->
+    erlang:term_to_binary(self()).
+
+encoded_ref() ->
+    erlang:term_to_binary(make_ref()).
+
+encoded_fun() ->
+    erlang:term_to_binary(fun() -> ok end).
+
+encoded_port() ->
+    erlang:term_to_binary(hd(erlang:ports())).
+
+encoded_request_with_pid() ->
+    erlang:term_to_binary({<<"rpc">>, 123, self()}).
