@@ -1,7 +1,7 @@
 ---
 # libero-2dzj
 title: Add config toggles for optional ETF security checks
-status: todo
+status: completed
 type: task
 priority: normal
 tags:
@@ -9,7 +9,7 @@ tags:
     - security
     - config
 created_at: 2026-06-04T04:08:20Z
-updated_at: 2026-06-04T04:08:20Z
+updated_at: 2026-06-04T04:30:22Z
 ---
 
 Two ETF security checks are currently present in code but disabled on the hot path because their value depends on the deployment trust boundary and their cost is measurable. Add explicit configuration toggles so applications can opt into them without editing Libero internals.

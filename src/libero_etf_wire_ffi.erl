@@ -16,21 +16,20 @@
 %% atoms must be pre-registered (via binary_to_atom) before the first RPC
 %% arrives. Libero's codegen generates an rpc_atoms module that handles this.
 decode_request(Bin) when is_binary(Bin) ->
-    try decode_binary_term(Bin) of
-        Term ->
-            %% Full non-executable term validation is intentionally not run
-            %% here by default. It double-walks every legitimate request and
-            %% made BEAM ETF request decode about 5-6x slower in benchmarks.
-            %% Keep the validator in libero_etf_ffi for a future strict mode.
-            %% ok = libero_etf_ffi:validate_data_term(Term),
-            case Term of
-                {Module, RequestId, Value}
-                        when is_binary(Module), is_integer(RequestId),
-                             RequestId >= 0, RequestId =< 4294967295 ->
-                    {ok, {Module, RequestId, Value}};
-                _ ->
-                    {error, {decode_error, <<"invalid request envelope: expected {binary, integer, value} tuple">>}}
-            end
+    try
+        Term = decode_binary_term(Bin),
+        %% Strict non-executable term validation is opt-in because it
+        %% double-walks every legitimate request before generated typed
+        %% decoding walks it again.
+        ok = libero_etf_ffi:maybe_validate_data_term(Term),
+        case Term of
+            {Module, RequestId, Value}
+                    when is_binary(Module), is_integer(RequestId),
+                         RequestId >= 0, RequestId =< 4294967295 ->
+                {ok, {Module, RequestId, Value}};
+            _ ->
+                {error, {decode_error, <<"invalid request envelope: expected {binary, integer, value} tuple">>}}
+        end
     catch
         _:_ ->
             {error, {decode_error, <<"invalid ETF binary">>}}

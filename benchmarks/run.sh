@@ -218,7 +218,7 @@ awk -F, '
   echo "- BEAM server request decode rows include wire request decode plus generated \`ClientMsg\` decode."
   echo "- JS client response decode rows include wire frame decode plus generated typed payload rebuild for JSON. ETF uses the generated decoder registration path."
   echo "- Each result subsection compares ETF and JSON for one target, stage, and payload. The \`Ratio\` column is JSON divided by ETF for the same metric."
-  echo "- CSV files include additional JSON-only diagnostic rows, such as parse-only, wire-decode-only, and typed-decode-only measurements. The Markdown report omits those rows because they have no ETF baseline."
+  echo "- CSV files include additional diagnostic rows, such as JSON parse-only, JSON wire-decode-only, JSON typed-decode-only, BEAM \`etf_strict_data_terms\`, and JS \`etf_depth_limit\` measurements. The Markdown report omits those rows because they are not the main ETF vs JSON comparison."
   echo "- Warmup: 50 untimed iterations per row."
   echo
   echo "## Results"

@@ -120,8 +120,55 @@ const MAX_TERM_DEPTH = 512;
 // a client-side depth cap is not a meaningful boundary: the attacker can serve
 // different JS. Keep the cap available for future untrusted ETF callers, but
 // leave it disabled on the generated transport hot path.
-const TRUSTED_SERVER_TERM_DEPTH_LIMIT = undefined;
-// const TRUSTED_SERVER_TERM_DEPTH_LIMIT = MAX_TERM_DEPTH;
+let trustedServerTermDepthLimit = undefined;
+
+/**
+ * Configure the optional recursive ETF term depth cap for generated JS decode.
+ * Positive integers enable the cap. Zero, negative values, false, null, and
+ * undefined disable it. Passing true uses the default cap of 512.
+ * @param {number | boolean | null | undefined} limit
+ * @returns {undefined}
+ */
+export function set_js_term_depth_limit(limit) {
+  if (limit === true) {
+    trustedServerTermDepthLimit = MAX_TERM_DEPTH;
+    return undefined;
+  }
+  if (limit === false || limit === null || limit === undefined || limit <= 0) {
+    trustedServerTermDepthLimit = undefined;
+    return undefined;
+  }
+  if (!Number.isSafeInteger(limit)) {
+    throw makeError("ETF depth limit must be a positive safe integer", ERROR_DEPTH_EXCEEDED);
+  }
+  trustedServerTermDepthLimit = limit;
+  return undefined;
+}
+
+/**
+ * Return the active JS ETF term depth cap, or 0 when disabled.
+ * @returns {number}
+ */
+export function js_term_depth_limit() {
+  return trustedServerTermDepthLimit === undefined ? 0 : trustedServerTermDepthLimit;
+}
+
+/**
+ * BEAM-only setting. Present on JS so the public Gleam API is cross-target.
+ * @param {boolean} _enabled
+ * @returns {undefined}
+ */
+export function set_strict_data_terms(_enabled) {
+  return undefined;
+}
+
+/**
+ * BEAM-only setting. Always false on JS.
+ * @returns {boolean}
+ */
+export function strict_data_terms_enabled() {
+  return false;
+}
 
 /**
  * @param {string} message
@@ -1102,7 +1149,7 @@ export function encode_value(value) {
  * @returns {any}
  */
 export function decode_value(buffer) {
-  const decoder = new ETFDecoder(buffer, false, TRUSTED_SERVER_TERM_DEPTH_LIMIT);
+  const decoder = new ETFDecoder(buffer, false, trustedServerTermDepthLimit);
   return decoder.decode();
 }
 
@@ -1114,7 +1161,7 @@ export function decode_value(buffer) {
  * @returns {any}
  */
 export function decode_value_raw(buffer) {
-  const decoder = new ETFDecoder(buffer, true, TRUSTED_SERVER_TERM_DEPTH_LIMIT);
+  const decoder = new ETFDecoder(buffer, true, trustedServerTermDepthLimit);
   return decoder.decode();
 }
 
@@ -1130,7 +1177,7 @@ export function decode_value_raw(buffer) {
  */
 export function decode_safe(buffer) {
   try {
-    const decoder = new ETFDecoder(buffer, false, TRUSTED_SERVER_TERM_DEPTH_LIMIT);
+    const decoder = new ETFDecoder(buffer, false, trustedServerTermDepthLimit);
     const value = decoder.decode();
     return new Ok(value);
   } catch (e) {
@@ -1149,7 +1196,7 @@ export function decode_safe(buffer) {
  */
 export function decode_safe_raw(buffer) {
   try {
-    const raw = new ETFDecoder(buffer, true, TRUSTED_SERVER_TERM_DEPTH_LIMIT).decode();
+    const raw = new ETFDecoder(buffer, true, trustedServerTermDepthLimit).decode();
     return new Ok(raw);
   } catch (e) {
     const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);
@@ -1167,7 +1214,7 @@ export function decode_safe_raw(buffer) {
  */
 export function decodeTypedWire(buffer, decoderName) {
   try {
-    const raw = new ETFDecoder(buffer, true, TRUSTED_SERVER_TERM_DEPTH_LIMIT).decode();
+    const raw = new ETFDecoder(buffer, true, trustedServerTermDepthLimit).decode();
     return new Ok(decodeTyped(raw, decoderName));
   } catch (e) {
     const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);

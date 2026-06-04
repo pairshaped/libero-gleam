@@ -33,6 +33,49 @@ import libero/frame.{Push, Response}
 pub type ServerFrame(value) =
   frame.ServerFrame(value)
 
+// ---------- Optional security checks ----------
+
+/// Enable or disable strict BEAM data-term validation for ETF decode.
+///
+/// This affects Erlang `decode_safe` and `decode_request`. When enabled,
+/// Libero rejects decoded BEAM runtime terms such as pids, refs, ports, and
+/// functions before generated typed decoding runs.
+///
+/// The default is disabled because this recursively walks the full decoded
+/// payload before typed dispatch walks legitimate requests again. Enable it
+/// when accepting hand-written ETF from untrusted non-Libero clients.
+///
+/// On JavaScript this is a no-op because BEAM runtime terms do not exist.
+@external(erlang, "libero_etf_ffi", "set_strict_data_terms")
+@external(javascript, "./wire_ffi.mjs", "set_strict_data_terms")
+pub fn set_strict_data_terms(enabled: Bool) -> Nil
+
+/// Returns whether strict BEAM data-term validation is enabled.
+///
+/// Always returns `False` on JavaScript.
+@external(erlang, "libero_etf_ffi", "strict_data_terms_enabled")
+@external(javascript, "./wire_ffi.mjs", "strict_data_terms_enabled")
+pub fn strict_data_terms_enabled() -> Bool
+
+/// Configure the optional JavaScript recursive ETF term depth cap.
+///
+/// A positive integer enables the cap. `0` or a negative number disables it.
+/// The default is disabled for generated browser clients because they usually
+/// decode ETF from the same trusted app server that served the JS bundle.
+///
+/// Use `512` for Libero's default cap when decoding ETF from a less trusted
+/// source. On Erlang this is a no-op because the BEAM decoder owns ETF parsing.
+@external(erlang, "libero_etf_ffi", "set_js_term_depth_limit")
+@external(javascript, "./wire_ffi.mjs", "set_js_term_depth_limit")
+pub fn set_js_term_depth_limit(limit: Int) -> Nil
+
+/// Returns the active JavaScript ETF term depth cap, or `0` when disabled.
+///
+/// Always returns `0` on Erlang.
+@external(erlang, "libero_etf_ffi", "js_term_depth_limit")
+@external(javascript, "./wire_ffi.mjs", "js_term_depth_limit")
+pub fn js_term_depth_limit() -> Int
+
 // ---------- Encoder ----------
 
 /// Encode any Gleam value to an ETF binary.

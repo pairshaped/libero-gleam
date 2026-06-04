@@ -140,12 +140,20 @@ BEAM, safe ETF decoding uses `[safe, used]` to block new atom creation and
 reject trailing bytes after the decoded term.
 
 Safe ETF decoding does not by itself limit input size, nesting depth, or every
-BEAM runtime term class. Libero has an internal validator that rejects pids,
-refs, ports, and functions, but the default request path does not call it
-because it double-walks payloads before generated typed decoding. Proper Libero
-clients do not emit those terms. Code that accepts hostile hand-written ETF
-should also set process memory limits and use Libero helpers that validate the
-decoded shape before constructing typed values.
+BEAM runtime term class. `libero/etf/wire.set_strict_data_terms(True)` enables
+an extra BEAM validator that rejects pids, refs, ports, and functions after
+decode. It is disabled by default because it double-walks payloads before
+generated typed decoding. Proper Libero clients do not emit those terms. Code
+that accepts hostile hand-written ETF should also set process memory limits and
+use Libero helpers that validate the decoded shape before constructing typed
+values.
+
+`libero/etf/wire.set_js_term_depth_limit(512)` enables the optional recursive
+term depth cap in the generated JavaScript ETF decoder. `0` disables the cap,
+which is the default. This cap is useful when the JS bundle is trusted but the
+ETF bytes are less trusted than the app server that served that bundle. It is
+not a defense against a compromised server because that server can send
+different JavaScript.
 
 ## Protocol Helpers
 

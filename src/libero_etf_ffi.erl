@@ -2,7 +2,12 @@
 
 -module(libero_etf_ffi).
 -export([encode/1, decode/1, decode_safe/1, decode_typed/2,
-         identity/1, ensure_decoders/0, validate_data_term/1]).
+         identity/1, ensure_decoders/0, validate_data_term/1,
+         maybe_validate_data_term/1, set_strict_data_terms/1,
+         strict_data_terms_enabled/0, set_js_term_depth_limit/1,
+         js_term_depth_limit/0]).
+
+-define(STRICT_DATA_TERMS_KEY, {libero, etf_strict_data_terms}).
 
 identity(X) -> X.
 
@@ -19,11 +24,7 @@ decode(Bin) ->
 decode_safe(Bin) ->
     try
         Term = decode_binary_term(Bin),
-        %% validate_data_term(Term) rejects BEAM runtime terms such as pids,
-        %% refs, ports, and funs, but it recursively walks the whole payload
-        %% before generated typed decoding walks it again. Keep the helper for
-        %% a future strict mode, but do not run it on the default hot path.
-        %% ok = validate_data_term(Term),
+        ok = maybe_validate_data_term(Term),
         apply_decode_term(Term)
     of
         Term -> {ok, Term}
@@ -37,6 +38,25 @@ decode_safe(Bin) ->
 
 decode_typed(Bin, _DecoderName) ->
     decode_safe(Bin).
+
+set_strict_data_terms(Enabled) when is_boolean(Enabled) ->
+    persistent_term:put(?STRICT_DATA_TERMS_KEY, Enabled),
+    nil.
+
+strict_data_terms_enabled() ->
+    persistent_term:get(?STRICT_DATA_TERMS_KEY, false).
+
+maybe_validate_data_term(Term) ->
+    case strict_data_terms_enabled() of
+        true -> validate_data_term(Term);
+        false -> ok
+    end.
+
+set_js_term_depth_limit(_Limit) ->
+    nil.
+
+js_term_depth_limit() ->
+    0.
 
 decode_binary_term(Bin) ->
     Size = byte_size(Bin),

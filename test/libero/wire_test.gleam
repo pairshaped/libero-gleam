@@ -241,6 +241,9 @@ fn unsafe_coerce(value: Dynamic) -> a
 @external(erlang, "libero_test_ffi", "encoded_request_with_trailing_bytes")
 fn encoded_request_with_trailing_bytes() -> BitArray
 
+@external(erlang, "libero_test_ffi", "encoded_request_with_pid")
+fn encoded_request_with_pid() -> BitArray
+
 pub fn encode_request_decode_request_roundtrip_string_test() {
   let encoded =
     wire.encode_request(module: "core/messages", request_id: 10, msg: "hello")
@@ -267,6 +270,15 @@ pub fn encode_request_decode_request_roundtrip_tuple_test() {
 
 pub fn decode_request_rejects_trailing_bytes_test() {
   let result = wire.decode_request(encoded_request_with_trailing_bytes())
+  let assert Error(error.DecodeError(message: message)) = result
+  let assert True = string.contains(message, "invalid ETF binary")
+}
+
+pub fn decode_request_strict_data_terms_rejects_pid_test() {
+  wire.set_strict_data_terms(True)
+  let result = wire.decode_request(encoded_request_with_pid())
+  wire.set_strict_data_terms(False)
+
   let assert Error(error.DecodeError(message: message)) = result
   let assert True = string.contains(message, "invalid ETF binary")
 }

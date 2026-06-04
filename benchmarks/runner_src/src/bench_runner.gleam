@@ -257,6 +257,25 @@ fn run_case(
       },
     ),
   )
+
+  etf_wire.set_strict_data_terms(True)
+  print(
+    bench_timing.run(
+      target: "beam",
+      codec: "etf_strict_data_terms",
+      stage: "server_request_decode",
+      payload: name,
+      iterations:,
+      bytes: bit_array.byte_size(etf_request),
+      operation: fn() {
+        let assert Ok(#(_, request_id, message)) =
+          etf_wire.decode_request(etf_request)
+        let _ = etf_helpers.decode_client_msg(message)
+        request_id
+      },
+    ),
+  )
+  etf_wire.set_strict_data_terms(False)
 }
 
 fn print(result: bench_timing.BenchResult) {

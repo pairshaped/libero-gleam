@@ -179,6 +179,20 @@ fn run_case(
       operation: fn() { decode_etf_response(etf_response_frame) },
     ),
   )
+
+  etf_wire.set_js_term_depth_limit(512)
+  print(
+    bench_timing.run(
+      target: "js",
+      codec: "etf_depth_limit",
+      stage: "client_response_decode",
+      payload: name,
+      iterations:,
+      bytes: bit_array.byte_size(etf_response_frame),
+      operation: fn() { decode_etf_response(etf_response_frame) },
+    ),
+  )
+  etf_wire.set_js_term_depth_limit(0)
 }
 
 fn decode_json_response(

@@ -1,7 +1,12 @@
 //// Tests for wire.decode_safe - the Result-returning decoder.
 
+import gleam/dynamic.{type Dynamic}
+import gleam/string
 import libero/error
 import libero/etf/wire
+
+@external(erlang, "libero_test_ffi", "encoded_pid")
+fn encoded_pid() -> BitArray
 
 @external(erlang, "libero_test_ffi", "encoded_unknown_atom")
 fn encoded_unknown_atom() -> BitArray
@@ -34,6 +39,22 @@ pub fn decode_safe_valid_list_test() {
   let encoded = wire.encode([1, 2, 3])
   let result: Result(List(Int), error.DecodeError) = wire.decode_safe(encoded)
   let assert Ok([1, 2, 3]) = result
+}
+
+pub fn strict_data_terms_default_disabled_test() {
+  wire.set_strict_data_terms(False)
+  let assert False = wire.strict_data_terms_enabled()
+}
+
+pub fn decode_safe_strict_data_terms_rejects_pid_test() {
+  wire.set_strict_data_terms(True)
+  let result: Result(Dynamic, error.DecodeError) =
+    wire.decode_safe(encoded_pid())
+  wire.set_strict_data_terms(False)
+
+  let assert Error(error.DecodeError(message: message)) = result
+  let assert True = string.contains(message, "non_executable_term")
+  let assert True = string.contains(message, "pid")
 }
 
 pub fn decode_safe_garbage_input_test() {
