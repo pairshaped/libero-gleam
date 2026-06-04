@@ -820,6 +820,44 @@ pub fn decode_client_msg_param_msg_type_accepts_wire_hash_test() {
   let assert True = string.contains(out, expected)
 }
 
+pub fn decode_client_msg_duplicate_msg_type_hash_uses_endpoint_tags_only_test() {
+  let ep_a =
+    endpoint_with_msg_type(
+      "echo_item",
+      [#("id", IntField), #("name", StringField)],
+      "shared/types",
+      "Item",
+    )
+  let ep_b =
+    endpoint_with_msg_type(
+      "validate_item",
+      [#("id", IntField), #("name", StringField)],
+      "shared/types",
+      "Item",
+    )
+  let assert Ok(out) =
+    codegen_wire_erl.generate(
+      module_name: "x_wire",
+      discovered: [],
+      endpoints: [ep_a, ep_b],
+      push_dispatches: [],
+    )
+
+  let hash = hash_for("shared/types", "Item", [IntField, StringField])
+  let assert False =
+    string.contains(out, "decode_client_msg({'" <> hash <> "', F0, F1})")
+  let assert True =
+    string.contains(
+      out,
+      "decode_client_msg({server_echo_item, F0, F1}) ->\n    {server_echo_item, F0, F1}",
+    )
+  let assert True =
+    string.contains(
+      out,
+      "decode_client_msg({server_validate_item, F0, F1}) ->\n    {server_validate_item, F0, F1}",
+    )
+}
+
 pub fn decode_client_msg_list_of_user_type_param_test() {
   let item_type = UserType("m", "Item", [])
   let ep =

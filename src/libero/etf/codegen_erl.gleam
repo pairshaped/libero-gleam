@@ -263,17 +263,44 @@ fn emit_decode_client_msg(endpoints: List(scanner.HandlerEndpoint)) -> String {
   case endpoints {
     [] -> ""
     _ -> {
-      let clauses = list.map(endpoints, emit_decode_client_msg_clause)
+      let duplicate_hashes = duplicate_endpoint_wire_hashes(endpoints)
+      let clauses =
+        list.map(endpoints, emit_decode_client_msg_clause(_, duplicate_hashes:))
       let fallback = "decode_client_msg(Other) ->\n    Other"
       string.join(list.append(clauses, [fallback]), ";\n") <> "."
     }
   }
 }
 
-fn emit_decode_client_msg_clause(e: scanner.HandlerEndpoint) -> String {
+fn duplicate_endpoint_wire_hashes(
+  endpoints: List(scanner.HandlerEndpoint),
+) -> List(String) {
+  let hashes =
+    list.filter_map(endpoints, fn(endpoint) {
+      endpoint_wire_hash(endpoint) |> option.to_result(Nil)
+    })
+  hashes
+  |> list.filter(fn(hash) {
+    hashes
+    |> list.filter(fn(candidate) { candidate == hash })
+    |> list.length()
+    > 1
+  })
+  |> list.unique()
+}
+
+fn emit_decode_client_msg_clause(
+  e: scanner.HandlerEndpoint,
+  duplicate_hashes duplicate_hashes: List(String),
+) -> String {
   let fn_atom = "server_" <> e.fn_name
   let wire_atoms = case endpoint_wire_hash(e) {
-    option.Some(hash) -> ["'" <> hash <> "'", fn_atom]
+    option.Some(hash) -> {
+      case list.contains(duplicate_hashes, hash) {
+        True -> [fn_atom]
+        False -> ["'" <> hash <> "'", fn_atom]
+      }
+    }
     option.None -> [fn_atom]
   }
   case e.params {

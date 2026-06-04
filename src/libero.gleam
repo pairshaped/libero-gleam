@@ -7,6 +7,7 @@
 //// `src/generated/libero/`. Or call the library functions directly
 //// for programmatic use (e.g. from a framework).
 
+import gleam/dict
 import gleam/io
 import gleam/list
 import gleam/option
@@ -219,8 +220,22 @@ fn generate_etf_default(
       halt(1)
     }
   }
-  let decoders_js = generate_decoders_ffi(discovered:, endpoints:, package:)
+  let dependency_packages = case read_dependency_names() {
+    Ok(names) -> names
+    Error(msg) -> {
+      io.println_error(msg)
+      halt(1)
+    }
+  }
+  let decoders_js =
+    generate_decoders_ffi(
+      discovered:,
+      endpoints:,
+      package:,
+      dependency_packages:,
+    )
   let decoders_gleam = generate_decoders_gleam()
+  let client_msg_src = generate_client_msg_module(endpoints:)
   let json_contract =
     contract.generate(endpoints:, discovered:, push_types: [], ssr_models: [])
 
@@ -250,6 +265,7 @@ fn generate_etf_default(
       case
         write_etf_client_files(
           client_out: client_out,
+          client_msg_src:,
           js: decoders_js,
           gleam: decoders_gleam,
         )
@@ -524,12 +540,14 @@ pub fn generate_decoders_ffi(
   discovered discovered: List(DiscoveredType),
   endpoints endpoints: List(HandlerEndpoint),
   package package: String,
+  dependency_packages dependency_packages: List(String),
 ) -> String {
   codegen_decoders.generate_decoders_ffi(
     discovered:,
     endpoints:,
     relpath_prefix: "../../../",
     package:,
+    dependency_packages:,
     dispatch_module: option.Some("generated/libero/dispatch"),
   )
 }
@@ -683,6 +701,7 @@ fn write_client_files(
 
 fn write_etf_client_files(
   client_out out: String,
+  client_msg_src client_msg_src: String,
   js js: String,
   gleam gleam: String,
 ) -> Result(Nil, WriteError) {
@@ -690,6 +709,10 @@ fn write_etf_client_files(
     simplifile.create_directory_all(out)
     |> result.map_error(fn(cause) { CannotCreateDir(path: out, cause:) }),
   )
+  use _ <- result.try(write_file(
+    out <> "/dispatch.gleam",
+    format.format_gleam(client_msg_src),
+  ))
   use _ <- result.try(write_file(out <> "/rpc_decoders_ffi.mjs", js))
   write_file(out <> "/rpc_decoders.gleam", format.format_gleam(gleam))
 }
@@ -724,6 +747,35 @@ fn read_package_name() -> Result(String, String) {
                 hint: option.None,
               ))
             Ok(name) -> Ok(name)
+          }
+      }
+  }
+}
+
+fn read_dependency_names() -> Result(List(String), String) {
+  case simplifile.read("gleam.toml") {
+    Error(_) ->
+      Error(gen_error.error_box(
+        title: "Could not read gleam.toml",
+        path: "gleam.toml",
+        body_lines: ["File is missing or unreadable."],
+        hint: option.Some(
+          "Run libero from the project root where gleam.toml lives.",
+        ),
+      ))
+    Ok(content) ->
+      case tom.parse(content) {
+        Error(_) ->
+          Error(gen_error.error_box(
+            title: "Could not parse gleam.toml",
+            path: "gleam.toml",
+            body_lines: ["The file contains invalid TOML."],
+            hint: option.None,
+          ))
+        Ok(parsed) ->
+          case tom.get_table(parsed, ["dependencies"]) {
+            Ok(dependencies) -> Ok(dict.keys(dependencies))
+            Error(_) -> Ok([])
           }
       }
   }

@@ -38,6 +38,7 @@ pub fn generate_decoders_ffi(
   endpoints endpoints: List(scanner.HandlerEndpoint),
   relpath_prefix relpath_prefix: String,
   package package: String,
+  dependency_packages dependency_packages: List(String),
   dispatch_module dispatch_module: option.Option(String),
 ) -> String {
   let imports =
@@ -46,6 +47,7 @@ pub fn generate_decoders_ffi(
       endpoints:,
       relpath_prefix:,
       package:,
+      dependency_packages:,
       dispatch_module:,
     )
   let body = emit_typed_decoders(discovered)
@@ -117,6 +119,7 @@ fn emit_decoder_imports(
   endpoints endpoints: List(scanner.HandlerEndpoint),
   relpath_prefix relpath_prefix: String,
   package package: String,
+  dependency_packages dependency_packages: List(String),
   dispatch_module dispatch_module: option.Option(String),
 ) -> String {
   let module_paths =
@@ -163,7 +166,10 @@ fn emit_decoder_imports(
       <> codegen.module_to_underscored(mp)
       <> " from \""
       <> relpath_prefix
-      <> codegen.module_to_mjs_path(module_path: mp, package:)
+      <> codegen.module_to_mjs_path(
+        module_path: mp,
+        package: module_owner(module_path: mp, package:, dependency_packages:),
+      )
       <> "\";"
     })
   let remote_data_import = case endpoints {
@@ -188,8 +194,9 @@ fn emit_decoder_imports(
       "\nimport * as _m_"
       <> codegen.module_to_underscored(dm)
       <> " from \""
-      <> relpath_prefix
-      <> codegen.module_to_mjs_path(module_path: dm, package:)
+      <> "./"
+      <> field_type.last_segment(dm)
+      <> ".mjs"
       <> "\";"
     option.None -> ""
   }
@@ -205,6 +212,21 @@ fn emit_decoder_imports(
     ],
     "\n",
   )
+}
+
+fn module_owner(
+  module_path module_path: String,
+  package package: String,
+  dependency_packages dependency_packages: List(String),
+) -> String {
+  case string.split(module_path, "/") {
+    [first, ..] ->
+      case list.contains(dependency_packages, first) {
+        True -> first
+        False -> package
+      }
+    _ -> package
+  }
 }
 
 /// Emit per-variant class-static assignments for every discovered user

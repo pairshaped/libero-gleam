@@ -90,7 +90,7 @@ pub fn generate_with_extra_params(
   }
   // Only emit type imports for modules NOT already covered by handler imports.
   let shared_type_imports =
-    codegen.collect_endpoint_type_modules(endpoints:, include_return: False)
+    collect_dispatch_type_modules(endpoints:)
     |> list.filter(fn(module_path) {
       !list.contains(handler_modules, module_path)
     })
@@ -130,7 +130,12 @@ pub fn generate_with_extra_params(
     |> string.join("\n")
 
   let case_arms =
-    list.map(endpoints, emit_case_arm(_, wire_module:, extra_args:))
+    list.map(endpoints, emit_case_arm(
+      _,
+      wire_module:,
+      extra_args:,
+      resolve_alias:,
+    ))
 
   let atoms_external = case atoms_module {
     option.Some(mod) ->
@@ -317,9 +322,28 @@ pub fn generate_json_with_extra_params(
       let alias = handler_alias(mod)
       "import " <> mod <> " as " <> alias
     })
+  let base_resolve = codegen.build_alias_resolver(endpoints:)
+  let resolve_alias = fn(module_path: String) -> String {
+    case list.contains(handler_modules, module_path) {
+      True -> handler_alias(module_path)
+      False -> base_resolve(module_path)
+    }
+  }
+  let shared_type_imports =
+    collect_msg_type_modules(endpoints:)
+    |> list.filter(fn(module_path) {
+      !list.contains(handler_modules, module_path)
+    })
+    |> list.map(fn(module_path) {
+      let alias = resolve_alias(module_path)
+      case alias == field_type.last_segment(module_path) {
+        True -> "import " <> module_path
+        False -> "import " <> module_path <> " as " <> alias
+      }
+    })
 
   let case_arms =
-    list.map(endpoints, emit_json_case_arm(_, extra_args:))
+    list.map(endpoints, emit_json_case_arm(_, extra_args:, resolve_alias:))
     |> string.join("\n")
 
   let active_json_dispatch_imports = case endpoints {
@@ -385,6 +409,7 @@ import libero/json/wire
 " <> active_json_dispatch_imports <> "
 import " <> context_module <> ".{type " <> context_type_name <> "}
 " <> string.join(handler_imports, "\n") <> "
+" <> string.join(shared_type_imports, "\n") <> "
 " <> case extra_import_lines {
     [] -> ""
     lines -> string.join(lines, "\n") <> "\n"
@@ -412,16 +437,23 @@ fn emit_case_arm(
   endpoint e: scanner.HandlerEndpoint,
   wire_module wire_module: option.Option(String),
   extra_args extra_args: String,
+  resolve_alias resolve_alias: fn(String) -> String,
 ) -> String {
   let variant_name = codegen.to_pascal_case("server_" <> e.fn_name)
   let alias = handler_alias(e.module_path)
-  let param_destructure = case e.msg_type {
-    option.Some(_) -> variant_discard_pattern(variant_name:, params: e.params)
-    option.None -> codegen.variant_pattern(variant_name:, params: e.params)
-  }
+  let param_destructure =
+    codegen.variant_pattern(variant_name:, params: e.params)
 
   let handler_args = case e.msg_type {
-    option.Some(_) -> "wire.coerce(typed_msg), server_context" <> extra_args
+    option.Some(#(msg_module, msg_constructor)) ->
+      msg_type_constructor(
+        module_path: msg_module,
+        constructor_name: msg_constructor,
+        params: e.params,
+        resolve_alias:,
+      )
+      <> ", server_context"
+      <> extra_args
     option.None -> {
       let positional = list.map(e.params, fn(p) { p.0 })
       string.join(
@@ -476,18 +508,23 @@ fn emit_case_arm(
 fn emit_json_case_arm(
   endpoint e: scanner.HandlerEndpoint,
   extra_args extra_args: String,
+  resolve_alias resolve_alias: fn(String) -> String,
 ) -> String {
   let variant_name = codegen.to_pascal_case("server_" <> e.fn_name)
   let alias = handler_alias(e.module_path)
   let param_destructure =
-    "client_msg."
-    <> case e.msg_type {
-      option.Some(_) -> variant_discard_pattern(variant_name:, params: e.params)
-      option.None -> codegen.variant_pattern(variant_name:, params: e.params)
-    }
+    "client_msg." <> codegen.variant_pattern(variant_name:, params: e.params)
 
   let handler_args = case e.msg_type {
-    option.Some(_) -> "wire.coerce(typed_msg), server_context" <> extra_args
+    option.Some(#(msg_module, msg_constructor)) ->
+      msg_type_constructor(
+        module_path: msg_module,
+        constructor_name: msg_constructor,
+        params: e.params,
+        resolve_alias:,
+      )
+      <> ", server_context"
+      <> extra_args
     option.None -> {
       let positional = list.map(e.params, fn(p) { p.0 })
       string.join(
@@ -536,15 +573,43 @@ fn emit_json_case_arm(
   <> "      }"
 }
 
-fn variant_discard_pattern(
-  variant_name variant_name: String,
+fn collect_dispatch_type_modules(
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+) -> List(String) {
+  let from_fields =
+    codegen.collect_endpoint_type_modules(endpoints:, include_return: False)
+  let from_msg_types = collect_msg_type_modules(endpoints:)
+  list.append(from_fields, from_msg_types)
+  |> list.unique()
+  |> list.sort(string.compare)
+}
+
+fn collect_msg_type_modules(
+  endpoints endpoints: List(scanner.HandlerEndpoint),
+) -> List(String) {
+  endpoints
+  |> list.filter_map(fn(e) {
+    case e.msg_type {
+      option.Some(#(module_path, _)) -> Ok(module_path)
+      option.None -> Error(Nil)
+    }
+  })
+  |> list.unique()
+  |> list.sort(string.compare)
+}
+
+fn msg_type_constructor(
+  module_path module_path: String,
+  constructor_name constructor_name: String,
   params params: List(#(String, field_type.FieldType)),
+  resolve_alias resolve_alias: fn(String) -> String,
 ) -> String {
+  let constructor = resolve_alias(module_path) <> "." <> constructor_name
   case params {
-    [] -> variant_name
+    [] -> constructor
     _ -> {
-      let labels = list.map(params, fn(p) { p.0 <> ": _" })
-      variant_name <> "(" <> string.join(labels, ", ") <> ")"
+      let labels = list.map(params, fn(p) { p.0 <> ":" })
+      constructor <> "(" <> string.join(labels, ", ") <> ")"
     }
   }
 }

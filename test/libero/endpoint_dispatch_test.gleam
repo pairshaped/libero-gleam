@@ -94,7 +94,7 @@ pub fn endpoint_dispatch_wraps_read_only_handler_test() {
   birdie.snap(content, title: "dispatch: read-only handler wrapper")
 }
 
-pub fn endpoint_dispatch_passes_whole_msg_type_to_handler_test() {
+pub fn endpoint_dispatch_rebuilds_msg_type_for_handler_test() {
   let endpoints = [
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -120,7 +120,7 @@ pub fn endpoint_dispatch_passes_whole_msg_type_to_handler_test() {
   let assert True =
     string.contains(
       content,
-      "handler.server_set_dark_mode(wire.coerce(typed_msg), server_context)",
+      "server_handler_handler.server_set_dark_mode(server_handler_handler.SetDarkMode(enabled:), server_context)",
     )
 }
 
@@ -303,7 +303,7 @@ pub fn json_dispatch_empty_endpoints_omits_active_dispatch_imports_test() {
     )
 }
 
-pub fn dispatch_msg_type_patterns_discard_unused_fields_test() {
+pub fn dispatch_msg_type_patterns_bind_fields_for_constructor_rebuild_test() {
   let endpoints = [
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -326,16 +326,17 @@ pub fn dispatch_msg_type_patterns_discard_unused_fields_test() {
       wire_module: option.None,
     )
 
-  let assert True = string.contains(content, "ServerSetDarkMode(enabled: _) ->")
-  let assert False = string.contains(content, "ServerSetDarkMode(enabled:) ->")
+  let assert True = string.contains(content, "ServerSetDarkMode(enabled:) ->")
+  let assert False =
+    string.contains(content, "ServerSetDarkMode(enabled: _) ->")
   let assert True =
     string.contains(
       content,
-      "handler.server_set_dark_mode(wire.coerce(typed_msg), server_context)",
+      "server_handler_handler.server_set_dark_mode(server_handler_handler.SetDarkMode(enabled:), server_context)",
     )
 }
 
-pub fn json_dispatch_msg_type_patterns_discard_unused_fields_test() {
+pub fn json_dispatch_msg_type_patterns_bind_fields_for_constructor_rebuild_test() {
   let endpoints = [
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -360,13 +361,13 @@ pub fn json_dispatch_msg_type_patterns_discard_unused_fields_test() {
     )
 
   let assert True =
-    string.contains(content, "client_msg.ServerSetDarkMode(enabled: _) ->")
-  let assert False =
     string.contains(content, "client_msg.ServerSetDarkMode(enabled:) ->")
+  let assert False =
+    string.contains(content, "client_msg.ServerSetDarkMode(enabled: _) ->")
   let assert True =
     string.contains(
       content,
-      "handler.server_set_dark_mode(wire.coerce(typed_msg), server_context)",
+      "server_handler_handler.server_set_dark_mode(server_handler_handler.SetDarkMode(enabled:), server_context)",
     )
 }
 

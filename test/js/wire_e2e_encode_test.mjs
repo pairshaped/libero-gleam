@@ -41,6 +41,17 @@ const nested = new types.NestedRecord(
   gleam.toList([new types.Pending(), new types.Active(), new types.Cancelled()]),
   itemDict,
 );
+const itemListData = new types.ItemListData(gleam.toList([item, wholeFloatItem]));
+const itemListEmpty = new types.ItemListData(gleam.toList([]));
+const itemSummaryData = new types.ItemSummaryData(gleam.toList([item, item2]), 100, 1);
+const formPrefillSome = new types.FormPrefill(new option.Some(item), new types.Active());
+const formPrefillNone = new types.FormPrefill(new option.None(), new types.Pending());
+const nestedEnvelope = new types.NestedEnvelope(itemListData, new option.Some("hello"));
+const nestedEnvelopeNone = new types.NestedEnvelope(itemListEmpty, new option.None());
+const dictAndList = new types.DictAndListEnvelope(
+  itemDict,
+  gleam.toList([item, wholeFloatItem]),
+);
 
 const cases = [
   ["int", 5, "5"],
@@ -98,6 +109,38 @@ const cases = [
     "nested_record",
     nested,
     "{'985b6a7d71',[{'0cf13587b9',7,<<119,114,101,110,99,104>>,12.5,true},{'0cf13587b9',9,<<102,108,111,97,116,121>>,2.0,true}],{some,{'0cf13587b9',8,<<98,111,108,116>>,1.25,false}},['0916eb3b7c',c9650d0ff8,a28fb8d228],#{<<111,110,101>> => {'0cf13587b9',7,<<119,114,101,110,99,104>>,12.5,true},<<116,119,111>> => {'0cf13587b9',9,<<102,108,111,97,116,121>>,2.0,true}}}",
+  ],
+  [
+    "item_list_data",
+    itemListData,
+    "{'9dca99368a',[{'0cf13587b9',7,<<119,114,101,110,99,104>>,12.5,true},{'0cf13587b9',9,<<102,108,111,97,116,121>>,2.0,true}]}",
+  ],
+  ["item_list_data_empty", itemListEmpty, "{'9dca99368a',[]}"],
+  [
+    "item_summary_data",
+    itemSummaryData,
+    "{d61faa8028,[{'0cf13587b9',7,<<119,114,101,110,99,104>>,12.5,true},{'0cf13587b9',8,<<98,111,108,116>>,1.25,false}],100,1}",
+  ],
+  [
+    "form_prefill_some",
+    formPrefillSome,
+    "{'5de9dbd6ed',{some,{'0cf13587b9',7,<<119,114,101,110,99,104>>,12.5,true}},c9650d0ff8}",
+  ],
+  ["form_prefill_none", formPrefillNone, "{'5de9dbd6ed',none,'0916eb3b7c'}"],
+  [
+    "nested_envelope",
+    nestedEnvelope,
+    "{efb6cf8ebe,{'9dca99368a',[{'0cf13587b9',7,<<119,114,101,110,99,104>>,12.5,true},{'0cf13587b9',9,<<102,108,111,97,116,121>>,2.0,true}]},{some,<<104,101,108,108,111>>}}",
+  ],
+  [
+    "nested_envelope_none",
+    nestedEnvelopeNone,
+    "{efb6cf8ebe,{'9dca99368a',[]},none}",
+  ],
+  [
+    "dict_and_list_envelope",
+    dictAndList,
+    "{'647075c644',#{<<111,110,101>> => {'0cf13587b9',7,<<119,114,101,110,99,104>>,12.5,true},<<116,119,111>> => {'0cf13587b9',9,<<102,108,111,97,116,121>>,2.0,true}},[{'0cf13587b9',7,<<119,114,101,110,99,104>>,12.5,true},{'0cf13587b9',9,<<102,108,111,97,116,121>>,2.0,true}]}",
   ],
   ["types_tag", new types.Tag("sale", "red"), "{'7ef65065df',<<115,97,108,101>>,<<114,101,100>>}"],
   ["collision_tag", new collision.Tag("promo"), "{'1cb1af7603',<<112,114,111,109,111>>}"],

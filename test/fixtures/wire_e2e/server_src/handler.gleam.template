@@ -163,7 +163,7 @@ pub fn server_echo_int_negated(
 
 pub fn server_echo_panic(
   value _value: Int,
-  server_context server_context: ServerContext,
+  server_context _server_context: ServerContext,
 ) -> #(Result(Int, Nil), ServerContext) {
   // Deliberate runtime panic caught by trace.try_call in the generated
   // dispatch. The dispatch returns Error(InternalError(...)), and the
@@ -219,4 +219,3 @@ pub fn server_echo_collision_tag(
 ) -> #(Result(collision.Tag, Nil), ServerContext) {
   #(Ok(value), server_context)
 }
-

@@ -335,6 +335,7 @@ pub fn float_type_hint_registration_test() {
       endpoints: endpoints,
       relpath_prefix: "../../../",
       package: "myapp",
+      dependency_packages: [],
       dispatch_module: option.None,
     )
 
@@ -381,11 +382,12 @@ pub fn decoder_codegen_imports_shared_modules_from_caller_package_test() {
       endpoints: [],
       relpath_prefix: "../../../",
       package: "server",
+      dependency_packages: ["shared"],
       dispatch_module: option.None,
     )
 
   let assert True =
-    string.contains(js, "from \"../../../server/shared/collision.mjs\";")
+    string.contains(js, "from \"../../../shared/shared/collision.mjs\";")
 }
 
 pub fn client_msg_statics_emit_float_hints_test() {
@@ -458,13 +460,14 @@ pub fn generate_decoders_ffi_includes_dispatch_import_test() {
       ],
       relpath_prefix: "../../../",
       package: "myapp",
+      dependency_packages: [],
       dispatch_module: option.Some("generated/libero/dispatch"),
     )
 
   let assert True =
     string.contains(
       js,
-      "import * as _m_generated_libero_dispatch from \"../../../myapp/generated/libero/dispatch.mjs\";",
+      "import * as _m_generated_libero_dispatch from \"./dispatch.mjs\";",
     )
   let assert True =
     string.contains(
@@ -480,6 +483,7 @@ pub fn generate_decoders_ffi_no_dispatch_import_when_none_test() {
       endpoints: [],
       relpath_prefix: "../../../",
       package: "myapp",
+      dependency_packages: [],
       dispatch_module: option.None,
     )
 
