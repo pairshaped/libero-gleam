@@ -613,13 +613,17 @@ fn encode_expr(
         list.map(indexed, fn(pair) {
           encode_expr(field_type: pair.0, expr: pair.1, depth: depth + 1)
         })
-      "case "
-      <> expr
-      <> " of {"
-      <> string.join(bind_vars, ", ")
-      <> "} -> {"
-      <> string.join(body_terms, ", ")
-      <> "} end"
+      case body_terms == bind_vars {
+        True -> expr
+        False ->
+          "case "
+          <> expr
+          <> " of {"
+          <> string.join(bind_vars, ", ")
+          <> "} -> {"
+          <> string.join(body_terms, ", ")
+          <> "} end"
+      }
     }
     TypeVar(name) ->
       // Defensive backstop: `wire_identity.check_wire_safety` rejects
@@ -763,13 +767,17 @@ fn decode_expr(
             runtime_depth: next_runtime_depth(runtime_depth),
           )
         })
-      "case "
-      <> expr
-      <> " of {"
-      <> string.join(bind_vars, ", ")
-      <> "} -> {"
-      <> string.join(body_terms, ", ")
-      <> "} end"
+      case body_terms == bind_vars {
+        True -> expr
+        False ->
+          "case "
+          <> expr
+          <> " of {"
+          <> string.join(bind_vars, ", ")
+          <> "} -> {"
+          <> string.join(body_terms, ", ")
+          <> "} end"
+      }
     }
     TypeVar(name) ->
       // Defensive backstop: `wire_identity.check_wire_safety` rejects

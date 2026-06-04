@@ -337,6 +337,26 @@ pub fn list_of_int_passes_through_test() {
   let assert False = string.contains(out, "[_X1 || _X1 <- F0]")
 }
 
+pub fn tuple_of_primitives_passes_through_test() {
+  let dt =
+    typ("m", "Bucket", [
+      variant("m", "Bucket", [TupleOf([IntField, StringField, BoolField])]),
+    ])
+  let assert Ok(out) =
+    codegen_wire_erl.generate(
+      module_name: "x_wire",
+      discovered: [dt],
+      endpoints: [],
+      push_dispatches: [],
+    )
+  let hash =
+    hash_for("m", "Bucket", [TupleOf([IntField, StringField, BoolField])])
+
+  // No tuple case expression when every element is a passthrough primitive.
+  let assert True = string.contains(out, "{'" <> hash <> "', F0}")
+  let assert False = string.contains(out, "case F0 of {_T0_0, _T0_1, _T0_2}")
+}
+
 // -- recursive type --------------------------------------------------------
 
 pub fn recursive_type_emits_self_referencing_calls_test() {
