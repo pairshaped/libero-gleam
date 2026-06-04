@@ -45,15 +45,15 @@ From just this handler, Libero writes all of the surrounding RPC code for you:
 - A request variant such as `ServerGetItems`, which represents this call at the
   protocol boundary. The server dispatch decodes it, and generated client or
   framework code sends the matching shape.
-- An encoder that turns `ServerGetItems` into typed JSON
+- An encoder that turns `ServerGetItems` into the selected wire format
 - Server dispatch code that receives the message and calls `server_get_items`
 - A response shape for `Result(List(Item), ItemError)`
 - A client decoder that turns the response back into Gleam values
 - Client state for loading, success, domain errors, and transport errors
 
-If the handler signature changes, you simply regenerate instead. The wire format
-is the JSON sent over the network; Libero owns that shape so application code can
-stay focused on typed messages and handler results.
+If the handler signature changes, you simply regenerate instead. Libero owns the
+wire shape, whether you use the default ETF transport or opt into JSON, so
+application code can stay focused on typed messages and handler results.
 
 ## Quick Start
 
@@ -73,24 +73,44 @@ After `gleam run -m libero`, you will see files like these:
 
 | File | Purpose |
 |------|---------|
-| `src/generated/libero/dispatch.gleam` | JSON server dispatch code for your handlers |
-| `src/generated/libero/messages.gleam` | Generated `ClientMsg` request type |
-| `src/generated/libero/json_codecs.gleam` | Typed JSON encoders, decoders, and response helpers |
-| `src/generated/libero/rpc_contract.json` | JSON contract artifact with protocol version and contract hash |
+| `src/generated/libero/dispatch.gleam` | Server dispatch code for your handlers |
+| `src/generated/libero/rpc_decoders_ffi.mjs` | JavaScript ETF decoders for browser/client targets |
+| `src/generated/libero/rpc_decoders.gleam` | Gleam bindings for generated JavaScript ETF decoders |
+| `src/generated/libero/generated@rpc_atoms.erl` | ETF atom pre-registration module for safe BEAM decode |
+| `src/generated/libero/generated@rpc_wire.erl` | ETF wire transformer module |
+| `src/generated/libero/rpc_contract.json` | Contract artifact with protocol version and contract hash |
 
 Import the generated server modules in your app like any other Gleam module.
+
+When `use_json = true`, Libero generates JSON-specific files instead:
+
+| File | Purpose |
+|------|---------|
+| `src/generated/libero/dispatch.gleam` | JSON server dispatch code for your handlers |
+| `src/generated/libero/messages.gleam` | Generated JSON `ClientMsg` request type |
+| `src/generated/libero/json_codecs.gleam` | Typed JSON encoders, decoders, and response helpers |
+| `src/generated/libero/rpc_contract.json` | JSON contract artifact with protocol version and contract hash |
 
 ## Transport Is Yours
 
 Libero leaves transport code to your app or framework. WebSocket setup, HTTP
 routes, reconnect behavior, and app-specific routing stay outside the generator.
 
+## Benchmarks
+
+Transport benchmarks live in [benchmarks/](benchmarks/) and compare the default
+ETF path with the generated JSON path across BEAM request decode, BEAM response
+encode, and JavaScript response decode stages.
+
+Latest committed report:
+[benchmarks/report.md](benchmarks/report.md)
+
 ## Advanced Usage
 
 ### Client Output
 
-If your client lives in another package, mirror the generated JSON client files
-into that package:
+If your client lives in another package, mirror generated client files into that
+package:
 
 ```toml
 [tools.libero]
@@ -109,8 +129,10 @@ For one-off scripts, the environment variable still overrides `gleam.toml`:
 LIBERO_JS_OUTPUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
 ```
 
-This copies `messages.gleam`, `json_codecs.gleam`, and `rpc_contract.json`.
-Libero still writes the server dispatch files to `src/generated/libero/`.
+For the default ETF transport, this copies `dispatch.gleam`,
+`rpc_decoders_ffi.mjs`, and `rpc_decoders.gleam`. When `use_json = true`, this
+copies `messages.gleam`, `json_codecs.gleam`, and `rpc_contract.json`. Libero
+still writes the server dispatch files to `src/generated/libero/`.
 Set `erlang_output_dir` when the generated server modules should live in a
 different directory under `src`:
 
@@ -190,9 +212,8 @@ memory limits for hostile input.
 
 ## Security: ETF Threat Model
 
-ETF is a secondary transport for BEAM-first integrations that opt into it. ETF
-preserves BEAM term fidelity, but that fidelity comes with a sharper threat
-model than JSON.
+ETF is Libero's default transport. It preserves BEAM term fidelity, but that
+fidelity comes with a sharper threat model than JSON.
 
 The [ERLEF serialisation guide](https://security.erlef.org/secure_coding_and_deployment_hardening/serialisation.html)
 recommends against using ETF with untrusted parties. Libero does it anyway, with

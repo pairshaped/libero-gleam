@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 WORK_DIR=$(mktemp -d)
-STAMP=$(date -u +"%Y%m%dT%H%M%SZ")
-REPORT_DIR="$ROOT_DIR/benchmarks/reports/$STAMP"
+REPORT_DIR="$ROOT_DIR/benchmarks"
+RESULTS_MD="$WORK_DIR/results.md"
 
 cleanup() {
   cd / >/dev/null 2>&1 || true
@@ -13,6 +13,11 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$REPORT_DIR"
+rm -f \
+  "$REPORT_DIR/beam.csv" \
+  "$REPORT_DIR/js.csv" \
+  "$REPORT_DIR/results.csv" \
+  "$REPORT_DIR/report.md"
 cp -R "$ROOT_DIR/benchmarks/fixture_src/." "$WORK_DIR/"
 
 cd "$WORK_DIR"
@@ -196,7 +201,7 @@ awk -F, '
     }
     return sprintf("%.2f", ratio_value)
   }
-' "$REPORT_DIR/results.csv" > "$REPORT_DIR/results.md"
+' "$REPORT_DIR/results.csv" > "$RESULTS_MD"
 
 {
   echo "# Libero Transport Benchmark"
@@ -212,7 +217,7 @@ awk -F, '
   echo
   echo "Method:"
   echo
-  echo "- Fixture project generated JSON transport through the default CLI path."
+  echo "- Fixture project opts into JSON generation with \`use_json = true\` so the benchmark can compare JSON against Libero's default ETF transport."
   echo "- ETF helper modules were generated through Libero's public generator APIs so the benchmark can call \`generated@rpc_wire\` without compiling the old ETF dispatch module."
   echo "- BEAM server encode rows include generated response helpers plus wire frame encoding."
   echo "- BEAM server request decode rows include wire request decode plus generated \`ClientMsg\` decode."
@@ -223,7 +228,7 @@ awk -F, '
   echo
   echo "## Results"
   echo
-  cat "$REPORT_DIR/results.md"
+  cat "$RESULTS_MD"
   echo
   echo "Raw CSV files:"
   echo
@@ -231,7 +236,5 @@ awk -F, '
   echo "- [beam.csv](beam.csv)"
   echo "- [js.csv](js.csv)"
 } > "$REPORT_DIR/report.md"
-
-ln -sfn "$STAMP" "$ROOT_DIR/benchmarks/reports/latest"
 
 echo "Wrote $REPORT_DIR/report.md"

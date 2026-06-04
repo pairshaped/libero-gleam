@@ -1,7 +1,7 @@
 # Libero Transport Benchmarks
 
-This directory contains a reproducible benchmark harness for comparing the JSON
-transport path with the secondary ETF path.
+This directory contains a reproducible benchmark harness for comparing Libero's
+default ETF transport with the generated JSON transport.
 
 Run it from the repository root:
 
@@ -10,9 +10,17 @@ bash benchmarks/run.sh
 ```
 
 The script creates a temporary Gleam project, points it at this checkout of
-Libero, generates JSON code through the default CLI path, generates ETF helper
-modules through Libero's public generator APIs, then runs benchmark modules
-against the generated helpers. Results are written under `benchmarks/reports/`.
+Libero, opts the fixture into JSON generation, generates ETF helper modules
+through Libero's public generator APIs, then runs benchmark modules against the
+generated helpers. Results overwrite the current report and CSV files in this
+directory.
+
+Current report:
+
+- [report.md](report.md)
+- [results.csv](results.csv)
+- [beam.csv](beam.csv)
+- [js.csv](js.csv)
 
 The benchmark deliberately measures separate stages:
 
