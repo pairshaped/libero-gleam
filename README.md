@@ -94,7 +94,7 @@ into that package:
 
 ```toml
 [tools.libero]
-client_out_dir = "../clients/web/src/generated/libero"
+js_output_dir = "../clients/web/src/generated/libero"
 ```
 
 Then run:
@@ -106,11 +106,19 @@ gleam run -m libero
 For one-off scripts, the environment variable still overrides `gleam.toml`:
 
 ```sh
-LIBERO_CLIENT_OUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
+LIBERO_JS_OUTPUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
 ```
 
 This copies `messages.gleam`, `json_codecs.gleam`, and `rpc_contract.json`.
 Libero still writes the server dispatch files to `src/generated/libero/`.
+Set `erlang_output_dir` when the generated server modules should live in a
+different directory under `src`:
+
+```toml
+[tools.libero]
+erlang_output_dir = "src/server/generated"
+js_output_dir = "../clients/web/src/generated/libero"
+```
 
 ### Library API
 
@@ -141,25 +149,23 @@ The API returns generated source as strings, so you choose where to write it.
 
 ### Multiple Protocols
 
-JSON is Libero's primary generated transport. Fresh generated apps use
-`libero/json/wire`, typed JSON codecs, and a contract hash/version check without
-opt-in configuration.
+ETF is Libero's default generated transport. Set `use_json = true` when you
+want the generated JSON dispatch, typed JSON codecs, and contract hash/version
+check instead.
 
 Generated JSON decoders treat wire input as untrusted and return structured
 errors. Generated encoders assume trusted typed application values; if FFI or
 unsafe construction gives them an out-of-range `Int` or non-finite `Float`, they
 panic rather than emit JSON the decoder would reject.
 
-Libero still keeps ETF helpers for BEAM-first integrations that intentionally
-choose them. Both protocols are owned by the generated contract boundary: app
-code should call Libero helpers instead of assembling wire messages by hand.
+Both protocols are owned by the generated contract boundary: app code should
+call Libero helpers instead of assembling wire messages by hand.
 
-To generate the older ETF dispatch and decoder files instead of the JSON
-default:
+To generate JSON dispatch and codec files:
 
 ```toml
 [tools.libero]
-gen_etf = true
+use_json = true
 ```
 
 Then run:
@@ -171,7 +177,7 @@ gleam run -m libero
 For one-off scripts, the environment variable still overrides `gleam.toml`:
 
 ```sh
-LIBERO_GEN_ETF=1 gleam run -m libero
+LIBERO_USE_JSON=1 gleam run -m libero
 ```
 
 For untrusted ETF input, decode through the generated helpers or

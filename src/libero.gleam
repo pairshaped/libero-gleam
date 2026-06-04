@@ -52,14 +52,16 @@ const default_atoms_module = "generated@rpc_atoms"
 
 const default_wire_module = "generated@rpc_wire"
 
-const default_client_msg_module = "generated/libero/messages"
-
-const default_json_codecs_module = "generated/libero/json_codecs"
+const default_generated_module = "generated/libero"
 
 const default_context_module = "server_context"
 
 pub type LiberoConfig {
-  LiberoConfig(gen_etf: Bool, client_out_dir: option.Option(String))
+  LiberoConfig(
+    use_json: Bool,
+    erlang_output_dir: String,
+    js_output_dir: option.Option(String),
+  )
 }
 
 type WriteError {
@@ -91,25 +93,36 @@ pub fn main() -> Nil {
       halt(1)
     }
   }
-  let client_out =
-    resolve_client_output_dir(config, get_env("LIBERO_CLIENT_OUT_DIR"))
-  case resolve_gen_etf(config, get_env("LIBERO_GEN_ETF")) {
-    True -> generate_etf_default(endpoints, discovered, client_out)
-    False -> generate_json_default(endpoints, discovered, client_out)
+  let js_out = resolve_js_output_dir(config, get_env("LIBERO_JS_OUTPUT_DIR"))
+  case resolve_use_json(config, get_env("LIBERO_USE_JSON")) {
+    False ->
+      generate_etf_default(
+        endpoints,
+        discovered,
+        erlang_output_dir: config.erlang_output_dir,
+        js_out:,
+      )
+    True ->
+      generate_json_default(
+        endpoints,
+        discovered,
+        erlang_output_dir: config.erlang_output_dir,
+        js_out:,
+      )
   }
 }
 
 fn generate_json_default(
   endpoints: List(HandlerEndpoint),
   discovered: List(DiscoveredType),
-  client_out client_out: option.Option(String),
+  erlang_output_dir erlang_output_dir: String,
+  js_out js_out: option.Option(String),
 ) -> Nil {
+  let generated_module = module_path_from_output_dir(erlang_output_dir)
+  let client_msg_module = child_module(generated_module, "messages")
+  let json_codecs_module = child_module(generated_module, "json_codecs")
   let contract_types =
-    include_generated_client_msg(
-      discovered:,
-      endpoints:,
-      client_msg_module: default_client_msg_module,
-    )
+    include_generated_client_msg(discovered:, endpoints:, client_msg_module:)
   let contract_hash =
     contract.generate_hash(
       endpoints:,
@@ -120,17 +133,13 @@ fn generate_json_default(
   let dispatch_src =
     generate_json_dispatch(
       endpoints:,
-      client_msg_module: default_client_msg_module,
-      json_codecs_module: default_json_codecs_module,
+      client_msg_module:,
+      json_codecs_module:,
       contract_hash:,
     )
   let client_msg_src = generate_client_msg_module(endpoints)
   let json_codecs_src = case
-    generate_json_codecs_source(
-      discovered:,
-      endpoints:,
-      client_msg_module: default_client_msg_module,
-    )
+    generate_json_codecs_source(discovered:, endpoints:, client_msg_module:)
   {
     Ok(src) -> src
     Error(errors) -> {
@@ -148,6 +157,7 @@ fn generate_json_default(
 
   case
     write_generated_files(
+      out_dir: erlang_output_dir,
       dispatch_src:,
       client_msg_src:,
       json_codecs_src:,
@@ -162,11 +172,11 @@ fn generate_json_default(
   }
 
   // Write client-side files only when the caller opts in.
-  case client_out {
-    option.Some(client_out) ->
+  case js_out {
+    option.Some(js_out) ->
       case
         write_client_files(
-          client_out: client_out,
+          js_out:,
           client_msg_src:,
           json_codecs_src:,
           json_contract:,
@@ -183,13 +193,13 @@ fn generate_json_default(
 
   io.println(
     "wrote "
-    <> out_dir
+    <> erlang_output_dir
     <> "/dispatch.gleam, "
-    <> out_dir
+    <> erlang_output_dir
     <> "/messages.gleam, "
-    <> out_dir
+    <> erlang_output_dir
     <> "/json_codecs.gleam, "
-    <> out_dir
+    <> erlang_output_dir
     <> "/rpc_contract.json",
   )
 }
@@ -197,8 +207,11 @@ fn generate_json_default(
 fn generate_etf_default(
   endpoints: List(HandlerEndpoint),
   discovered: List(DiscoveredType),
-  client_out client_out: option.Option(String),
+  erlang_output_dir erlang_output_dir: String,
+  js_out js_out: option.Option(String),
 ) -> Nil {
+  let dispatch_module =
+    child_module(module_path_from_output_dir(erlang_output_dir), "dispatch")
   let atoms_module = default_atoms_module
   let wire_module = default_wire_module
   let dispatch_src =
@@ -243,21 +256,23 @@ fn generate_etf_default(
     }
   }
   let decoders_js =
-    generate_decoders_ffi(
+    generate_decoders_ffi_for_dispatch(
       discovered:,
       endpoints:,
       package:,
       dependency_packages:,
+      dispatch_module:,
     )
   let decoders_gleam = generate_decoders_gleam()
   let client_msg_src = generate_client_msg_module(endpoints:)
   let json_contract =
     contract.generate(endpoints:, discovered:, push_types: [], ssr_models: [])
 
-  let atoms_path = "src/" <> atoms_module <> ".erl"
-  let wire_path = "src/" <> wire_module <> ".erl"
+  let atoms_path = erlang_output_dir <> "/" <> atoms_module <> ".erl"
+  let wire_path = erlang_output_dir <> "/" <> wire_module <> ".erl"
   case
     write_etf_generated_files(
+      out_dir: erlang_output_dir,
       dispatch_src:,
       decoders_js:,
       decoders_gleam:,
@@ -275,11 +290,11 @@ fn generate_etf_default(
     }
   }
 
-  case client_out {
-    option.Some(client_out) ->
+  case js_out {
+    option.Some(js_out) ->
       case
         write_etf_client_files(
-          client_out: client_out,
+          js_out:,
           client_msg_src:,
           js: decoders_js,
           gleam: decoders_gleam,
@@ -296,13 +311,13 @@ fn generate_etf_default(
 
   io.println(
     "wrote "
-    <> out_dir
+    <> erlang_output_dir
     <> "/dispatch.gleam, rpc_decoders_ffi.mjs, rpc_decoders.gleam, "
     <> atoms_path
     <> ", "
     <> wire_path
     <> ", "
-    <> out_dir
+    <> erlang_output_dir
     <> "/rpc_contract.json",
   )
 }
@@ -557,13 +572,29 @@ pub fn generate_decoders_ffi(
   package package: String,
   dependency_packages dependency_packages: List(String),
 ) -> String {
+  generate_decoders_ffi_for_dispatch(
+    discovered:,
+    endpoints:,
+    package:,
+    dependency_packages:,
+    dispatch_module: default_generated_module <> "/dispatch",
+  )
+}
+
+fn generate_decoders_ffi_for_dispatch(
+  discovered discovered: List(DiscoveredType),
+  endpoints endpoints: List(HandlerEndpoint),
+  package package: String,
+  dependency_packages dependency_packages: List(String),
+  dispatch_module dispatch_module: String,
+) -> String {
   codegen_decoders.generate_decoders_ffi(
     discovered:,
     endpoints:,
     relpath_prefix: "../../../",
     package:,
     dependency_packages:,
-    dispatch_module: option.Some("generated/libero/dispatch"),
+    dispatch_module: option.Some(dispatch_module),
   )
 }
 
@@ -594,9 +625,9 @@ pub fn generate_json_contract_hash(
   contract.generate_hash(endpoints:, discovered:, push_types:, ssr_models:)
 }
 
-/// Resolve the optional client output directory from environment config.
-/// Set `LIBERO_CLIENT_OUT_DIR` to opt in to client-side decoder writes.
-pub fn client_output_dir_from_env(
+/// Resolve the optional JS output directory from environment config.
+/// Set `LIBERO_JS_OUTPUT_DIR` to opt in to client-side decoder writes.
+pub fn js_output_dir_from_env(
   env_value: option.Option(String),
 ) -> option.Option(String) {
   optional_output_dir(env_value)
@@ -606,37 +637,48 @@ pub fn config_from_toml(content: String) -> Result(LiberoConfig, String) {
   case tom.parse(content) {
     Error(_) -> Error("The file contains invalid TOML.")
     Ok(parsed) -> {
-      use gen_etf <- result.try(
-        optional_config_bool(parsed, ["tools", "libero", "gen_etf"]),
+      use use_json <- result.try(
+        optional_config_bool(parsed, ["tools", "libero", "use_json"]),
       )
-      use client_out_dir <- result.try(
-        optional_config_string(parsed, ["tools", "libero", "client_out_dir"]),
+      use erlang_output_dir <- result.try(
+        optional_config_string(parsed, ["tools", "libero", "erlang_output_dir"]),
+      )
+      use js_output_dir <- result.try(
+        optional_config_string(parsed, ["tools", "libero", "js_output_dir"]),
       )
       Ok(LiberoConfig(
-        gen_etf: option.unwrap(gen_etf, False),
-        client_out_dir: optional_output_dir(client_out_dir),
+        use_json: option.unwrap(use_json, False),
+        erlang_output_dir: output_dir_or_default(erlang_output_dir),
+        js_output_dir: optional_output_dir(js_output_dir),
       ))
     }
   }
 }
 
-pub fn resolve_gen_etf(
+pub fn resolve_use_json(
   config: LiberoConfig,
   env_value: option.Option(String),
 ) -> Bool {
   case env_value {
     option.Some(_) -> env_flag(env_value)
-    option.None -> config.gen_etf
+    option.None -> config.use_json
   }
 }
 
-pub fn resolve_client_output_dir(
+pub fn resolve_js_output_dir(
   config: LiberoConfig,
   env_value: option.Option(String),
 ) -> option.Option(String) {
   case env_value {
-    option.Some(_) -> client_output_dir_from_env(env_value)
-    option.None -> config.client_out_dir
+    option.Some(_) -> js_output_dir_from_env(env_value)
+    option.None -> config.js_output_dir
+  }
+}
+
+fn output_dir_or_default(value: option.Option(String)) -> String {
+  case optional_output_dir(value) {
+    option.Some(path) -> path
+    option.None -> out_dir
   }
 }
 
@@ -649,6 +691,26 @@ fn optional_output_dir(value: option.Option(String)) -> option.Option(String) {
       }
     }
     _ -> option.None
+  }
+}
+
+fn module_path_from_output_dir(path: String) -> String {
+  let trimmed = string.trim(path)
+  let without_src = case string.starts_with(trimmed, "src/") {
+    True -> string.drop_start(trimmed, 4)
+    False -> trimmed
+  }
+
+  without_src
+  |> string.split("/")
+  |> list.filter(fn(part) { part != "" && part != "." })
+  |> string.join("/")
+}
+
+fn child_module(parent: String, child: String) -> String {
+  case parent {
+    "" -> child
+    _ -> parent <> "/" <> child
   }
 }
 
@@ -689,6 +751,7 @@ fn optional_config_string(
 }
 
 fn write_generated_files(
+  out_dir out_dir: String,
   dispatch_src dispatch_src: String,
   client_msg_src client_msg_src: String,
   json_codecs_src json_codecs_src: String,
@@ -715,6 +778,7 @@ fn write_generated_files(
 }
 
 fn write_etf_generated_files(
+  out_dir out_dir: String,
   dispatch_src dispatch_src: String,
   decoders_js decoders_js: String,
   decoders_gleam decoders_gleam: String,
@@ -772,7 +836,7 @@ fn print_write_error(err: WriteError) -> Nil {
 }
 
 fn write_client_files(
-  client_out out: String,
+  js_out out: String,
   client_msg_src client_msg_src: String,
   json_codecs_src json_codecs_src: String,
   json_contract json_contract: String,
@@ -793,7 +857,7 @@ fn write_client_files(
 }
 
 fn write_etf_client_files(
-  client_out out: String,
+  js_out out: String,
   client_msg_src client_msg_src: String,
   js js: String,
   gleam gleam: String,
@@ -830,7 +894,7 @@ fn read_libero_config() -> Result(LiberoConfig, String) {
             path: "gleam.toml",
             body_lines: [msg],
             hint: option.Some(
-              "Use `[tools.libero]` with `gen_etf = true` or `client_out_dir = \"...\"`.",
+              "Use `[tools.libero]` with `use_json = true`, `erlang_output_dir = \"...\"`, or `js_output_dir = \"...\"`.",
             ),
           ))
       }
