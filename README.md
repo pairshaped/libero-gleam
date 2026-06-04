@@ -102,7 +102,7 @@ Transport benchmarks live in [benchmarks/](benchmarks/) and compare the default
 ETF path with the generated JSON path across BEAM request decode, BEAM response
 encode, and JavaScript response decode stages.
 
-Latest committed report:
+Current benchmark report:
 [benchmarks/report.md](benchmarks/report.md)
 
 ## Advanced Usage
