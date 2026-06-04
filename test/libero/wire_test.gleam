@@ -238,8 +238,8 @@ fn coerce(value: a) -> Dynamic
 @external(erlang, "gleam_stdlib", "identity")
 fn unsafe_coerce(value: Dynamic) -> a
 
-@external(erlang, "libero_test_ffi", "encoded_request_with_pid")
-fn encoded_request_with_pid() -> BitArray
+@external(erlang, "libero_test_ffi", "encoded_request_with_trailing_bytes")
+fn encoded_request_with_trailing_bytes() -> BitArray
 
 pub fn encode_request_decode_request_roundtrip_string_test() {
   let encoded =
@@ -265,9 +265,8 @@ pub fn encode_request_decode_request_roundtrip_tuple_test() {
   let assert #("a", 1) = decoded
 }
 
-pub fn decode_request_rejects_non_executable_term_in_envelope_test() {
-  let result = wire.decode_request(encoded_request_with_pid())
+pub fn decode_request_rejects_trailing_bytes_test() {
+  let result = wire.decode_request(encoded_request_with_trailing_bytes())
   let assert Error(error.DecodeError(message: message)) = result
-  let assert True = string.contains(message, "non_executable_term")
-  let assert True = string.contains(message, "pid")
+  let assert True = string.contains(message, "invalid ETF binary")
 }

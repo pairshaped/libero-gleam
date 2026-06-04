@@ -31,6 +31,15 @@ function arrayToGleamList(arr) {
 }
 
 const utf8Decoder = new TextDecoder();
+const MAX_COLLECTION_LEN = 16_000_000;
+const MAX_BINARY_BYTES = 64 * 1024 * 1024;
+const MAX_TERM_DEPTH = 512;
+
+function makeError(message, name) {
+  const error = new Error(message);
+  error.name = name;
+  return error;
+}
 
 class ETFDecoder {
   constructor(input) {
@@ -56,7 +65,7 @@ class ETFDecoder {
     if (version !== 131) {
       throw new Error(`ETF decode: expected version byte 131, got ${version}`);
     }
-    const result = this.decodeTerm();
+    const result = this.decodeTerm(0);
     if (this.offset !== this.bytes.byteLength) {
       throw new Error(
         `ETF decode: trailing bytes at offset ${this.offset}, total length ${this.bytes.byteLength}`,
@@ -65,37 +74,72 @@ class ETFDecoder {
     return result;
   }
 
+  ensureAvailable(n) {
+    if (this.offset + n > this.bytes.byteLength) {
+      throw makeError(
+        `ETF decode: need ${n} bytes at offset ${this.offset}, only ${this.bytes.byteLength - this.offset} available`,
+        "ETF_TRUNCATED",
+      );
+    }
+  }
+
+  checkCollectionLen(n, label) {
+    if (n > MAX_COLLECTION_LEN) {
+      throw makeError(
+        `ETF decode: ${label} ${n} exceeds limit ${MAX_COLLECTION_LEN}`,
+        "ETF_COLLECTION_TOO_LONG",
+      );
+    }
+    return n;
+  }
+
+  checkBinaryLen(n, label) {
+    if (n > MAX_BINARY_BYTES) {
+      throw makeError(
+        `ETF decode: ${label} length ${n} exceeds limit ${MAX_BINARY_BYTES}`,
+        "ETF_BINARY_TOO_LARGE",
+      );
+    }
+    return n;
+  }
+
   readUint8() {
+    this.ensureAvailable(1);
     const v = this.view.getUint8(this.offset);
     this.offset += 1;
     return v;
   }
 
   readUint16() {
+    this.ensureAvailable(2);
     const v = this.view.getUint16(this.offset);
     this.offset += 2;
     return v;
   }
 
   readUint32() {
+    this.ensureAvailable(4);
     const v = this.view.getUint32(this.offset);
     this.offset += 4;
     return v;
   }
 
   readInt32() {
+    this.ensureAvailable(4);
     const v = this.view.getInt32(this.offset);
     this.offset += 4;
     return v;
   }
 
   readFloat64() {
+    this.ensureAvailable(8);
     const v = this.view.getFloat64(this.offset);
     this.offset += 8;
     return v;
   }
 
   readBytes(n) {
+    this.ensureAvailable(n);
     const slice = this.bytes.slice(this.offset, this.offset + n);
     this.offset += n;
     return slice;
@@ -105,7 +149,7 @@ class ETFDecoder {
     return utf8Decoder.decode(this.readBytes(n));
   }
 
-  decodeTerm() {
+  decodeTerm(depth) {
     const tag = this.readUint8();
     switch (tag) {
       case 70:
@@ -115,13 +159,16 @@ class ETFDecoder {
       case 98:
         return this.readInt32();
       case 104:
-        return this.decodeTuple(this.readUint8());
+        return this.decodeTuple(this.readUint8(), depth);
       case 105:
-        return this.decodeTuple(this.readUint32());
+        return this.decodeTuple(
+          this.checkCollectionLen(this.readUint32(), "tuple arity"),
+          depth,
+        );
       case 106:
         return arrayToGleamList([]);
       case 108:
-        return this.decodeList();
+        return this.decodeList(depth);
       case 107: {
         const len = this.readUint16();
         const elements = [];
@@ -131,19 +178,19 @@ class ETFDecoder {
         return arrayToGleamList(elements);
       }
       case 109:
-        return this.readString(this.readUint32());
+        return this.readString(this.checkBinaryLen(this.readUint32(), "binary"));
       case 110:
         return this.decodeBigInt(this.readUint8());
       case 111:
         return this.decodeBigInt(this.readUint32());
       case 116:
-        return this.decodeMap();
+        return this.decodeMap(depth);
       case 118:
         return this.decodeAtom(this.readUint16());
       case 119:
         return this.decodeAtom(this.readUint8());
       case 77: { // BIT_BINARY_EXT
-        const len = this.readUint32();
+        const len = this.checkBinaryLen(this.readUint32(), "bit_binary");
         const bitsInLastByte = this.readUint8();
         const bytes = this.readBytes(len);
         const bitSize = len === 0 ? 0 : (len - 1) * 8 + bitsInLastByte;
@@ -170,8 +217,14 @@ class ETFDecoder {
     return name;
   }
 
-  decodeTuple(arity) {
+  decodeTuple(arity, depth) {
     if (arity === 0) return [];
+    if (depth + 1 >= MAX_TERM_DEPTH) {
+      throw makeError(
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        "ETF_DEPTH_EXCEEDED",
+      );
+    }
 
     const firstTag = this.bytes[this.offset];
     if (firstTag === 118 || firstTag === 119) {
@@ -185,7 +238,7 @@ class ETFDecoder {
           : undefined;
         const elements = [firstVal];
         for (let i = 1; i < arity; i++) {
-          elements.push(this.decodeTerm());
+          elements.push(this.decodeTerm(depth + 1));
         }
         return elements;
       }
@@ -194,23 +247,29 @@ class ETFDecoder {
       // Typed decoder (rpc_decoders_ffi.mjs) resolves the correct constructor.
       const elements = [atomName];
       for (let i = 1; i < arity; i++) {
-        elements.push(this.decodeTerm());
+        elements.push(this.decodeTerm(depth + 1));
       }
       return elements;
     }
 
     const elements = [];
     for (let i = 0; i < arity; i++) {
-      elements.push(this.decodeTerm());
+      elements.push(this.decodeTerm(depth + 1));
     }
     return elements;
   }
 
-  decodeList() {
-    const count = this.readUint32();
+  decodeList(depth) {
+    const count = this.checkCollectionLen(this.readUint32(), "list length");
+    if (count > 0 && depth + 1 >= MAX_TERM_DEPTH) {
+      throw makeError(
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        "ETF_DEPTH_EXCEEDED",
+      );
+    }
     const elements = [];
     for (let i = 0; i < count; i++) {
-      elements.push(this.decodeTerm());
+      elements.push(this.decodeTerm(depth + 1));
     }
     const tailTag = this.readUint8();
     if (tailTag !== 106) {
@@ -233,12 +292,18 @@ class ETFDecoder {
     return value;
   }
 
-  decodeMap() {
-    const arity = this.readUint32();
+  decodeMap(depth) {
+    const arity = this.checkCollectionLen(this.readUint32(), "map arity");
+    if (arity > 0 && depth + 1 >= MAX_TERM_DEPTH) {
+      throw makeError(
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        "ETF_DEPTH_EXCEEDED",
+      );
+    }
     const pairs = [];
     for (let i = 0; i < arity; i++) {
-      const key = this.decodeTerm();
-      const val = this.decodeTerm();
+      const key = this.decodeTerm(depth + 1);
+      const val = this.decodeTerm(depth + 1);
       pairs.push([key, val]);
     }
     return new Map(pairs);
@@ -558,6 +623,49 @@ function testEncode(name, jsValue, expectedErlangStr, opts = {}) {
     const erlResult = etfDecodeInErlang(b64);
     assert.equal(erlResult, expectedErlangStr);
   });
+}
+
+function taggedBuffer(tag) {
+  return Uint8Array.from([131, tag]).buffer;
+}
+
+function declaredLengthBuffer(tag, length) {
+  const buf = new ArrayBuffer(6);
+  const view = new DataView(buf);
+  view.setUint8(0, 131);
+  view.setUint8(1, tag);
+  view.setUint32(2, length);
+  return buf;
+}
+
+function nestedSingleTupleBuffer(depth) {
+  const bytes = [131];
+  for (let i = 0; i < depth; i++) {
+    bytes.push(104, 1);
+  }
+  bytes.push(97, 0);
+  return Uint8Array.from(bytes).buffer;
+}
+
+function nestedSingleListBuffer(depth) {
+  const bytes = [131];
+  for (let i = 0; i < depth; i++) {
+    bytes.push(108, 0, 0, 0, 1);
+  }
+  bytes.push(97, 0);
+  for (let i = 0; i < depth; i++) {
+    bytes.push(106);
+  }
+  return Uint8Array.from(bytes).buffer;
+}
+
+function nestedMapValueBuffer(depth) {
+  const bytes = [131];
+  for (let i = 0; i < depth; i++) {
+    bytes.push(116, 0, 0, 0, 1, 97, 1);
+  }
+  bytes.push(97, 0);
+  return Uint8Array.from(bytes).buffer;
 }
 
 // ============================================================
@@ -1533,6 +1641,85 @@ test("Decode", "atom with multibyte codepoints over 255 throws", () => {
 
   const decoder = new ETFDecoder(buf);
   assert.throws(() => decoder.decode(), /atom name exceeds 255 codepoints/);
+});
+
+// --- Hostile ETF fixtures ---
+
+console.log("\nHostile ETF fixture tests:");
+
+for (const [tagName, tag] of [
+  ["FUN_EXT", 117],
+  ["NEW_FUN_EXT", 112],
+  ["EXPORT_EXT", 113],
+  ["PID_EXT", 103],
+  ["REF_EXT", 101],
+  ["NEWER_REFERENCE_EXT", 90],
+  ["PORT_EXT", 102],
+]) {
+  test("Hostile ETF", `rejects ${tagName} tag`, () => {
+    const decoder = new ETFDecoder(taggedBuffer(tag));
+    assert.throws(() => decoder.decode(), new RegExp(`unknown tag ${tag}`));
+  });
+}
+
+test("Hostile ETF", "rejects tuple arity above collection cap before reading elements", () => {
+  const decoder = new ETFDecoder(
+    declaredLengthBuffer(105, MAX_COLLECTION_LEN + 1),
+  );
+  assert.throws(() => decoder.decode(), /tuple arity .* exceeds limit/);
+});
+
+test("Hostile ETF", "rejects list length above collection cap before reading elements", () => {
+  const decoder = new ETFDecoder(
+    declaredLengthBuffer(108, MAX_COLLECTION_LEN + 1),
+  );
+  assert.throws(() => decoder.decode(), /list length .* exceeds limit/);
+});
+
+test("Hostile ETF", "rejects map arity above collection cap before reading pairs", () => {
+  const decoder = new ETFDecoder(
+    declaredLengthBuffer(116, MAX_COLLECTION_LEN + 1),
+  );
+  assert.throws(() => decoder.decode(), /map arity .* exceeds limit/);
+});
+
+test("Hostile ETF", "rejects binary length above byte cap before reading bytes", () => {
+  const decoder = new ETFDecoder(
+    declaredLengthBuffer(109, MAX_BINARY_BYTES + 1),
+  );
+  assert.throws(() => decoder.decode(), /binary length .* exceeds limit/);
+});
+
+test("Hostile ETF", "rejects bit binary length above byte cap before reading bytes", () => {
+  const decoder = new ETFDecoder(
+    declaredLengthBuffer(77, MAX_BINARY_BYTES + 1),
+  );
+  assert.throws(() => decoder.decode(), /bit_binary length .* exceeds limit/);
+});
+
+test("Hostile ETF", "rejects truncated tuple body cleanly", () => {
+  const decoder = new ETFDecoder(Uint8Array.from([131, 104, 1]).buffer);
+  assert.throws(() => decoder.decode(), /need 1 bytes/);
+});
+
+test("Hostile ETF", "accepts tuple nesting just below depth limit", () => {
+  const decoder = new ETFDecoder(nestedSingleTupleBuffer(MAX_TERM_DEPTH - 1));
+  assert.ok(Array.isArray(decoder.decode()));
+});
+
+test("Hostile ETF", "rejects tuple nesting at depth limit", () => {
+  const decoder = new ETFDecoder(nestedSingleTupleBuffer(MAX_TERM_DEPTH));
+  assert.throws(() => decoder.decode(), /term nesting depth .* exceeds limit/);
+});
+
+test("Hostile ETF", "rejects list nesting at depth limit", () => {
+  const decoder = new ETFDecoder(nestedSingleListBuffer(MAX_TERM_DEPTH));
+  assert.throws(() => decoder.decode(), /term nesting depth .* exceeds limit/);
+});
+
+test("Hostile ETF", "rejects map value nesting at depth limit", () => {
+  const decoder = new ETFDecoder(nestedMapValueBuffer(MAX_TERM_DEPTH));
+  assert.throws(() => decoder.decode(), /term nesting depth .* exceeds limit/);
 });
 
 // --- Trailing byte rejection ---

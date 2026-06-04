@@ -101,6 +101,8 @@ export const ERROR_ATOM_TOO_LONG = "ETF_ATOM_TOO_LONG";
 export const ERROR_COLLECTION_TOO_LONG = "ETF_COLLECTION_TOO_LONG";
 /** Binary or bit-binary length exceeds MAX_BINARY_BYTES. */
 export const ERROR_BINARY_TOO_LARGE = "ETF_BINARY_TOO_LARGE";
+/** ETF term nesting exceeds MAX_TERM_DEPTH. */
+export const ERROR_DEPTH_EXCEEDED = "ETF_DEPTH_EXCEEDED";
 /** Trailing bytes after a decoded term. */
 export const ERROR_TRAILING_BYTES = "ETF_TRAILING_BYTES";
 
@@ -110,6 +112,7 @@ export const ERROR_TRAILING_BYTES = "ETF_TRAILING_BYTES";
 // underlying transport is configured.
 const MAX_COLLECTION_LEN = 16_000_000;
 const MAX_BINARY_BYTES = 64 * 1024 * 1024;
+const MAX_TERM_DEPTH = 512;
 
 /**
  * @param {string} message
@@ -251,7 +254,7 @@ class ETFDecoder {
         ERROR_VERSION_BYTE,
       );
     }
-    const result = this.decodeTerm();
+    const result = this.decodeTerm(0);
     if (this.offset !== this.bytes.byteLength) {
       throw makeError(
         `ETF decode: trailing bytes at offset ${this.offset}, total length ${this.bytes.byteLength}`,
@@ -336,7 +339,7 @@ class ETFDecoder {
     return utf8Decoder.decode(this.readBytes(n));
   }
 
-  decodeTerm() {
+  decodeTerm(depth) {
     const tag = this.readUint8();
     switch (tag) {
       case 70: // NEW_FLOAT_EXT
@@ -349,17 +352,20 @@ class ETFDecoder {
         return this.readInt32();
 
       case 104: // SMALL_TUPLE_EXT
-        return this.decodeTuple(this.readUint8());
+        return this.decodeTuple(this.readUint8(), depth);
 
       case 105: // LARGE_TUPLE_EXT
-        return this.decodeTuple(this.checkCollectionLen(this.readUint32(), "tuple arity"));
+        return this.decodeTuple(
+          this.checkCollectionLen(this.readUint32(), "tuple arity"),
+          depth,
+        );
 
       case 106: // NIL_EXT (empty list)
         if (this.raw) return [];
         return arrayToGleamList([]);
 
       case 108: // LIST_EXT
-        return this.decodeList();
+        return this.decodeList(depth);
 
       case 107: { // STRING_EXT (list of small ints encoded as bytes)
         // Erlang optimizes lists of bytes (0-255) into this compact form.
@@ -387,7 +393,7 @@ class ETFDecoder {
         return this.decodeBigInt(this.readUint32());
 
       case 116: // MAP_EXT
-        return this.decodeMap();
+        return this.decodeMap(depth);
 
       case 118: // ATOM_UTF8_EXT
         return this.decodeAtom(this.readUint16());
@@ -459,8 +465,14 @@ class ETFDecoder {
     return name;
   }
 
-  decodeTuple(arity) {
+  decodeTuple(arity, depth) {
     if (arity === 0) return [];
+    if (depth + 1 >= MAX_TERM_DEPTH) {
+      throw makeError(
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        ERROR_DEPTH_EXCEEDED,
+      );
+    }
 
     // Peek at first element to check for atom tag
     const firstTag = this.bytes[this.offset];
@@ -477,7 +489,7 @@ class ETFDecoder {
           : undefined;
         const elements = [firstVal];
         for (let i = 1; i < arity; i++) {
-          elements.push(this.decodeTerm());
+          elements.push(this.decodeTerm(depth + 1));
         }
         return elements;
       }
@@ -488,22 +500,22 @@ class ETFDecoder {
       if (!this.raw) {
         switch (atomName) {
           case "ok": {
-            const inner = arity >= 2 ? this.decodeTerm() : undefined;
-            for (let i = 2; i < arity; i++) this.decodeTerm();
+            const inner = arity >= 2 ? this.decodeTerm(depth + 1) : undefined;
+            for (let i = 2; i < arity; i++) this.decodeTerm(depth + 1);
             return new Ok(inner);
           }
           case "error": {
-            const inner = arity >= 2 ? this.decodeTerm() : undefined;
-            for (let i = 2; i < arity; i++) this.decodeTerm();
+            const inner = arity >= 2 ? this.decodeTerm(depth + 1) : undefined;
+            for (let i = 2; i < arity; i++) this.decodeTerm(depth + 1);
             return new ResultError(inner);
           }
           case "some": {
-            const inner = arity >= 2 ? this.decodeTerm() : undefined;
-            for (let i = 2; i < arity; i++) this.decodeTerm();
+            const inner = arity >= 2 ? this.decodeTerm(depth + 1) : undefined;
+            for (let i = 2; i < arity; i++) this.decodeTerm(depth + 1);
             return new Some(inner);
           }
           case "none":
-            for (let i = 1; i < arity; i++) this.decodeTerm();
+            for (let i = 1; i < arity; i++) this.decodeTerm(depth + 1);
             return new None();
         }
       }
@@ -515,7 +527,7 @@ class ETFDecoder {
         if (reg) {
           const fields = [];
           for (let i = 1; i < arity; i++) {
-            fields.push(this.decodeTerm());
+            fields.push(this.decodeTerm(depth + 1));
           }
           while (fields.length < reg.fieldCount) fields.push(undefined);
           fields.length = reg.fieldCount;
@@ -534,7 +546,7 @@ class ETFDecoder {
         if (decoderFn) {
           const elements = [atomName];
           for (let i = 1; i < arity; i++) {
-            elements.push(toRawShape(this.decodeTerm()));
+            elements.push(toRawShape(this.decodeTerm(depth + 1)));
           }
           return decoderFn(elements);
         }
@@ -545,7 +557,7 @@ class ETFDecoder {
       // resolve these in a second pass.
       const elements = [atomName];
       for (let i = 1; i < arity; i++) {
-        elements.push(this.decodeTerm());
+        elements.push(this.decodeTerm(depth + 1));
       }
       return elements;
     }
@@ -553,16 +565,22 @@ class ETFDecoder {
     // Not atom-tagged - decode all elements as plain JS array (Gleam tuple)
     const elements = [];
     for (let i = 0; i < arity; i++) {
-      elements.push(this.decodeTerm());
+      elements.push(this.decodeTerm(depth + 1));
     }
     return elements;
   }
 
-  decodeList() {
+  decodeList(depth) {
     const count = this.checkCollectionLen(this.readUint32(), "list length");
+    if (count > 0 && depth + 1 >= MAX_TERM_DEPTH) {
+      throw makeError(
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        ERROR_DEPTH_EXCEEDED,
+      );
+    }
     const elements = [];
     for (let i = 0; i < count; i++) {
-      elements.push(this.decodeTerm());
+      elements.push(this.decodeTerm(depth + 1));
     }
     // Read the tail - must be NIL_EXT (106) for proper lists.
     // Gleam cannot produce improper lists, so a non-nil tail indicates
@@ -594,12 +612,18 @@ class ETFDecoder {
     return value;
   }
 
-  decodeMap() {
+  decodeMap(depth) {
     const arity = this.checkCollectionLen(this.readUint32(), "map arity");
+    if (arity > 0 && depth + 1 >= MAX_TERM_DEPTH) {
+      throw makeError(
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        ERROR_DEPTH_EXCEEDED,
+      );
+    }
     const pairs = [];
     for (let i = 0; i < arity; i++) {
-      const key = this.decodeTerm();
-      const val = this.decodeTerm();
+      const key = this.decodeTerm(depth + 1);
+      const val = this.decodeTerm(depth + 1);
       pairs.push([key, val]);
     }
     if (this.raw) return pairs;

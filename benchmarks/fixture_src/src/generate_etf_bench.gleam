@@ -30,6 +30,7 @@ pub fn main() {
       endpoints:,
       relpath_prefix: "../../../",
       package: "libero_transport_bench",
+      dependency_packages: [],
       dispatch_module: option.None,
     )
   let decoders_gleam = libero.generate_decoders_gleam()

@@ -97,6 +97,11 @@ pub fn decode(data: BitArray) -> a
 /// user-influenced - for example, reading server-rendered state from
 /// Lustre flags on client boot where the binary may have been
 /// corrupted in transit.
+///
+/// On Erlang this rejects malformed ETF, new atom creation, and trailing
+/// bytes. It does not run Libero's full non-executable term validator by
+/// default because that double-walks every payload; generated typed
+/// dispatch remains the normal enforcement point.
 pub fn decode_safe(data: BitArray) -> Result(a, DecodeError) {
   ffi_decode_safe(data)
 }

@@ -136,11 +136,16 @@ as an ETF float.
 ## Safe Decode
 
 Use generated boundary helpers or `decode_safe` for untrusted ETF input. On the
-BEAM, safe ETF decoding prevents atom and function-term injection.
+BEAM, safe ETF decoding uses `[safe, used]` to block new atom creation and
+reject trailing bytes after the decoded term.
 
-Safe ETF decoding does not by itself limit input size or nesting depth. Code
-that accepts hostile input should also set process memory limits and use Libero
-helpers that validate the decoded shape before constructing typed values.
+Safe ETF decoding does not by itself limit input size, nesting depth, or every
+BEAM runtime term class. Libero has an internal validator that rejects pids,
+refs, ports, and functions, but the default request path does not call it
+because it double-walks payloads before generated typed decoding. Proper Libero
+clients do not emit those terms. Code that accepts hostile hand-written ETF
+should also set process memory limits and use Libero helpers that validate the
+decoded shape before constructing typed values.
 
 ## Protocol Helpers
 

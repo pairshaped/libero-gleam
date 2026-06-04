@@ -4,7 +4,10 @@
 -export([apply2/4, apply_catch/3, compile_module_from_source/1,
          deep_tuple/1, deep_tree/3, set_wire_module/1, clear_wire_module/0,
          term_to_binary/1, encoded_pid/0, encoded_ref/0, encoded_fun/0,
-         encoded_port/0, encoded_request_with_pid/0]).
+         encoded_port/0, encoded_external_fun/0, encoded_unknown_atom/0,
+         encoded_trailing_bytes/0, encoded_declared_large_tuple/0,
+         encoded_declared_large_list/0, encoded_declared_large_binary/0,
+         encoded_request_with_pid/0, encoded_request_with_trailing_bytes/0]).
 
 apply2(Mod, Fun, Arg1, Arg2) ->
     erlang:apply(Mod, Fun, [Arg1, Arg2]).
@@ -50,7 +53,11 @@ set_wire_module(Mod) ->
     nil.
 
 clear_wire_module() ->
-    catch persistent_term:erase({libero, wire_module}),
+    try persistent_term:erase({libero, wire_module}) of
+        _ -> nil
+    catch
+        _:_ -> nil
+    end,
     nil.
 
 term_to_binary(Term) ->
@@ -68,5 +75,26 @@ encoded_fun() ->
 encoded_port() ->
     erlang:term_to_binary(hd(erlang:ports())).
 
+encoded_external_fun() ->
+    erlang:term_to_binary(fun erlang:length/1).
+
+encoded_unknown_atom() ->
+    <<131, 119, 29, "libero_hostile_unknown_atom">>.
+
+encoded_trailing_bytes() ->
+    <<(erlang:term_to_binary(42))/binary, 0>>.
+
+encoded_declared_large_tuple() ->
+    <<131, 105, 16#ff, 16#ff, 16#ff, 16#ff>>.
+
+encoded_declared_large_list() ->
+    <<131, 108, 16#ff, 16#ff, 16#ff, 16#ff>>.
+
+encoded_declared_large_binary() ->
+    <<131, 109, 16#ff, 16#ff, 16#ff, 16#ff>>.
+
 encoded_request_with_pid() ->
     erlang:term_to_binary({<<"rpc">>, 123, self()}).
+
+encoded_request_with_trailing_bytes() ->
+    <<(erlang:term_to_binary({<<"rpc">>, 123, {ok, 42}}))/binary, 0>>.

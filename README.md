@@ -149,8 +149,10 @@ LIBERO_GEN_ETF=1 gleam run -m libero
 ```
 
 For untrusted ETF input, decode through the generated helpers or
-`libero/etf/wire.decode_safe`. ETF safe decoding prevents atom and function-term injection,
-but callers should still set process memory limits for hostile input.
+`libero/etf/wire.decode_safe`. ETF safe decoding uses `[safe, used]` on the
+BEAM to block new atom creation and reject trailing bytes. It is not a full
+"data terms only" validator, so callers should still set process memory limits
+for hostile input.
 
 ## Security: ETF Threat Model
 
@@ -176,16 +178,24 @@ a defense stack designed for a specific threat model.
 
 1. **Transport frame size limit.** Your WebSocket server (mist, cowboy, etc.)
    should cap frame size. This is outside Libero but is the first gate.
-2. **`binary_to_term(Bin, [safe])`** on every decode path. This blocks atom
-   creation (atom-table exhaustion DoS) and function deserialisation
-   (remote code execution via FUN_EXT/EXPORT_EXT). Libero audits for bare
-   `binary_to_term/1` calls; none exist in the codebase.
+2. **`binary_to_term(Bin, [safe, used])`** on every decode path. This blocks
+   new atom creation (atom-table exhaustion DoS) and rejects trailing bytes
+   after the decoded term. Libero audits for bare `binary_to_term/1` calls;
+   none exist in the codebase.
 3. **Atom pre-registration.** The generated `rpc_atoms` module calls
    `binary_to_atom/2` for every constructor atom at boot. With `[safe]`,
    `binary_to_term` only succeeds for atoms that already exist in the table.
 4. **Typed dispatch.** The generated dispatch verifies the decoded term's
    constructor tag against a known handler set before invoking any handler
    function. Unknown tags return a wire error, not a crash.
+
+Libero also has an internal `validate_data_term` helper that rejects BEAM
+runtime terms such as pids, refs, ports, and functions after decode. It is not
+called by default because it recursively walks the full request before generated
+typed decoding walks it again, which made BEAM ETF request decode about 5-6x
+slower in benchmarks. Proper Libero clients do not emit those terms; use a
+future strict mode or an application-level wrapper if you intentionally accept
+hand-written ETF from untrusted non-Libero clients.
 
 ### What would weaken this model
 
@@ -195,8 +205,8 @@ a defense stack designed for a specific threat model.
   tag verification.
 - Removing atom pre-registration while still accepting ETF from browsers.
 
-If you modify Libero's decode path, verify that `[safe]` is present and that the
-decoded term flows through typed dispatch before reaching handler code.
+If you modify Libero's decode path, verify that `[safe, used]` is present and
+that the decoded term flows through typed dispatch before reaching handler code.
 
 ## More Docs
 

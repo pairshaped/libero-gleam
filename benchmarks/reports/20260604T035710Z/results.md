@@ -1,0 +1,281 @@
+### BEAM: Server Request Decode
+
+#### Large Shots
+
+Decodes the Large Shots request payload on BEAM. 250 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 25.12 | 1067.37 | 42.49 |
+| Size (B) | 71093 | 150297 | 2.11 |
+
+#### Nested Game
+
+Decodes the Nested Game request payload on BEAM. 500 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 16.30 | 581.31 | 35.65 |
+| Size (B) | 17063 | 38403 | 2.25 |
+
+#### Repeated Records
+
+Decodes the Repeated Records request payload on BEAM. 1000 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 16.03 | 663.82 | 41.42 |
+| Size (B) | 11838 | 23256 | 1.96 |
+
+#### Small Admin
+
+Decodes the Small Admin request payload on BEAM. 5000 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 1.94 | 72.77 | 37.58 |
+| Size (B) | 236 | 603 | 2.56 |
+
+#### Type Matrix
+
+Decodes the Type Matrix request payload on BEAM. 2500 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 2.10 | 101.97 | 48.65 |
+| Size (B) | 509 | 1467 | 2.88 |
+
+### BEAM: Server Response Encode
+
+#### Large Shots
+
+Encodes the Large Shots response payload on BEAM. 250 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 26.93 | 203.10 | 7.54 |
+| Size (B) | 71085 | 150240 | 2.11 |
+
+#### Nested Game
+
+Encodes the Nested Game response payload on BEAM. 500 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 15.45 | 123.43 | 7.99 |
+| Size (B) | 17056 | 38341 | 2.25 |
+
+#### Repeated Records
+
+Encodes the Repeated Records response payload on BEAM. 1000 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 18.12 | 127.02 | 7.01 |
+| Size (B) | 11828 | 23195 | 1.96 |
+
+#### Small Admin
+
+Encodes the Small Admin response payload on BEAM. 5000 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 4.55 | 14.50 | 3.19 |
+| Size (B) | 228 | 548 | 2.40 |
+
+#### Type Matrix
+
+Encodes the Type Matrix response payload on BEAM. 2500 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 2.41 | 20.42 | 8.47 |
+| Size (B) | 500 | 1407 | 2.81 |
+
+### JavaScript: Client Response Decode
+
+#### Large Shots
+
+Decodes the Large Shots response payload on JavaScript. 250 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 71.17 | 613.15 | 8.62 |
+| Size (B) | 71085 | 150178 | 2.11 |
+
+#### Nested Game
+
+Decodes the Nested Game response payload on JavaScript. 500 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 41.06 | 267.50 | 6.52 |
+| Size (B) | 17056 | 38341 | 2.25 |
+
+#### Repeated Records
+
+Decodes the Repeated Records response payload on JavaScript. 1000 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 51.85 | 284.21 | 5.48 |
+| Size (B) | 11828 | 23095 | 1.95 |
+
+#### Small Admin
+
+Decodes the Small Admin response payload on JavaScript. 5000 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 10.01 | 41.73 | 4.17 |
+| Size (B) | 228 | 548 | 2.40 |
+
+#### Type Matrix
+
+Decodes the Type Matrix response payload on JavaScript. 2500 iterations per codec.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) | 7.93 | 53.64 | 6.77 |
+| Size (B) | 500 | 1405 | 2.81 |
+
+### JavaScript: JSON Parse Only
+
+#### Large Shots
+
+Parses the Large Shots JSON response without wire validation or typed rebuild. 250 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 95.34 |  |
+| Size (B) |  | 150178 |  |
+
+#### Nested Game
+
+Parses the Nested Game JSON response without wire validation or typed rebuild. 500 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 54.30 |  |
+| Size (B) |  | 38341 |  |
+
+#### Repeated Records
+
+Parses the Repeated Records JSON response without wire validation or typed rebuild. 1000 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 55.31 |  |
+| Size (B) |  | 23095 |  |
+
+#### Small Admin
+
+Parses the Small Admin JSON response without wire validation or typed rebuild. 5000 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 8.35 |  |
+| Size (B) |  | 548 |  |
+
+#### Type Matrix
+
+Parses the Type Matrix JSON response without wire validation or typed rebuild. 2500 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 9.81 |  |
+| Size (B) |  | 1405 |  |
+
+### JavaScript: JSON Typed Decode
+
+#### Large Shots
+
+Rebuilds the Large Shots typed value from an already extracted JSON response value. 250 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 352.01 |  |
+| Size (B) |  | 150178 |  |
+
+#### Nested Game
+
+Rebuilds the Nested Game typed value from an already extracted JSON response value. 500 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 183.55 |  |
+| Size (B) |  | 38341 |  |
+
+#### Repeated Records
+
+Rebuilds the Repeated Records typed value from an already extracted JSON response value. 1000 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 199.45 |  |
+| Size (B) |  | 23095 |  |
+
+#### Small Admin
+
+Rebuilds the Small Admin typed value from an already extracted JSON response value. 5000 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 28.86 |  |
+| Size (B) |  | 548 |  |
+
+#### Type Matrix
+
+Rebuilds the Type Matrix typed value from an already extracted JSON response value. 2500 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 38.83 |  |
+| Size (B) |  | 1405 |  |
+
+### JavaScript: JSON Wire Decode
+
+#### Large Shots
+
+Decodes the Large Shots JSON response frame without typed rebuild. 250 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 178.82 |  |
+| Size (B) |  | 150178 |  |
+
+#### Nested Game
+
+Decodes the Nested Game JSON response frame without typed rebuild. 500 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 102.36 |  |
+| Size (B) |  | 38341 |  |
+
+#### Repeated Records
+
+Decodes the Repeated Records JSON response frame without typed rebuild. 1000 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 91.45 |  |
+| Size (B) |  | 23095 |  |
+
+#### Small Admin
+
+Decodes the Small Admin JSON response frame without typed rebuild. 5000 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 14.55 |  |
+| Size (B) |  | 548 |  |
+
+#### Type Matrix
+
+Decodes the Type Matrix JSON response frame without typed rebuild. 2500 JSON iterations. No matching ETF stage.
+
+| Metric | ETF | JSON | Ratio |
+|---|---:|---:|---:|
+| Time (ms) |  | 16.40 |  |
+| Size (B) |  | 1405 |  |

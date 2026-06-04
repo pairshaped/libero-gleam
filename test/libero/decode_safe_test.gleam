@@ -1,20 +1,22 @@
 //// Tests for wire.decode_safe - the Result-returning decoder.
 
-import gleam/string
 import libero/error
 import libero/etf/wire
 
-@external(erlang, "libero_test_ffi", "encoded_pid")
-fn encoded_pid() -> BitArray
+@external(erlang, "libero_test_ffi", "encoded_unknown_atom")
+fn encoded_unknown_atom() -> BitArray
 
-@external(erlang, "libero_test_ffi", "encoded_ref")
-fn encoded_ref() -> BitArray
+@external(erlang, "libero_test_ffi", "encoded_trailing_bytes")
+fn encoded_trailing_bytes() -> BitArray
 
-@external(erlang, "libero_test_ffi", "encoded_fun")
-fn encoded_fun() -> BitArray
+@external(erlang, "libero_test_ffi", "encoded_declared_large_tuple")
+fn encoded_declared_large_tuple() -> BitArray
 
-@external(erlang, "libero_test_ffi", "encoded_port")
-fn encoded_port() -> BitArray
+@external(erlang, "libero_test_ffi", "encoded_declared_large_list")
+fn encoded_declared_large_list() -> BitArray
+
+@external(erlang, "libero_test_ffi", "encoded_declared_large_binary")
+fn encoded_declared_large_binary() -> BitArray
 
 pub fn decode_safe_valid_int_test() {
   let encoded = wire.encode(42)
@@ -50,30 +52,32 @@ pub fn decode_safe_truncated_etf_test() {
   let assert Error(error.DecodeError(message: _)) = result
 }
 
-pub fn decode_safe_rejects_pid_test() {
-  let result: Result(Int, error.DecodeError) = wire.decode_safe(encoded_pid())
-  let assert Error(error.DecodeError(message: message)) = result
-  let assert True = string.contains(message, "non_executable_term")
-  let assert True = string.contains(message, "pid")
+pub fn decode_safe_rejects_unknown_atom_test() {
+  let result: Result(Int, error.DecodeError) =
+    wire.decode_safe(encoded_unknown_atom())
+  let assert Error(error.DecodeError(message: _)) = result
 }
 
-pub fn decode_safe_rejects_ref_test() {
-  let result: Result(Int, error.DecodeError) = wire.decode_safe(encoded_ref())
-  let assert Error(error.DecodeError(message: message)) = result
-  let assert True = string.contains(message, "non_executable_term")
-  let assert True = string.contains(message, "reference")
+pub fn decode_safe_rejects_trailing_bytes_test() {
+  let result: Result(Int, error.DecodeError) =
+    wire.decode_safe(encoded_trailing_bytes())
+  let assert Error(error.DecodeError(message: _)) = result
 }
 
-pub fn decode_safe_rejects_fun_test() {
-  let result: Result(Int, error.DecodeError) = wire.decode_safe(encoded_fun())
-  let assert Error(error.DecodeError(message: message)) = result
-  let assert True = string.contains(message, "non_executable_term")
-  let assert True = string.contains(message, "function")
+pub fn decode_safe_rejects_declared_large_tuple_test() {
+  let result: Result(Int, error.DecodeError) =
+    wire.decode_safe(encoded_declared_large_tuple())
+  let assert Error(error.DecodeError(message: _)) = result
 }
 
-pub fn decode_safe_rejects_port_test() {
-  let result: Result(Int, error.DecodeError) = wire.decode_safe(encoded_port())
-  let assert Error(error.DecodeError(message: message)) = result
-  let assert True = string.contains(message, "non_executable_term")
-  let assert True = string.contains(message, "port")
+pub fn decode_safe_rejects_declared_large_list_test() {
+  let result: Result(Int, error.DecodeError) =
+    wire.decode_safe(encoded_declared_large_list())
+  let assert Error(error.DecodeError(message: _)) = result
+}
+
+pub fn decode_safe_rejects_declared_large_binary_test() {
+  let result: Result(Int, error.DecodeError) =
+    wire.decode_safe(encoded_declared_large_binary())
+  let assert Error(error.DecodeError(message: _)) = result
 }

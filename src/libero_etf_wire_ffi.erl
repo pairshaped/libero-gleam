@@ -11,27 +11,25 @@
 %% generated ClientMsg value. The request ID lets the client correlate
 %% responses to calls.
 %%
-%% Note: binary_to_term/2 is called with [safe] to prevent atom
-%% exhaustion attacks. All legitimate constructor atoms must be pre-
-%% registered (via binary_to_atom) before the first RPC arrives.
-%% Libero's codegen generates an rpc_atoms module that handles this.
+%% Note: binary_to_term/2 is called with [safe, used] to prevent atom
+%% exhaustion attacks and reject trailing bytes. All legitimate constructor
+%% atoms must be pre-registered (via binary_to_atom) before the first RPC
+%% arrives. Libero's codegen generates an rpc_atoms module that handles this.
 decode_request(Bin) when is_binary(Bin) ->
-    try erlang:binary_to_term(Bin, [safe]) of
+    try decode_binary_term(Bin) of
         Term ->
-            case catch libero_etf_ffi:validate_data_term(Term) of
-                ok ->
-                    case Term of
-                        {Module, RequestId, Value}
-                                when is_binary(Module), is_integer(RequestId),
-                                     RequestId >= 0, RequestId =< 4294967295 ->
-                            {ok, {Module, RequestId, Value}};
-                        _ ->
-                            {error, {decode_error, <<"invalid request envelope: expected {binary, integer, value} tuple">>}}
-                    end;
-                {'EXIT', {Reason, _Stack}} ->
-                    {error, {decode_error, erlang:iolist_to_binary(io_lib:format("~p", [Reason]))}};
-                {'EXIT', Reason} ->
-                    {error, {decode_error, erlang:iolist_to_binary(io_lib:format("~p", [Reason]))}}
+            %% Full non-executable term validation is intentionally not run
+            %% here by default. It double-walks every legitimate request and
+            %% made BEAM ETF request decode about 5-6x slower in benchmarks.
+            %% Keep the validator in libero_etf_ffi for a future strict mode.
+            %% ok = libero_etf_ffi:validate_data_term(Term),
+            case Term of
+                {Module, RequestId, Value}
+                        when is_binary(Module), is_integer(RequestId),
+                             RequestId >= 0, RequestId =< 4294967295 ->
+                    {ok, {Module, RequestId, Value}};
+                _ ->
+                    {error, {decode_error, <<"invalid request envelope: expected {binary, integer, value} tuple">>}}
             end
     catch
         _:_ ->
@@ -39,6 +37,15 @@ decode_request(Bin) when is_binary(Bin) ->
     end;
 decode_request(_) ->
     {error, {decode_error, <<"expected a binary (BitArray)">>}}.
+
+decode_binary_term(Bin) ->
+    Size = byte_size(Bin),
+    case erlang:binary_to_term(Bin, [safe, used]) of
+        {Term, Size} ->
+            Term;
+        {_Term, Used} ->
+            error({trailing_bytes, Used, Size})
+    end.
 
 
 %% Extract the variant tag (constructor atom name) from a Gleam variant

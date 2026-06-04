@@ -14,12 +14,16 @@ encode(Term) ->
     erlang:term_to_binary(Term2).
 
 decode(Bin) ->
-    apply_decode_term(erlang:binary_to_term(Bin, [safe])).
+    apply_decode_term(decode_binary_term(Bin)).
 
 decode_safe(Bin) ->
     try
-        Term = erlang:binary_to_term(Bin, [safe]),
-        ok = validate_data_term(Term),
+        Term = decode_binary_term(Bin),
+        %% validate_data_term(Term) rejects BEAM runtime terms such as pids,
+        %% refs, ports, and funs, but it recursively walks the whole payload
+        %% before generated typed decoding walks it again. Keep the helper for
+        %% a future strict mode, but do not run it on the default hot path.
+        %% ok = validate_data_term(Term),
         apply_decode_term(Term)
     of
         Term -> {ok, Term}
@@ -33,6 +37,15 @@ decode_safe(Bin) ->
 
 decode_typed(Bin, _DecoderName) ->
     decode_safe(Bin).
+
+decode_binary_term(Bin) ->
+    Size = byte_size(Bin),
+    case erlang:binary_to_term(Bin, [safe, used]) of
+        {Term, Size} ->
+            Term;
+        {_Term, Used} ->
+            error({trailing_bytes, Used, Size})
+    end.
 
 apply_decode_term(Term) ->
     case persistent_term:get({libero, wire_module}, undefined) of
