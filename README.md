@@ -5,9 +5,8 @@
 [![Package Version](https://img.shields.io/hexpm/v/libero)](https://hex.pm/packages/libero)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/libero/)
 
-Libero helps a Gleam client and server share a typed RPC contract. The contract
-is the main thing: both sides agree on which calls exist, what arguments they
-take, and what each call returns.
+Libero helps a Gleam client and server agree on a typed RPC surface: which
+calls exist, what arguments they take, and what each call returns.
 
 Encoding and decoding are part of that, but they are not the whole point. The
 hard part is keeping the client and server agreement true across the protocol
