@@ -274,6 +274,102 @@ pub fn json_dispatch_uses_generated_typed_json_codecs_test() {
     )
 }
 
+pub fn json_dispatch_empty_endpoints_omits_active_dispatch_imports_test() {
+  let content =
+    codegen_dispatch.generate_json(
+      endpoints: [],
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      client_msg_module: "generated/libero/messages",
+      json_codecs_module: "generated/libero/json_codecs",
+      contract_hash: "abc123",
+    )
+
+  let assert False = string.contains(content, "import gleam/io")
+  let assert False = string.contains(content, "import libero/trace")
+  let assert False =
+    string.contains(content, "import generated/libero/messages as client_msg")
+  let assert False =
+    string.contains(
+      content,
+      "import generated/libero/json_codecs as json_codecs",
+    )
+  let assert False = string.contains(content, "fn dispatch_known")
+  let assert True =
+    string.contains(
+      content,
+      "wire.decode_request(data, expected_hash: \"abc123\")",
+    )
+}
+
+pub fn dispatch_msg_type_patterns_discard_unused_fields_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "set_dark_mode",
+      return_ok: field_type.NilField,
+      return_err: field_type.NilField,
+      params: [#("enabled", field_type.BoolField)],
+      mutates_context: True,
+      msg_type: option.Some(#("server/handler", "SetDarkMode")),
+    ),
+  ]
+
+  let content =
+    codegen_dispatch.generate(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      atoms_module: option.None,
+      wire_module: option.None,
+    )
+
+  let assert True = string.contains(content, "ServerSetDarkMode(enabled: _) ->")
+  let assert False = string.contains(content, "ServerSetDarkMode(enabled:) ->")
+  let assert True =
+    string.contains(
+      content,
+      "handler.server_set_dark_mode(wire.coerce(typed_msg), server_context)",
+    )
+}
+
+pub fn json_dispatch_msg_type_patterns_discard_unused_fields_test() {
+  let endpoints = [
+    scanner.HandlerEndpoint(
+      module_path: "server/handler",
+      fn_name: "set_dark_mode",
+      return_ok: field_type.NilField,
+      return_err: field_type.NilField,
+      params: [#("enabled", field_type.BoolField)],
+      mutates_context: True,
+      msg_type: option.Some(#("server/handler", "SetDarkMode")),
+    ),
+  ]
+
+  let content =
+    codegen_dispatch.generate_json(
+      endpoints:,
+      context_module: "server_context",
+      context_type_name: "ServerContext",
+      wire_module_tag: "rpc",
+      client_msg_module: "generated/libero/messages",
+      json_codecs_module: "generated/libero/json_codecs",
+      contract_hash: "abc123",
+    )
+
+  let assert True =
+    string.contains(content, "client_msg.ServerSetDarkMode(enabled: _) ->")
+  let assert False =
+    string.contains(content, "client_msg.ServerSetDarkMode(enabled:) ->")
+  let assert True =
+    string.contains(
+      content,
+      "handler.server_set_dark_mode(wire.coerce(typed_msg), server_context)",
+    )
+}
+
 pub fn endpoint_dispatch_imports_qualified_param_types_test() {
   let endpoints = [
     scanner.HandlerEndpoint(
