@@ -42,7 +42,7 @@ function makeError(message, name) {
 }
 
 class ETFDecoder {
-  constructor(input) {
+  constructor(input, maxTermDepth = undefined) {
     let bytes;
     if (input instanceof Uint8Array) {
       bytes = input;
@@ -58,6 +58,7 @@ class ETFDecoder {
     this.bytes = bytes;
     this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     this.offset = 0;
+    this.maxTermDepth = maxTermDepth;
   }
 
   decode() {
@@ -219,9 +220,9 @@ class ETFDecoder {
 
   decodeTuple(arity, depth) {
     if (arity === 0) return [];
-    if (depth + 1 >= MAX_TERM_DEPTH) {
+    if (this.maxTermDepth !== undefined && depth + 1 >= this.maxTermDepth) {
       throw makeError(
-        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${this.maxTermDepth}`,
         "ETF_DEPTH_EXCEEDED",
       );
     }
@@ -261,9 +262,13 @@ class ETFDecoder {
 
   decodeList(depth) {
     const count = this.checkCollectionLen(this.readUint32(), "list length");
-    if (count > 0 && depth + 1 >= MAX_TERM_DEPTH) {
+    if (
+      count > 0
+      && this.maxTermDepth !== undefined
+      && depth + 1 >= this.maxTermDepth
+    ) {
       throw makeError(
-        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${this.maxTermDepth}`,
         "ETF_DEPTH_EXCEEDED",
       );
     }
@@ -294,9 +299,13 @@ class ETFDecoder {
 
   decodeMap(depth) {
     const arity = this.checkCollectionLen(this.readUint32(), "map arity");
-    if (arity > 0 && depth + 1 >= MAX_TERM_DEPTH) {
+    if (
+      arity > 0
+      && this.maxTermDepth !== undefined
+      && depth + 1 >= this.maxTermDepth
+    ) {
       throw makeError(
-        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${this.maxTermDepth}`,
         "ETF_DEPTH_EXCEEDED",
       );
     }
@@ -1702,23 +1711,40 @@ test("Hostile ETF", "rejects truncated tuple body cleanly", () => {
   assert.throws(() => decoder.decode(), /need 1 bytes/);
 });
 
-test("Hostile ETF", "accepts tuple nesting just below depth limit", () => {
-  const decoder = new ETFDecoder(nestedSingleTupleBuffer(MAX_TERM_DEPTH - 1));
+test("Hostile ETF", "optional depth cap accepts tuple nesting just below limit", () => {
+  const decoder = new ETFDecoder(
+    nestedSingleTupleBuffer(MAX_TERM_DEPTH - 1),
+    MAX_TERM_DEPTH,
+  );
   assert.ok(Array.isArray(decoder.decode()));
 });
 
-test("Hostile ETF", "rejects tuple nesting at depth limit", () => {
+test("Hostile ETF", "default decoder leaves term depth uncapped", () => {
   const decoder = new ETFDecoder(nestedSingleTupleBuffer(MAX_TERM_DEPTH));
+  assert.ok(Array.isArray(decoder.decode()));
+});
+
+test("Hostile ETF", "optional depth cap rejects tuple nesting at limit", () => {
+  const decoder = new ETFDecoder(
+    nestedSingleTupleBuffer(MAX_TERM_DEPTH),
+    MAX_TERM_DEPTH,
+  );
   assert.throws(() => decoder.decode(), /term nesting depth .* exceeds limit/);
 });
 
-test("Hostile ETF", "rejects list nesting at depth limit", () => {
-  const decoder = new ETFDecoder(nestedSingleListBuffer(MAX_TERM_DEPTH));
+test("Hostile ETF", "optional depth cap rejects list nesting at limit", () => {
+  const decoder = new ETFDecoder(
+    nestedSingleListBuffer(MAX_TERM_DEPTH),
+    MAX_TERM_DEPTH,
+  );
   assert.throws(() => decoder.decode(), /term nesting depth .* exceeds limit/);
 });
 
-test("Hostile ETF", "rejects map value nesting at depth limit", () => {
-  const decoder = new ETFDecoder(nestedMapValueBuffer(MAX_TERM_DEPTH));
+test("Hostile ETF", "optional depth cap rejects map value nesting at limit", () => {
+  const decoder = new ETFDecoder(
+    nestedMapValueBuffer(MAX_TERM_DEPTH),
+    MAX_TERM_DEPTH,
+  );
   assert.throws(() => decoder.decode(), /term nesting depth .* exceeds limit/);
 });
 

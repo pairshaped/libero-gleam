@@ -114,6 +114,14 @@ const MAX_COLLECTION_LEN = 16_000_000;
 const MAX_BINARY_BYTES = 64 * 1024 * 1024;
 const MAX_TERM_DEPTH = 512;
 
+// The generated browser client normally decodes ETF from the same trusted app
+// server that served this JavaScript bundle. If that server is compromised,
+// a client-side depth cap is not a meaningful boundary: the attacker can serve
+// different JS. Keep the cap available for future untrusted ETF callers, but
+// leave it disabled on the generated transport hot path.
+const TRUSTED_SERVER_TERM_DEPTH_LIMIT = undefined;
+// const TRUSTED_SERVER_TERM_DEPTH_LIMIT = MAX_TERM_DEPTH;
+
 /**
  * @param {string} message
  * @param {string} name
@@ -218,8 +226,10 @@ class ETFDecoder {
    * @param {boolean} [raw] if true, atoms stay as strings and tagged
    *   tuples stay as plain JS arrays. Used when the typed decoder
    *   will re-interpret the result.
+   * @param {number | undefined} [maxTermDepth] optional recursive
+   *   container depth cap for untrusted ETF callers.
    */
-  constructor(input, raw = false) {
+  constructor(input, raw = false, maxTermDepth = undefined) {
     // Accept any of: ArrayBuffer (WebSocket onmessage with binaryType
     // "arraybuffer"), Uint8Array, or a Gleam JS BitArray (which exposes
     // its bytes as `rawBuffer`, a Uint8Array). Normalising here lets the
@@ -243,6 +253,7 @@ class ETFDecoder {
     this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     this.offset = 0;
     this.raw = raw;
+    this.maxTermDepth = maxTermDepth;
   }
 
   /** @returns {any} */
@@ -467,9 +478,9 @@ class ETFDecoder {
 
   decodeTuple(arity, depth) {
     if (arity === 0) return [];
-    if (depth + 1 >= MAX_TERM_DEPTH) {
+    if (this.maxTermDepth !== undefined && depth + 1 >= this.maxTermDepth) {
       throw makeError(
-        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${this.maxTermDepth}`,
         ERROR_DEPTH_EXCEEDED,
       );
     }
@@ -572,9 +583,13 @@ class ETFDecoder {
 
   decodeList(depth) {
     const count = this.checkCollectionLen(this.readUint32(), "list length");
-    if (count > 0 && depth + 1 >= MAX_TERM_DEPTH) {
+    if (
+      count > 0
+      && this.maxTermDepth !== undefined
+      && depth + 1 >= this.maxTermDepth
+    ) {
       throw makeError(
-        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${this.maxTermDepth}`,
         ERROR_DEPTH_EXCEEDED,
       );
     }
@@ -614,9 +629,13 @@ class ETFDecoder {
 
   decodeMap(depth) {
     const arity = this.checkCollectionLen(this.readUint32(), "map arity");
-    if (arity > 0 && depth + 1 >= MAX_TERM_DEPTH) {
+    if (
+      arity > 0
+      && this.maxTermDepth !== undefined
+      && depth + 1 >= this.maxTermDepth
+    ) {
       throw makeError(
-        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${MAX_TERM_DEPTH}`,
+        `ETF decode: term nesting depth ${depth + 1} exceeds limit ${this.maxTermDepth}`,
         ERROR_DEPTH_EXCEEDED,
       );
     }
@@ -1086,7 +1105,7 @@ export function encode_value(value) {
  * @returns {any}
  */
 export function decode_value(buffer) {
-  const decoder = new ETFDecoder(buffer);
+  const decoder = new ETFDecoder(buffer, false, TRUSTED_SERVER_TERM_DEPTH_LIMIT);
   return decoder.decode();
 }
 
@@ -1098,7 +1117,7 @@ export function decode_value(buffer) {
  * @returns {any}
  */
 export function decode_value_raw(buffer) {
-  const decoder = new ETFDecoder(buffer, true);
+  const decoder = new ETFDecoder(buffer, true, TRUSTED_SERVER_TERM_DEPTH_LIMIT);
   return decoder.decode();
 }
 
@@ -1114,7 +1133,7 @@ export function decode_value_raw(buffer) {
  */
 export function decode_safe(buffer) {
   try {
-    const decoder = new ETFDecoder(buffer);
+    const decoder = new ETFDecoder(buffer, false, TRUSTED_SERVER_TERM_DEPTH_LIMIT);
     const value = decoder.decode();
     return new Ok(value);
   } catch (e) {
@@ -1133,7 +1152,7 @@ export function decode_safe(buffer) {
  */
 export function decode_safe_raw(buffer) {
   try {
-    const raw = new ETFDecoder(buffer, true).decode();
+    const raw = new ETFDecoder(buffer, true, TRUSTED_SERVER_TERM_DEPTH_LIMIT).decode();
     return new Ok(raw);
   } catch (e) {
     const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);
@@ -1151,7 +1170,7 @@ export function decode_safe_raw(buffer) {
  */
 export function decodeTypedWire(buffer, decoderName) {
   try {
-    const raw = new ETFDecoder(buffer, true).decode();
+    const raw = new ETFDecoder(buffer, true, TRUSTED_SERVER_TERM_DEPTH_LIMIT).decode();
     return new Ok(decodeTyped(raw, decoderName));
   } catch (e) {
     const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);
