@@ -225,7 +225,7 @@ fn emit_decode_term(discovered: List(DiscoveredType)) -> String {
               <> arity
               <> "} -> decode_"
               <> type_atom
-              <> "(Tuple)",
+              <> "(Tuple, Depth + 1)",
             )
           }
         }
@@ -266,8 +266,11 @@ fn emit_decode_client_msg(endpoints: List(scanner.HandlerEndpoint)) -> String {
       let duplicate_hashes = duplicate_endpoint_wire_hashes(endpoints)
       let clauses =
         list.map(endpoints, emit_decode_client_msg_clause(_, duplicate_hashes:))
-      let fallback = "decode_client_msg(Other) ->\n    Other"
-      string.join(list.append(clauses, [fallback]), ";\n") <> "."
+      let fallback = "decode_client_msg(Other, _Depth) ->\n    Other"
+      "decode_client_msg(Msg) -> decode_client_msg(Msg, 0).\n\n"
+      <> "decode_client_msg(_Msg, Depth) when Depth >= 512 ->\n    error({wire_depth_exceeded, Depth});\n"
+      <> string.join(list.append(clauses, [fallback]), ";\n")
+      <> "."
     }
   }
 }
@@ -307,23 +310,39 @@ fn emit_decode_client_msg_clause(
     [] ->
       wire_atoms
       |> list.map(fn(atom) {
-        "decode_client_msg(" <> atom <> ") ->\n    " <> fn_atom
+        "decode_client_msg(" <> atom <> ", _Depth) ->\n    " <> fn_atom
       })
       |> string.join(";\n")
     params -> {
       let indexed =
         list.index_map(params, fn(param, i) { #(param.1, top_var(i)) })
       let pattern_vars = list.map(indexed, fn(p) { p.1 })
+      let depth_var = case
+        list.any(params, fn(param) { needs_runtime_depth(param.1) })
+      {
+        True -> "Depth"
+        False -> "_Depth"
+      }
       let body_terms =
         list.map(indexed, fn(pair) {
-          decode_expr(field_type: pair.0, expr: pair.1, depth: 0)
+          decode_expr(
+            field_type: pair.0,
+            expr: pair.1,
+            name_depth: 0,
+            runtime_depth: depth_var,
+          )
         })
       let body = "{" <> fn_atom <> ", " <> string.join(body_terms, ", ") <> "}"
       wire_atoms
       |> list.map(fn(atom) {
         let pattern =
           "{" <> atom <> ", " <> string.join(pattern_vars, ", ") <> "}"
-        "decode_client_msg(" <> pattern <> ") ->\n    " <> body
+        "decode_client_msg("
+        <> pattern
+        <> ", "
+        <> depth_var
+        <> ") ->\n    "
+        <> body
       })
       |> string.join(";\n")
     }
@@ -397,7 +416,10 @@ fn emit_type_transformers(dt: DiscoveredType) -> String {
   "%% Type: " <> dt.module_path <> "." <> dt.type_name <> "
 " <> string.join(encode_clauses, ";\n") <> ".
 
-" <> string.join(decode_clauses, ";\n") <> "."
+" <> "decode_" <> type_atom <> "(Value) -> decode_" <> type_atom <> "(Value, 0).\n\n" <> "decode_" <> type_atom <> "(_Value, Depth) when Depth >= 512 ->\n    error({wire_depth_exceeded, Depth});\n" <> string.join(
+    decode_clauses,
+    ";\n",
+  ) <> "."
 }
 
 fn emit_encode_clause(v: DiscoveredVariant, type_atom: String) -> String {
@@ -424,18 +446,35 @@ fn emit_decode_clause(v: DiscoveredVariant, type_atom: String) -> String {
   let bare = walker.to_snake_case(v.variant_name)
   let hash = wire_hash_for_variant(v)
   case v.fields {
-    [] -> "decode_" <> type_atom <> "('" <> hash <> "') ->\n    " <> bare
+    [] ->
+      "decode_" <> type_atom <> "('" <> hash <> "', _Depth) ->\n    " <> bare
     fields -> {
       let indexed = list.index_map(fields, fn(ft, i) { #(ft, top_var(i)) })
       let pattern_vars = list.map(indexed, fn(p) { p.1 })
       let pattern =
         "{'" <> hash <> "', " <> string.join(pattern_vars, ", ") <> "}"
+      let depth_var = case list.any(fields, needs_runtime_depth) {
+        True -> "Depth"
+        False -> "_Depth"
+      }
       let body_terms =
         list.map(indexed, fn(pair) {
-          decode_expr(field_type: pair.0, expr: pair.1, depth: 0)
+          decode_expr(
+            field_type: pair.0,
+            expr: pair.1,
+            name_depth: 0,
+            runtime_depth: depth_var,
+          )
         })
       let body = "{" <> bare <> ", " <> string.join(body_terms, ", ") <> "}"
-      "decode_" <> type_atom <> "(" <> pattern <> ") ->\n    " <> body
+      "decode_"
+      <> type_atom
+      <> "("
+      <> pattern
+      <> ", "
+      <> depth_var
+      <> ") ->\n    "
+      <> body
     }
   }
 }
@@ -446,6 +485,28 @@ fn top_var(i: Int) -> String {
 
 fn fresh_var(depth: Int) -> String {
   "_X" <> int.to_string(depth)
+}
+
+fn needs_runtime_depth(field_type: FieldType) -> Bool {
+  case field_type {
+    IntField
+    | StringField
+    | BoolField
+    | BitArrayField
+    | NilField
+    | FloatField -> False
+    UserType(module_path: _, type_name: _, args: _) -> True
+    ListOf(element:) -> needs_runtime_depth(element)
+    OptionOf(inner:) -> needs_runtime_depth(inner)
+    ResultOf(ok:, err:) -> needs_runtime_depth(ok) || needs_runtime_depth(err)
+    DictOf(key: _, value:) -> needs_runtime_depth(value)
+    TupleOf(elements:) -> list.any(elements, needs_runtime_depth)
+    TypeVar(_) -> True
+  }
+}
+
+fn next_runtime_depth(runtime_depth: String) -> String {
+  runtime_depth <> " + 1"
 }
 
 fn wire_hash_for_variant(v: DiscoveredVariant) -> String {
@@ -575,9 +636,10 @@ fn encode_expr(
 fn decode_expr(
   field_type field_type: FieldType,
   expr expr: String,
-  depth depth: Int,
+  name_depth name_depth: Int,
+  runtime_depth runtime_depth: String,
 ) -> String {
-  let inner_var = fresh_var(depth)
+  let inner_var = fresh_var(name_depth)
   case field_type {
     IntField | StringField | BoolField | BitArrayField | NilField -> expr
     // Float passes through on decode: BEAM ETF preserves Float vs Int
@@ -590,11 +652,22 @@ fn decode_expr(
           module_path: module_path,
           variant_name: type_name,
         )
-      "decode_" <> qual <> "(" <> expr <> ")"
+      "decode_"
+      <> qual
+      <> "("
+      <> expr
+      <> ", "
+      <> next_runtime_depth(runtime_depth)
+      <> ")"
     }
     ListOf(element:) -> {
       let inner =
-        decode_expr(field_type: element, expr: inner_var, depth: depth + 1)
+        decode_expr(
+          field_type: element,
+          expr: inner_var,
+          name_depth: name_depth + 1,
+          runtime_depth: next_runtime_depth(runtime_depth),
+        )
       case inner == inner_var {
         True -> expr
         False -> "[" <> inner <> " || " <> inner_var <> " <- " <> expr <> "]"
@@ -602,7 +675,12 @@ fn decode_expr(
     }
     OptionOf(inner:) -> {
       let body =
-        decode_expr(field_type: inner, expr: inner_var, depth: depth + 1)
+        decode_expr(
+          field_type: inner,
+          expr: inner_var,
+          name_depth: name_depth + 1,
+          runtime_depth: next_runtime_depth(runtime_depth),
+        )
       case body == inner_var {
         True -> expr
         False ->
@@ -616,11 +694,21 @@ fn decode_expr(
       }
     }
     ResultOf(ok:, err:) -> {
-      let err_var = "_E" <> int.to_string(depth)
+      let err_var = "_E" <> int.to_string(name_depth)
       let ok_body =
-        decode_expr(field_type: ok, expr: inner_var, depth: depth + 1)
+        decode_expr(
+          field_type: ok,
+          expr: inner_var,
+          name_depth: name_depth + 1,
+          runtime_depth: next_runtime_depth(runtime_depth),
+        )
       let err_body =
-        decode_expr(field_type: err, expr: err_var, depth: depth + 1)
+        decode_expr(
+          field_type: err,
+          expr: err_var,
+          name_depth: name_depth + 1,
+          runtime_depth: next_runtime_depth(runtime_depth),
+        )
       case ok_body == inner_var && err_body == err_var {
         True -> expr
         False ->
@@ -639,7 +727,12 @@ fn decode_expr(
     }
     DictOf(key: _, value: value) -> {
       let body =
-        decode_expr(field_type: value, expr: inner_var, depth: depth + 1)
+        decode_expr(
+          field_type: value,
+          expr: inner_var,
+          name_depth: name_depth + 1,
+          runtime_depth: next_runtime_depth(runtime_depth),
+        )
       case body == inner_var {
         True -> expr
         False ->
@@ -657,13 +750,18 @@ fn decode_expr(
         list.index_map(elements, fn(element, index) {
           #(
             element,
-            "_T" <> int.to_string(depth) <> "_" <> int.to_string(index),
+            "_T" <> int.to_string(name_depth) <> "_" <> int.to_string(index),
           )
         })
       let bind_vars = list.map(indexed, fn(pair) { pair.1 })
       let body_terms =
         list.map(indexed, fn(pair) {
-          decode_expr(field_type: pair.0, expr: pair.1, depth: depth + 1)
+          decode_expr(
+            field_type: pair.0,
+            expr: pair.1,
+            name_depth: name_depth + 1,
+            runtime_depth: next_runtime_depth(runtime_depth),
+          )
         })
       "case "
       <> expr

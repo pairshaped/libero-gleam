@@ -177,7 +177,7 @@ pub fn dispatch_known_tags_call_shared_helper_test() {
     )
 }
 
-pub fn dispatch_decodes_wire_message_before_variant_tag_test() {
+pub fn dispatch_decodes_wire_message_inside_malformed_request_guard_test() {
   let endpoints = [
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -202,12 +202,12 @@ pub fn dispatch_decodes_wire_message_before_variant_tag_test() {
   let assert True =
     string.contains(
       content,
-      "Ok(#(\"rpc\", request_id, msg)) -> {\n      let msg = wire_decode_client_msg(msg)\n      case wire.variant_tag(msg) {",
+      "Ok(#(\"rpc\", request_id, msg)) -> {\n      case trace.try_call(fn() {\n        let msg = wire_decode_client_msg(msg)\n        case wire.variant_tag(msg) {",
     )
-  let assert False =
+  let assert True =
     string.contains(
       content,
-      "fn dispatch_known(msg, request_id, server_context) {\n  case trace.try_call(fn() {\n  let msg = wire_decode_client_msg(msg)",
+      "#(wire.encode_response(request_id:, value:Error(MalformedRequest)), server_context)",
     )
 }
 

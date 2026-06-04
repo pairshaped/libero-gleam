@@ -18,12 +18,16 @@ EncItemListData = W(fun 'generated@rpc_wire':encode_shared_types__item_list_data
 EncodeCall = fun(RequestId, Msg) ->
   libero_ffi:encode({<<"rpc">>, RequestId, Msg})
 end,
+EncodeRawCall = fun(RequestId, Msg) ->
+  erlang:term_to_binary({<<"rpc">>, RequestId, Msg})
+end,
 EncodeFrame = fun(Frame) -> binary_to_list(base64:encode(Frame)) end,
 
 State0 = server_context:new(),
 Item = {item, 7, <<"wrench">>, 12.5, true},
 Item2 = {item, 8, <<"bolt">>, 1.25, false},
 DeepTree = {node, 1, {node, 2, leaf, leaf}, {node, 3, leaf, {node, 4, leaf, leaf}}},
+DeepOverDepthTree = (fun Build(0) -> leaf; Build(N) -> {node, N, Build(N - 1), leaf} end)(513),
 
 Cases = [
   {"echo_int/positive", 41, {server_echo_int, 5}},
@@ -60,7 +64,8 @@ Cases = [
   {"dispatch/malformed_envelope", 0, malformed},
   {"dispatch/handler_panic", 65, {server_echo_panic, 0}},
   {"dispatch/unknown_variant", 66, {bogus_function, 5}},
-  {"dispatch/malformed_known_tag_wrong_arity", 81, server_echo_int}
+  {"dispatch/malformed_known_tag_wrong_arity", 81, server_echo_int},
+  {"dispatch/over_depth_tree", 82, {server_echo_tree, EncTree(DeepOverDepthTree)}}
 ],
 
 Run = fun
@@ -68,6 +73,8 @@ Run = fun
     generated@libero@dispatch:handle(State, libero_ffi:encode(Envelope));
   ({"dispatch/malformed_envelope", _Id, malformed}, State) ->
     generated@libero@dispatch:handle(State, <<131, 104, 1, 97, 1>>);
+  ({"dispatch/over_depth_tree", Id, Msg}, State) ->
+    generated@libero@dispatch:handle(State, EncodeRawCall(Id, Msg));
   ({_Name, Id, Msg}, State) ->
     generated@libero@dispatch:handle(State, EncodeCall(Id, Msg))
 end,

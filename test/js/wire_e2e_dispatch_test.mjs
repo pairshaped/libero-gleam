@@ -107,6 +107,7 @@ const expectedRequestIds = {
   "echo_typed_err/validation_failed": 63,
   "dispatch/handler_panic": 65,
   "dispatch/unknown_variant": 66,
+  "dispatch/over_depth_tree": 82,
   "echo_types_tag/basic": 76,
   "echo_collision_tag/basic": 77,
 };
@@ -261,6 +262,11 @@ const wrongArity = decodeFrame(manifest["dispatch/malformed_known_tag_wrong_arit
 assert.equal(wrongArity.requestId, 81);
 assert.equal(wrongArity.raw[0], "error");
 assert.equal(wrongArity.raw[1], "malformed_request");
+
+const overDepthTree = decodeFrame(manifest["dispatch/over_depth_tree"]);
+assert.equal(overDepthTree.requestId, 82);
+assert.equal(overDepthTree.raw[0], "error");
+assert.equal(overDepthTree.raw[1], "malformed_request");
 
 // ---- Regression: non-raw decode of a record-wrapper containing a list of nested records ----
 // Production path uses decode_value (non-raw) which triggers the

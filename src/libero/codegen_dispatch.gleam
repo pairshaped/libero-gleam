@@ -195,9 +195,28 @@ fn ensure_atoms() -> Nil
     _, _ -> ""
   }
 
-  let decode_msg_call = case wire_module {
-    option.Some(_) -> "      let msg = wire_decode_client_msg(msg)\n"
-    option.None -> ""
+  let should_decode_msg = case wire_module, endpoints {
+    option.Some(_), [_, ..] -> True
+    _, _ -> False
+  }
+
+  let rpc_dispatch_body = case should_decode_msg {
+    True -> "      case trace.try_call(fn() {
+        let msg = wire_decode_client_msg(msg)
+        case wire.variant_tag(msg) {
+" <> inner_case <> "
+        }
+      }) {
+        Ok(response) -> response
+        Error(reason) -> {
+          let trace_id = trace.new_trace_id()
+          io.println_error(\"[libero] \" <> trace_id <> \" malformed message: \" <> reason)
+          #(wire.encode_response(request_id:, value:Error(MalformedRequest)), server_context)
+        }
+      }"
+    False -> "      case wire.variant_tag(msg) {
+" <> inner_case <> "
+      }"
   }
 
   // The outer trace.try_call catches coerce failures and pattern-match
@@ -247,9 +266,7 @@ pub fn handle(
 ) -> #(BitArray, " <> context_type_name <> ") {
   " <> ensure_call <> "case wire.decode_request(data) {
     Ok(#(\"" <> wire_module_tag <> "\", request_id, msg)) -> {
-" <> decode_msg_call <> "      case wire.variant_tag(msg) {
-" <> inner_case <> "
-      }
+" <> rpc_dispatch_body <> "
     }
     Ok(#(name, request_id, _)) ->
       #(wire.encode_response(request_id:, value:Error(UnknownFunction(name))), server_context)

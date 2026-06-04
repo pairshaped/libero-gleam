@@ -10,7 +10,9 @@
 import gleam/list
 import gleam/option
 import gleam/string
+import libero/error
 import libero/etf/codegen_erl as codegen_wire_erl
+import libero/etf/wire
 import libero/field_type.{
   BitArrayField, BoolField, DictOf, FloatField, IntField, ListOf, NilField,
   OptionOf, ResultOf, StringField, TupleOf, UserType,
@@ -126,7 +128,9 @@ pub fn primitive_record_emits_encode_and_decode_test() {
   let assert True =
     string.contains(
       out,
-      "decode_shared_discount__discount({'" <> hash <> "', F0, F1, F2}) ->",
+      "decode_shared_discount__discount({'"
+        <> hash
+        <> "', F0, F1, F2}, _Depth) ->",
     )
   let assert True = string.contains(out, "{discount, F0, F1, F2}")
 }
@@ -147,7 +151,7 @@ pub fn float_field_wraps_with_encode_float_on_encode_test() {
   // Decode side: Float passes through (BEAM ETF preserves Float natively).
   let assert True =
     string.contains(out, "decode_m__discount({'")
-    && string.contains(out, ", F0, F1}) ->\n    {discount, F0, F1}")
+    && string.contains(out, ", F0, F1}, _Depth) ->\n    {discount, F0, F1}")
 }
 
 // -- 0-arity variants ------------------------------------------------------
@@ -184,7 +188,9 @@ pub fn zero_arity_variant_emits_bare_atom_to_hash_test() {
   let assert True =
     string.contains(
       out,
-      "decode_shared_types__status('" <> pending_hash <> "') ->\n    pending",
+      "decode_shared_types__status('"
+        <> pending_hash
+        <> "', _Depth) ->\n    pending",
     )
 }
 
@@ -241,7 +247,10 @@ pub fn list_of_user_type_recurses_via_named_call_test() {
     string.contains(out, "[encode_admin_discounts__discount(_X0) || _X0 <- F0]")
   // Decode side: same shape, decode_ instead of encode_.
   let assert True =
-    string.contains(out, "[decode_admin_discounts__discount(_X0) || _X0 <- F0]")
+    string.contains(
+      out,
+      "[decode_admin_discounts__discount(_X0, Depth + 1 + 1) || _X0 <- F0]",
+    )
 }
 
 // -- Option / Result containers --------------------------------------------
@@ -537,7 +546,10 @@ pub fn decode_term_matches_hash_and_arity_for_n_arity_variants_test() {
     )
 
   let assert True =
-    string.contains(out, "{'" <> item_hash <> "', 4} -> decode_m__item(Tuple)")
+    string.contains(
+      out,
+      "{'" <> item_hash <> "', 4} -> decode_m__item(Tuple, Depth + 1)",
+    )
 }
 
 pub fn encode_term_is_container_only_with_mixed_types_test() {
@@ -709,10 +721,10 @@ pub fn decode_client_msg_zero_arity_endpoint_passes_bare_atom_test() {
   let assert True =
     string.contains(
       out,
-      "decode_client_msg(server_load_discounts) ->\n    server_load_discounts",
+      "decode_client_msg(server_load_discounts, _Depth) ->\n    server_load_discounts",
     )
   let assert True =
-    string.contains(out, "decode_client_msg(Other) ->\n    Other")
+    string.contains(out, "decode_client_msg(Other, _Depth) ->\n    Other")
 }
 
 pub fn decode_client_msg_zero_arity_msg_type_accepts_wire_hash_test() {
@@ -737,12 +749,12 @@ pub fn decode_client_msg_zero_arity_msg_type_accepts_wire_hash_test() {
   let assert True =
     string.contains(
       out,
-      "decode_client_msg('" <> hash <> "') ->\n    server_load_sponsors",
+      "decode_client_msg('" <> hash <> "', _Depth) ->\n    server_load_sponsors",
     )
   let assert True =
     string.contains(
       out,
-      "decode_client_msg(server_load_sponsors) ->\n    server_load_sponsors",
+      "decode_client_msg(server_load_sponsors, _Depth) ->\n    server_load_sponsors",
     )
 }
 
@@ -762,7 +774,7 @@ pub fn decode_client_msg_user_type_param_calls_decoder_test() {
   let assert True =
     string.contains(
       out,
-      "decode_client_msg({server_echo_item, F0}) ->\n    {server_echo_item, decode_shared_types__item(F0)}",
+      "decode_client_msg({server_echo_item, F0}, Depth) ->\n    {server_echo_item, decode_shared_types__item(F0, Depth + 1)}",
     )
 }
 
@@ -788,7 +800,7 @@ pub fn decode_client_msg_mixed_primitive_and_user_type_params_test() {
   let assert True =
     string.contains(
       out,
-      "decode_client_msg({server_update_discount, F0, F1}) ->\n    {server_update_discount, F0, decode_admin_discounts__discount_params(F1)}",
+      "decode_client_msg({server_update_discount, F0, F1}, Depth) ->\n    {server_update_discount, F0, decode_admin_discounts__discount_params(F1, Depth + 1)}",
     )
 }
 
@@ -816,7 +828,7 @@ pub fn decode_client_msg_param_msg_type_accepts_wire_hash_test() {
   let expected =
     "decode_client_msg({'"
     <> hash
-    <> "', F0, F1}) ->\n    {server_update_sponsor, F0, decode_admin_sponsors__sponsor_params(F1)}"
+    <> "', F0, F1}, Depth) ->\n    {server_update_sponsor, F0, decode_admin_sponsors__sponsor_params(F1, Depth + 1)}"
   let assert True = string.contains(out, expected)
 }
 
@@ -849,12 +861,12 @@ pub fn decode_client_msg_duplicate_msg_type_hash_uses_endpoint_tags_only_test() 
   let assert True =
     string.contains(
       out,
-      "decode_client_msg({server_echo_item, F0, F1}) ->\n    {server_echo_item, F0, F1}",
+      "decode_client_msg({server_echo_item, F0, F1}, _Depth) ->\n    {server_echo_item, F0, F1}",
     )
   let assert True =
     string.contains(
       out,
-      "decode_client_msg({server_validate_item, F0, F1}) ->\n    {server_validate_item, F0, F1}",
+      "decode_client_msg({server_validate_item, F0, F1}, _Depth) ->\n    {server_validate_item, F0, F1}",
     )
 }
 
@@ -875,7 +887,7 @@ pub fn decode_client_msg_list_of_user_type_param_test() {
   let assert True =
     string.contains(
       out,
-      "decode_client_msg({server_batch, F0}) ->\n    {server_batch, [decode_m__item(_X0) || _X0 <- F0]}",
+      "decode_client_msg({server_batch, F0}, Depth) ->\n    {server_batch, [decode_m__item(_X0, Depth + 1 + 1) || _X0 <- F0]}",
     )
 }
 
@@ -1013,8 +1025,26 @@ fn erl_apply(module: atom, function: atom, args: List(a)) -> b
 @external(erlang, "libero_test_ffi", "apply2")
 fn erl_apply2(module: atom, function: atom, arg1: a, arg2: b) -> c
 
+@external(erlang, "libero_test_ffi", "apply_catch")
+fn erl_apply_catch(module: atom, function: atom, args: List(a)) -> Result(b, c)
+
 @external(erlang, "erlang", "binary_to_atom")
 fn binary_to_atom(name: String) -> atom
+
+@external(erlang, "libero_test_ffi", "deep_tuple")
+fn deep_tuple(depth: Int) -> a
+
+@external(erlang, "libero_test_ffi", "deep_tree")
+fn deep_tree(node_hash: atom, leaf_hash: atom, depth: Int) -> a
+
+@external(erlang, "libero_test_ffi", "set_wire_module")
+fn set_wire_module(module: atom) -> Nil
+
+@external(erlang, "libero_test_ffi", "clear_wire_module")
+fn clear_wire_module() -> Nil
+
+@external(erlang, "libero_test_ffi", "term_to_binary")
+fn term_to_binary(term: a) -> BitArray
 
 pub fn decode_client_msg_routes_to_correct_decoder_for_same_name_types_test() {
   let waiver_a_type = UserType("waivers", "Waiver", [])
@@ -1064,6 +1094,125 @@ pub fn decode_client_msg_routes_to_correct_decoder_for_same_name_types_test() {
     ])
   let assert #(_, #(tag_b, 1, "name")) = wire_msg_b
   let assert True = tag_b == binary_to_atom("waiver")
+}
+
+pub fn decode_term_rejects_over_depth_generic_terms_test() {
+  let assert Ok(source) =
+    codegen_wire_erl.generate(
+      module_name: "depth_generic_decode_test",
+      discovered: [],
+      endpoints: [],
+      push_dispatches: [],
+    )
+  let assert Ok(mod) = compile_module(source)
+
+  let result: Result(Nil, #(atom, Int)) =
+    erl_apply_catch(mod, binary_to_atom("decode_term"), [deep_tuple(513)])
+  let assert Error(#(reason, _depth)) = result
+  let assert True = reason == binary_to_atom("wire_depth_exceeded")
+}
+
+pub fn decode_term_rejects_over_depth_recursive_custom_types_test() {
+  let tree_ref = UserType("m", "Tree", [])
+  let dt =
+    typ("m", "Tree", [
+      variant("m", "Leaf", []),
+      variant("m", "Node", [IntField, tree_ref, tree_ref]),
+    ])
+  let assert Ok(source) =
+    codegen_wire_erl.generate(
+      module_name: "depth_custom_decode_test",
+      discovered: [dt],
+      endpoints: [],
+      push_dispatches: [],
+    )
+  let assert Ok(mod) = compile_module(source)
+
+  let node_hash = hash_for("m", "Node", [IntField, tree_ref, tree_ref])
+  let leaf_hash = hash_for("m", "Leaf", [])
+  let term =
+    deep_tree(binary_to_atom(node_hash), binary_to_atom(leaf_hash), 513)
+  let result: Result(Nil, #(atom, Int)) =
+    erl_apply_catch(mod, binary_to_atom("decode_term"), [term])
+  let assert Error(#(reason, _depth)) = result
+  let assert True = reason == binary_to_atom("wire_depth_exceeded")
+}
+
+pub fn decode_client_msg_rejects_over_depth_recursive_custom_types_test() {
+  let tree_ref = UserType("m", "Tree", [])
+  let dt =
+    typ("m", "Tree", [
+      variant("m", "Leaf", []),
+      variant("m", "Node", [IntField, tree_ref, tree_ref]),
+    ])
+  let ep = endpoint("save_tree", [#("tree", tree_ref)], NilField, NilField)
+  let assert Ok(source) =
+    codegen_wire_erl.generate(
+      module_name: "depth_client_msg_decode_test",
+      discovered: [dt],
+      endpoints: [ep],
+      push_dispatches: [],
+    )
+  let assert Ok(mod) = compile_module(source)
+
+  let node_hash = hash_for("m", "Node", [IntField, tree_ref, tree_ref])
+  let leaf_hash = hash_for("m", "Leaf", [])
+  let term =
+    deep_tree(binary_to_atom(node_hash), binary_to_atom(leaf_hash), 513)
+  let result: Result(Nil, #(atom, Int)) =
+    erl_apply_catch(mod, binary_to_atom("decode_client_msg"), [
+      #(binary_to_atom("server_save_tree"), term),
+    ])
+  let assert Error(#(reason, _depth)) = result
+  let assert True = reason == binary_to_atom("wire_depth_exceeded")
+}
+
+pub fn decode_safe_rejects_over_depth_generic_terms_test() {
+  let assert Ok(source) =
+    codegen_wire_erl.generate(
+      module_name: "decode_safe_depth_generic_test",
+      discovered: [],
+      endpoints: [],
+      push_dispatches: [],
+    )
+  let assert Ok(mod) = compile_module(source)
+
+  set_wire_module(mod)
+  let result: Result(Nil, error.DecodeError) =
+    wire.decode_safe(term_to_binary(deep_tuple(513)))
+  clear_wire_module()
+
+  let assert Error(error.DecodeError(message: message)) = result
+  let assert True = string.contains(message, "wire_depth_exceeded")
+}
+
+pub fn decode_safe_rejects_over_depth_recursive_custom_types_test() {
+  let tree_ref = UserType("m", "Tree", [])
+  let dt =
+    typ("m", "Tree", [
+      variant("m", "Leaf", []),
+      variant("m", "Node", [IntField, tree_ref, tree_ref]),
+    ])
+  let assert Ok(source) =
+    codegen_wire_erl.generate(
+      module_name: "decode_safe_depth_custom_test",
+      discovered: [dt],
+      endpoints: [],
+      push_dispatches: [],
+    )
+  let assert Ok(mod) = compile_module(source)
+
+  let node_hash = hash_for("m", "Node", [IntField, tree_ref, tree_ref])
+  let leaf_hash = hash_for("m", "Leaf", [])
+  let term =
+    deep_tree(binary_to_atom(node_hash), binary_to_atom(leaf_hash), 513)
+  set_wire_module(mod)
+  let result: Result(Nil, error.DecodeError) =
+    wire.decode_safe(term_to_binary(term))
+  clear_wire_module()
+
+  let assert Error(error.DecodeError(message: message)) = result
+  let assert True = string.contains(message, "wire_depth_exceeded")
 }
 
 pub fn encode_response_uses_correct_encoder_for_same_name_types_test() {
