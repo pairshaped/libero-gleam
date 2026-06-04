@@ -90,11 +90,63 @@ pub fn duplicate_variant_names_generate_distinct_codecs_test() {
   |> should.be_true
   string.contains(source, "json_encode_page_b__to_client")
   |> should.be_true
+  string.contains(source, "json_decode_page_a__to_client")
+  |> should.be_true
+  string.contains(source, "json_decode_page_b__to_client")
+  |> should.be_true
   // Both type strings appear
   string.contains(source, "page/a.ToClient")
   |> should.be_true
   string.contains(source, "page/b.ToClient")
   |> should.be_true
+}
+
+pub fn same_shaped_types_generate_distinct_json_codecs_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/forms",
+      type_name: "Draft",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/forms",
+          variant_name: "Draft",
+          atom_name: "shared_forms__draft",
+          float_field_indices: [],
+          field_labels: [Some("id"), Some("label")],
+          fields: [field_type.IntField, field_type.StringField],
+        ),
+      ],
+    ),
+    walker.DiscoveredType(
+      module_path: "shared/forms",
+      type_name: "Published",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/forms",
+          variant_name: "Published",
+          atom_name: "shared_forms__published",
+          float_field_indices: [],
+          field_labels: [Some("id"), Some("label")],
+          fields: [field_type.IntField, field_type.StringField],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types))
+
+  string.contains(source, "json_encode_shared_forms__draft")
+  |> should.be_true
+  string.contains(source, "json_encode_shared_forms__published")
+  |> should.be_true
+  string.contains(source, "json_decode_shared_forms__draft")
+  |> should.be_true
+  string.contains(source, "json_decode_shared_forms__published")
+  |> should.be_true
+  string.contains(source, "shared/forms.Draft") |> should.be_true
+  string.contains(source, "shared/forms.Published") |> should.be_true
 }
 
 pub fn transport_codecs_include_generated_client_msg_test() {

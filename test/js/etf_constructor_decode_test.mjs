@@ -668,6 +668,138 @@ function makeStringBytes(str) {
   _typedDecoderRegistry.delete("decode_outer");
 }
 
+// ---- Atom→decoder: nested same-name types keyed by hash atoms ----
+// If the runtime used stripped constructor names ("tag" / "envelope")
+// instead of wire hashes, the second registration would overwrite the
+// first and one nested envelope would decode through the wrong path.
+{
+  const TAG_A_HASH = "1111111111";
+  const TAG_B_HASH = "2222222222";
+  const ENVELOPE_A_HASH = "aaaaaaaaaa";
+  const ENVELOPE_B_HASH = "bbbbbbbbbb";
+
+  class PublicTag extends CustomType {
+    constructor(label) { super(); this.label = label; this[0] = label; }
+  }
+  class PrivateTag extends CustomType {
+    constructor(label) { super(); this.label = label; this[0] = label; }
+  }
+  class PublicEnvelope extends CustomType {
+    constructor(tag, count) {
+      super();
+      this.tag = tag;
+      this[0] = tag;
+      this.count = count;
+      this[1] = count;
+    }
+  }
+  class PrivateEnvelope extends CustomType {
+    constructor(tag, count) {
+      super();
+      this.tag = tag;
+      this[0] = tag;
+      this.count = count;
+      this[1] = count;
+    }
+  }
+
+  function decode_public_tag(term) {
+    if (!Array.isArray(term) || term[0] !== TAG_A_HASH) {
+      throw new Error("expected public tag hash");
+    }
+    return new PublicTag(term[1]);
+  }
+  function decode_private_tag(term) {
+    if (!Array.isArray(term) || term[0] !== TAG_B_HASH) {
+      throw new Error("expected private tag hash");
+    }
+    return new PrivateTag(term[1]);
+  }
+  function decode_public_envelope(term) {
+    if (!Array.isArray(term) || term[0] !== ENVELOPE_A_HASH) {
+      throw new Error("expected public envelope hash");
+    }
+    assert.ok(
+      term[1] instanceof PublicTag,
+      "public envelope must contain PublicTag",
+    );
+    return new PublicEnvelope(term[1], term[2]);
+  }
+  function decode_private_envelope(term) {
+    if (!Array.isArray(term) || term[0] !== ENVELOPE_B_HASH) {
+      throw new Error("expected private envelope hash");
+    }
+    assert.ok(
+      term[1] instanceof PrivateTag,
+      "private envelope must contain PrivateTag",
+    );
+    return new PrivateEnvelope(term[1], term[2]);
+  }
+
+  registerAtomDecoder(TAG_A_HASH, "decode_pages_a_tag", decode_public_tag);
+  registerAtomDecoder(TAG_B_HASH, "decode_pages_b_tag", decode_private_tag);
+  registerAtomDecoder(
+    ENVELOPE_A_HASH,
+    "decode_pages_a_envelope",
+    decode_public_envelope,
+  );
+  registerAtomDecoder(
+    ENVELOPE_B_HASH,
+    "decode_pages_b_envelope",
+    decode_private_envelope,
+  );
+
+  // Encode:
+  //   {aaaaaaaaaa, {1111111111, <<"public">>}, 1}
+  //   {bbbbbbbbbb, {2222222222, <<"private">>}, 2}
+  const publicTagTuple = [
+    104, 2,
+    ...makeAtomBytes(TAG_A_HASH),
+    ...makeStringBytes("public"),
+  ];
+  const publicEnvelopeTuple = [
+    104, 3,
+    ...makeAtomBytes(ENVELOPE_A_HASH),
+    ...publicTagTuple,
+    97, 1,
+  ];
+  const privateTagTuple = [
+    104, 2,
+    ...makeAtomBytes(TAG_B_HASH),
+    ...makeStringBytes("private"),
+  ];
+  const privateEnvelopeTuple = [
+    104, 3,
+    ...makeAtomBytes(ENVELOPE_B_HASH),
+    ...privateTagTuple,
+    97, 2,
+  ];
+
+  const publicDecoded =
+    new MiniETFDecoder(new Uint8Array([131, ...publicEnvelopeTuple])).decode();
+  const privateDecoded =
+    new MiniETFDecoder(new Uint8Array([131, ...privateEnvelopeTuple])).decode();
+
+  assert.ok(publicDecoded instanceof PublicEnvelope);
+  assert.ok(publicDecoded[0] instanceof PublicTag);
+  assert.equal(publicDecoded[0][0], "public");
+  assert.equal(publicDecoded[1], 1);
+  assert.ok(privateDecoded instanceof PrivateEnvelope);
+  assert.ok(privateDecoded[0] instanceof PrivateTag);
+  assert.equal(privateDecoded[0][0], "private");
+  assert.equal(privateDecoded[1], 2);
+  console.log("PASS: atom→decoder nested same-name types keyed by hash atoms");
+
+  _atomToDecoderName.delete(TAG_A_HASH);
+  _atomToDecoderName.delete(TAG_B_HASH);
+  _atomToDecoderName.delete(ENVELOPE_A_HASH);
+  _atomToDecoderName.delete(ENVELOPE_B_HASH);
+  _typedDecoderRegistry.delete("decode_pages_a_tag");
+  _typedDecoderRegistry.delete("decode_pages_b_tag");
+  _typedDecoderRegistry.delete("decode_pages_a_envelope");
+  _typedDecoderRegistry.delete("decode_pages_b_envelope");
+}
+
 // ---- Regression: RPC response with record wrapping nested custom type ----
 // Wire shape: {ok, {ok, {envelope, {item, int, int}, total}}}
 // The outer Ok layers are framework-special-cased; the envelope goes

@@ -83,6 +83,107 @@ pub fn contract_artifact_includes_endpoints_test() {
   let assert Ok(_) = parsed
 }
 
+pub fn contract_hash_distinguishes_same_shaped_custom_type_names_test() {
+  let endpoints: List(scanner.HandlerEndpoint) = []
+  let push_types: List(contract.PushContract) = []
+  let ssr_models: List(contract.SsrModelContract) = []
+  let draft = [
+    json_contract_record_type(
+      module_path: "shared/forms",
+      type_name: "Draft",
+      variant_name: "Draft",
+    ),
+  ]
+  let published = [
+    json_contract_record_type(
+      module_path: "shared/forms",
+      type_name: "Published",
+      variant_name: "Published",
+    ),
+  ]
+
+  let draft_hash =
+    contract.generate_hash(
+      endpoints:,
+      discovered: draft,
+      push_types:,
+      ssr_models:,
+    )
+  let published_hash =
+    contract.generate_hash(
+      endpoints:,
+      discovered: published,
+      push_types:,
+      ssr_models:,
+    )
+
+  draft_hash |> should.not_equal(published_hash)
+}
+
+pub fn contract_hash_distinguishes_same_named_custom_type_paths_test() {
+  let endpoints: List(scanner.HandlerEndpoint) = []
+  let push_types: List(contract.PushContract) = []
+  let ssr_models: List(contract.SsrModelContract) = []
+  let public = [
+    json_contract_record_type(
+      module_path: "shared/public",
+      type_name: "Marker",
+      variant_name: "Marker",
+    ),
+  ]
+  let private = [
+    json_contract_record_type(
+      module_path: "shared/private",
+      type_name: "Marker",
+      variant_name: "Marker",
+    ),
+  ]
+
+  let public_hash =
+    contract.generate_hash(
+      endpoints:,
+      discovered: public,
+      push_types:,
+      ssr_models:,
+    )
+  let private_hash =
+    contract.generate_hash(
+      endpoints:,
+      discovered: private,
+      push_types:,
+      ssr_models:,
+    )
+
+  public_hash |> should.not_equal(private_hash)
+}
+
+pub fn contract_artifact_keeps_same_named_types_from_different_paths_test() {
+  let endpoints: List(scanner.HandlerEndpoint) = []
+  let push_types: List(contract.PushContract) = []
+  let ssr_models: List(contract.SsrModelContract) = []
+  let discovered = [
+    json_contract_record_type(
+      module_path: "shared/public",
+      type_name: "Marker",
+      variant_name: "Marker",
+    ),
+    json_contract_record_type(
+      module_path: "shared/private",
+      type_name: "Marker",
+      variant_name: "Marker",
+    ),
+  ]
+
+  let artifact =
+    contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
+
+  string.contains(artifact, "\"module_path\":\"shared/public\"")
+  |> should.be_true
+  string.contains(artifact, "\"module_path\":\"shared/private\"")
+  |> should.be_true
+  string.contains(artifact, "\"type_name\":\"Marker\"") |> should.be_true
+}
+
 pub fn canonical_typed_json_contract_artifact_snapshot_test() {
   let endpoints = [
     scanner.HandlerEndpoint(
@@ -196,4 +297,21 @@ pub fn canonical_typed_json_contract_artifact_snapshot_test() {
 
   contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
   |> birdie.snap(title: "canonical typed JSON contract artifact")
+}
+
+fn json_contract_record_type(
+  module_path module_path: String,
+  type_name type_name: String,
+  variant_name variant_name: String,
+) -> walker.DiscoveredType {
+  walker.DiscoveredType(module_path:, type_name:, type_params: [], variants: [
+    walker.DiscoveredVariant(
+      module_path:,
+      variant_name:,
+      atom_name: walker.qualified_atom_name(module_path:, variant_name:),
+      float_field_indices: [],
+      field_labels: [Some("id"), Some("label")],
+      fields: [field_type.IntField, field_type.StringField],
+    ),
+  ])
 }

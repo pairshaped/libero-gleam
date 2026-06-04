@@ -429,6 +429,86 @@ pub fn same_named_same_arity_types_from_different_modules_succeed_test() {
   let assert True = hash_a != hash_b
 }
 
+pub fn same_shaped_types_from_different_modules_use_distinct_wire_tags_test() {
+  let dt_a =
+    typ("shared/public", "Marker", [
+      variant("shared/public", "Marker", [IntField, StringField]),
+    ])
+  let dt_b =
+    typ("shared/private", "Marker", [
+      variant("shared/private", "Marker", [IntField, StringField]),
+    ])
+  let hash_a = hash_for("shared/public", "Marker", [IntField, StringField])
+  let hash_b = hash_for("shared/private", "Marker", [IntField, StringField])
+
+  let assert Ok(out) =
+    codegen_wire_erl.generate(
+      module_name: "x_wire",
+      discovered: [dt_a, dt_b],
+      endpoints: [],
+      push_dispatches: [],
+    )
+
+  let assert True = hash_a != hash_b
+  let assert True =
+    string.contains(
+      out,
+      "encode_shared_public__marker({marker, F0, F1}) ->\n    {'"
+        <> hash_a
+        <> "', F0, F1}",
+    )
+  let assert True =
+    string.contains(
+      out,
+      "encode_shared_private__marker({marker, F0, F1}) ->\n    {'"
+        <> hash_b
+        <> "', F0, F1}",
+    )
+  let assert True =
+    string.contains(
+      out,
+      "{'"
+        <> hash_a
+        <> "', 3} -> decode_shared_public__marker(Tuple, Depth + 1)",
+    )
+  let assert True =
+    string.contains(
+      out,
+      "{'"
+        <> hash_b
+        <> "', 3} -> decode_shared_private__marker(Tuple, Depth + 1)",
+    )
+}
+
+pub fn same_shaped_types_with_different_names_use_distinct_wire_tags_test() {
+  let dt_a =
+    typ("shared/forms", "Draft", [
+      variant("shared/forms", "Draft", [IntField, StringField]),
+    ])
+  let dt_b =
+    typ("shared/forms", "Published", [
+      variant("shared/forms", "Published", [IntField, StringField]),
+    ])
+  let hash_a = hash_for("shared/forms", "Draft", [IntField, StringField])
+  let hash_b = hash_for("shared/forms", "Published", [IntField, StringField])
+
+  let assert Ok(out) =
+    codegen_wire_erl.generate(
+      module_name: "x_wire",
+      discovered: [dt_a, dt_b],
+      endpoints: [],
+      push_dispatches: [],
+    )
+
+  let assert True = hash_a != hash_b
+  let assert True =
+    string.contains(out, "encode_shared_forms__draft({draft, F0, F1})")
+  let assert True =
+    string.contains(out, "encode_shared_forms__published({published, F0, F1})")
+  let assert True = string.contains(out, "{'" <> hash_a <> "', F0, F1}")
+  let assert True = string.contains(out, "{'" <> hash_b <> "', F0, F1}")
+}
+
 // -- TupleOf field --------------------------------------------------------
 
 pub fn tuple_field_destructures_and_rebuilds_test() {
@@ -1274,6 +1354,69 @@ pub fn encode_response_uses_correct_encoder_for_same_name_types_test() {
     ])
   let assert #(_, #(wire_tag_b, 2, "bob")) = result_b
   let assert True = wire_tag_b == binary_to_atom(hash_b)
+  let assert True = wire_tag_a != wire_tag_b
+}
+
+pub fn encode_response_uses_correct_nested_encoder_for_same_name_types_test() {
+  let tag_a_type = UserType("pages/a", "Tag", [])
+  let tag_b_type = UserType("pages/b", "Tag", [])
+  let envelope_a_type = UserType("pages/a", "Envelope", [])
+  let envelope_b_type = UserType("pages/b", "Envelope", [])
+  let dt_tag_a =
+    typ("pages/a", "Tag", [
+      variant("pages/a", "Tag", [StringField]),
+    ])
+  let dt_tag_b =
+    typ("pages/b", "Tag", [
+      variant("pages/b", "Tag", [StringField]),
+    ])
+  let dt_envelope_a =
+    typ("pages/a", "Envelope", [
+      variant("pages/a", "Envelope", [tag_a_type, IntField]),
+    ])
+  let dt_envelope_b =
+    typ("pages/b", "Envelope", [
+      variant("pages/b", "Envelope", [tag_b_type, IntField]),
+    ])
+  let ep_a = endpoint("get_envelope_a", [], envelope_a_type, NilField)
+  let ep_b = endpoint("get_envelope_b", [], envelope_b_type, NilField)
+
+  let assert Ok(source) =
+    codegen_wire_erl.generate(
+      module_name: "nested_boundary_encode_test",
+      discovered: [dt_tag_a, dt_tag_b, dt_envelope_a, dt_envelope_b],
+      endpoints: [ep_a, ep_b],
+      push_dispatches: [],
+    )
+  let assert Ok(mod) = compile_module(source)
+
+  let tag_hash_a = hash_for("pages/a", "Tag", [StringField])
+  let tag_hash_b = hash_for("pages/b", "Tag", [StringField])
+  let envelope_hash_a = hash_for("pages/a", "Envelope", [tag_a_type, IntField])
+  let envelope_hash_b = hash_for("pages/b", "Envelope", [tag_b_type, IntField])
+
+  let result_a: #(atom, #(atom, #(atom, String), Int)) =
+    erl_apply(mod, binary_to_atom("encode_response_get_envelope_a"), [
+      #(
+        binary_to_atom("ok"),
+        #(binary_to_atom("envelope"), #(binary_to_atom("tag"), "public"), 1),
+      ),
+    ])
+  let assert #(_, #(wire_envelope_a, #(wire_tag_a, "public"), 1)) = result_a
+  let assert True = wire_envelope_a == binary_to_atom(envelope_hash_a)
+  let assert True = wire_tag_a == binary_to_atom(tag_hash_a)
+
+  let result_b: #(atom, #(atom, #(atom, String), Int)) =
+    erl_apply(mod, binary_to_atom("encode_response_get_envelope_b"), [
+      #(
+        binary_to_atom("ok"),
+        #(binary_to_atom("envelope"), #(binary_to_atom("tag"), "private"), 2),
+      ),
+    ])
+  let assert #(_, #(wire_envelope_b, #(wire_tag_b, "private"), 2)) = result_b
+  let assert True = wire_envelope_b == binary_to_atom(envelope_hash_b)
+  let assert True = wire_tag_b == binary_to_atom(tag_hash_b)
+  let assert True = wire_envelope_a != wire_envelope_b
   let assert True = wire_tag_a != wire_tag_b
 }
 

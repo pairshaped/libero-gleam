@@ -267,6 +267,108 @@ pub fn qualified_atoms_prevent_collision_in_registry_test() {
   let assert True = string.contains(js, "term[0] !== \"" <> hash_b <> "\"")
 }
 
+pub fn nested_same_named_types_use_path_specific_hashes_test() {
+  let tag_a = field_type.UserType("pages/a", "Tag", [])
+  let tag_b = field_type.UserType("pages/b", "Tag", [])
+  let types = [
+    walker.DiscoveredType(
+      module_path: "pages/a",
+      type_name: "Tag",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "pages/a",
+          variant_name: "Tag",
+          atom_name: "pages_a__tag",
+          float_field_indices: [],
+          field_labels: [option.None],
+          fields: [field_type.StringField],
+        ),
+      ],
+    ),
+    walker.DiscoveredType(
+      module_path: "pages/b",
+      type_name: "Tag",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "pages/b",
+          variant_name: "Tag",
+          atom_name: "pages_b__tag",
+          float_field_indices: [],
+          field_labels: [option.None],
+          fields: [field_type.StringField],
+        ),
+      ],
+    ),
+    walker.DiscoveredType(
+      module_path: "pages/a",
+      type_name: "Envelope",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "pages/a",
+          variant_name: "Envelope",
+          atom_name: "pages_a__envelope",
+          float_field_indices: [],
+          field_labels: [option.None, option.None],
+          fields: [tag_a, field_type.IntField],
+        ),
+      ],
+    ),
+    walker.DiscoveredType(
+      module_path: "pages/b",
+      type_name: "Envelope",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "pages/b",
+          variant_name: "Envelope",
+          atom_name: "pages_b__envelope",
+          float_field_indices: [],
+          field_labels: [option.None, option.None],
+          fields: [tag_b, field_type.IntField],
+        ),
+      ],
+    ),
+  ]
+  let js = codegen_decoders.emit_typed_decoders(types)
+
+  let #(_sig_tag_a, tag_hash_a) =
+    wire_identity.wire_identity("pages/a", "Tag", [field_type.StringField])
+  let #(_sig_tag_b, tag_hash_b) =
+    wire_identity.wire_identity("pages/b", "Tag", [field_type.StringField])
+  let #(_sig_env_a, envelope_hash_a) =
+    wire_identity.wire_identity("pages/a", "Envelope", [
+      tag_a,
+      field_type.IntField,
+    ])
+  let #(_sig_env_b, envelope_hash_b) =
+    wire_identity.wire_identity("pages/b", "Envelope", [
+      tag_b,
+      field_type.IntField,
+    ])
+
+  let assert True = tag_hash_a != tag_hash_b
+  let assert True = envelope_hash_a != envelope_hash_b
+  let assert True =
+    string.contains(js, "registerAtomDecoder(\"" <> tag_hash_a <> "\"")
+  let assert True =
+    string.contains(js, "registerAtomDecoder(\"" <> tag_hash_b <> "\"")
+  let assert True =
+    string.contains(js, "registerAtomDecoder(\"" <> envelope_hash_a <> "\"")
+  let assert True =
+    string.contains(js, "registerAtomDecoder(\"" <> envelope_hash_b <> "\"")
+  let assert True =
+    string.contains(js, "decode_pages_a_tag(term[1]),\n    decode_int(term[2])")
+  let assert True =
+    string.contains(js, "decode_pages_b_tag(term[1]),\n    decode_int(term[2])")
+  let assert True =
+    string.contains(js, "term[0] !== \"" <> envelope_hash_a <> "\"")
+  let assert True =
+    string.contains(js, "term[0] !== \"" <> envelope_hash_b <> "\"")
+}
+
 pub fn decode_typed_dispatch_in_output_test() {
   let js = codegen_decoders.emit_typed_decoders(sample_record_type())
 
