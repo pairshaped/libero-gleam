@@ -227,10 +227,46 @@ test("decode_server_frame", "rejects missing protocol_version", () => {
   const result = decode_server_frame(frame);
   assert.ok(result instanceof ResultError, "should be ResultError");
   const errors = gleamListToArray(result[0]);
-  assert.ok(
-    errors[0].message.includes("unsupported version"),
-    "should reject missing protocol version",
-  );
+  assert.equal(errors[0].path, "protocol_version");
+});
+
+test("decode_server_frame", "rejects unsafe response request_id", () => {
+  const frame = JSON.stringify({
+    kind: "response",
+    protocol_version: "json-rpc-v1",
+    request_id: 4_294_967_296,
+    value: {},
+  });
+  const result = decode_server_frame(frame);
+  assert.ok(result instanceof ResultError, "should be ResultError");
+  const errors = gleamListToArray(result[0]);
+  assert.equal(errors[0].path, "request_id");
+  assert.ok(errors[0].message.includes("32-bit unsigned range"));
+});
+
+test("decode_server_frame", "rejects push without module", () => {
+  const frame = JSON.stringify({
+    kind: "push",
+    protocol_version: "json-rpc-v1",
+    value: {},
+  });
+  const result = decode_server_frame(frame);
+  assert.ok(result instanceof ResultError, "should be ResultError");
+  const errors = gleamListToArray(result[0]);
+  assert.equal(errors[0].path, "module");
+});
+
+test("decode_server_frame", "rejects malformed error list", () => {
+  const frame = JSON.stringify({
+    kind: "error",
+    protocol_version: "json-rpc-v1",
+    request_id: null,
+    errors: [{ path: "field", message: 123 }],
+  });
+  const result = decode_server_frame(frame);
+  assert.ok(result instanceof ResultError, "should be ResultError");
+  const errors = gleamListToArray(result[0]);
+  assert.equal(errors[0].path, "errors[].message");
 });
 
 test("decode_server_frame", "rejects oversized JSON input", () => {

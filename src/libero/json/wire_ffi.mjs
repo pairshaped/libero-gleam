@@ -55,12 +55,20 @@ function errorResult(path, message) {
   );
 }
 
-function byteLength(value) {
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function byteLength(value, limit) {
+  if (value.length <= Math.floor(limit / 3)) {
+    return value.length;
+  }
+
   return utf8Encoder.encode(value).byteLength;
 }
 
 function validateInputSize(data) {
-  if (byteLength(data) <= MAX_JSON_INPUT_BYTES) {
+  if (byteLength(data, MAX_JSON_INPUT_BYTES) <= MAX_JSON_INPUT_BYTES) {
     return null;
   }
 
@@ -83,7 +91,7 @@ function validateJsonStructure(value, depth = 0, path = "") {
   }
 
   if (typeof value === "string") {
-    if (byteLength(value) <= MAX_JSON_STRING_BYTES) {
+    if (byteLength(value, MAX_JSON_STRING_BYTES) <= MAX_JSON_STRING_BYTES) {
       return null;
     }
 
@@ -162,6 +170,152 @@ function parseLimitedJson(data) {
   return { value: parsed };
 }
 
+function requiredStringField(parsed, name) {
+  const value = parsed[name];
+  if (typeof value === "string") {
+    return { value };
+  }
+
+  return {
+    error: {
+      path: name,
+      message: "expected String, got " + foundType(value),
+    },
+  };
+}
+
+function requiredIntField(parsed, name) {
+  const value = parsed[name];
+  if (
+    Number.isSafeInteger(value) &&
+    value >= -9_007_199_254_740_991 &&
+    value <= 9_007_199_254_740_991
+  ) {
+    return { value };
+  }
+
+  return {
+    error: {
+      path: name,
+      message: "expected Int, got " + foundType(value),
+    },
+  };
+}
+
+function requiredDynamicField(parsed, name) {
+  if (Object.hasOwn(parsed, name)) {
+    return { value: parsed[name] };
+  }
+
+  return {
+    error: {
+      path: name,
+      message: "required field missing",
+    },
+  };
+}
+
+function optionalIntField(parsed, name) {
+  if (!Object.hasOwn(parsed, name) || parsed[name] === null) {
+    return { value: new None() };
+  }
+
+  const decoded = requiredIntField(parsed, name);
+  if (decoded.error) {
+    return decoded;
+  }
+
+  const requestId = validateRequestId(decoded.value);
+  if (requestId.error) {
+    return requestId;
+  }
+
+  return { value: new Some(requestId.value) };
+}
+
+function validateRequestId(value) {
+  if (value >= 0 && value <= 4_294_967_295) {
+    return { value };
+  }
+
+  return {
+    error: {
+      path: "request_id",
+      message: "request_id outside 32-bit unsigned range",
+    },
+  };
+}
+
+function errorListField(parsed) {
+  const errors = parsed.errors;
+  if (!Array.isArray(errors)) {
+    return {
+      error: {
+        path: "errors",
+        message: "expected list of errors",
+      },
+    };
+  }
+
+  const out = [];
+  for (const error of errors) {
+    if (!isObject(error)) {
+      return {
+        error: {
+          path: "errors",
+          message: "expected error object",
+        },
+      };
+    }
+
+    if (typeof error.path !== "string") {
+      return {
+        error: {
+          path: "errors[].path",
+          message: "expected String, got " + foundType(error.path),
+        },
+      };
+    }
+
+    if (typeof error.message !== "string") {
+      return {
+        error: {
+          path: "errors[].message",
+          message: "expected String, got " + foundType(error.message),
+        },
+      };
+    }
+
+    out.push([error.path, error.message]);
+  }
+
+  return { value: arrayToGleamList(out) };
+}
+
+function foundType(value) {
+  if (value === null) {
+    return "Null";
+  }
+  if (Array.isArray(value)) {
+    return "List";
+  }
+
+  switch (typeof value) {
+    case "string":
+      return "String";
+    case "number":
+      return Number.isInteger(value) ? "Int" : "Float";
+    case "boolean":
+      return "Bool";
+    case "object":
+      return "Dict";
+    case "undefined":
+      return "unknown";
+    default:
+      return typeof value;
+  }
+}
+
 // ---------- Encode ----------
 
 /**
@@ -201,43 +355,81 @@ export function decode_server_frame(data) {
   }
 
   const parsed = limited.value;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+  if (!isObject(parsed)) {
     return errorResult("", "expected object");
   }
 
-  const kind = parsed.kind;
-  const protocolVersion = parsed.protocol_version;
+  const protocolVersion = requiredStringField(parsed, "protocol_version");
+  if (protocolVersion.error) {
+    return errorResult(
+      protocolVersion.error.path,
+      protocolVersion.error.message,
+    );
+  }
 
-  if (protocolVersion !== "json-rpc-v1") {
+  if (protocolVersion.value !== "json-rpc-v1") {
     return errorResult(
       "protocol_version",
-      "unsupported version: " + (protocolVersion ?? "undefined"),
+      "unsupported version: " + protocolVersion.value,
     );
   }
 
-  if (kind === "response") {
-    return new Ok(new Response(parsed.request_id, parsed.value));
+  const kind = requiredStringField(parsed, "kind");
+  if (kind.error) {
+    return errorResult(kind.error.path, kind.error.message);
   }
 
-  if (kind === "push") {
-    return new Ok(new Push(parsed.module, parsed.value));
+  if (kind.value === "response") {
+    const requestId = requiredIntField(parsed, "request_id");
+    if (requestId.error) {
+      return errorResult(requestId.error.path, requestId.error.message);
+    }
+
+    const validRequestId = validateRequestId(requestId.value);
+    if (validRequestId.error) {
+      return errorResult(
+        validRequestId.error.path,
+        validRequestId.error.message,
+      );
+    }
+
+    const value = requiredDynamicField(parsed, "value");
+    if (value.error) {
+      return errorResult(value.error.path, value.error.message);
+    }
+
+    return new Ok(new Response(validRequestId.value, value.value));
   }
 
-  if (kind === "error") {
-    const requestId =
-      parsed.request_id !== undefined && parsed.request_id !== null
-        ? new Some(parsed.request_id)
-        : new None();
-    const errors = arrayToGleamList(
-      (parsed.errors || []).map((e) => [
-        e.path || "",
-        e.message || "",
-      ]),
-    );
-    return new Ok(new FrameError(requestId, errors));
+  if (kind.value === "push") {
+    const module = requiredStringField(parsed, "module");
+    if (module.error) {
+      return errorResult(module.error.path, module.error.message);
+    }
+
+    const value = requiredDynamicField(parsed, "value");
+    if (value.error) {
+      return errorResult(value.error.path, value.error.message);
+    }
+
+    return new Ok(new Push(module.value, value.value));
   }
 
-  return errorResult("kind", "unknown frame kind: " + (kind ?? "undefined"));
+  if (kind.value === "error") {
+    const requestId = optionalIntField(parsed, "request_id");
+    if (requestId.error) {
+      return errorResult(requestId.error.path, requestId.error.message);
+    }
+
+    const errors = errorListField(parsed);
+    if (errors.error) {
+      return errorResult(errors.error.path, errors.error.message);
+    }
+
+    return new Ok(new FrameError(requestId.value, errors.value));
+  }
+
+  return errorResult("kind", "unknown frame kind: " + kind.value);
 }
 
 // ---------- SSR flags ----------

@@ -14,6 +14,7 @@ test/fixtures/wire_e2e/clients/web/src/generated/
 test/js/.wire_e2e_*.json
 test/js/.wire_e2e_build_root
 birdie_snapshots/*.new
+benchmarks/reports/latest
 
 # Local Superpowers planning/spec artifacts
 docs/superpowers/

@@ -1,5 +1,6 @@
 //// Direct tests for libero/codegen helper functions.
 
+import gleam/dict
 import gleam/list
 import gleam/option
 import gleam/string
@@ -39,6 +40,22 @@ pub fn module_to_underscored_multi_segment_test() {
 pub fn module_to_underscored_deep_path_test() {
   let assert "shared_admin_items" =
     codegen.module_to_underscored("shared/admin/items")
+}
+
+pub fn build_module_alias_map_uses_last_segment_when_unique_test() {
+  let aliases =
+    codegen.build_module_alias_map(["shared/article", "pages/profile"])
+
+  let assert Ok("article") = aliases |> dict.get("shared/article")
+  let assert Ok("profile") = aliases |> dict.get("pages/profile")
+}
+
+pub fn build_module_alias_map_uses_full_path_on_collision_test() {
+  let aliases =
+    codegen.build_module_alias_map(["shared/article", "pages/article"])
+
+  let assert Ok("shared_article") = aliases |> dict.get("shared/article")
+  let assert Ok("pages_article") = aliases |> dict.get("pages/article")
 }
 
 // -- variant_pattern --

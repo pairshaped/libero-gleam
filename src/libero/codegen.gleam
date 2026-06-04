@@ -3,7 +3,7 @@
 //// Naming helpers and small predicates over `field_type.FieldType` graphs.
 
 import gleam/bool
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/list
 import gleam/string
 import libero/field_type
@@ -156,6 +156,29 @@ pub fn is_option(ft: field_type.FieldType) -> Bool {
 /// Build a resolver function that maps a module path to its import alias.
 /// Uses the last segment when unique, or the full underscored path when
 /// two or more modules share the same last segment.
+pub fn build_module_alias_map(modules: List(String)) -> Dict(String, String) {
+  let modules = list.unique(modules)
+
+  let segment_counts =
+    list.fold(modules, dict.new(), fn(acc, module_path) {
+      let segment = field_type.last_segment(module_path)
+      let count = case dict.get(acc, segment) {
+        Ok(n) -> n + 1
+        Error(Nil) -> 1
+      }
+      dict.insert(acc, segment, count)
+    })
+
+  list.fold(modules, dict.new(), fn(acc, module_path) {
+    let segment = field_type.last_segment(module_path)
+    let alias = case dict.get(segment_counts, segment) {
+      Ok(n) if n > 1 -> module_to_underscored(module_path)
+      _ -> segment
+    }
+    dict.insert(acc, module_path, alias)
+  })
+}
+
 pub fn build_alias_resolver(
   endpoints endpoints: List(scanner.HandlerEndpoint),
 ) -> fn(String) -> String {
@@ -173,21 +196,13 @@ pub fn build_alias_resolver(
     })
     |> list.map(fn(ref) { ref.0 })
     |> list.unique()
-  // Count how many modules share each last segment
-  let segment_counts =
-    list.fold(all_modules, dict.new(), fn(acc, mod) {
-      let seg = field_type.last_segment(mod)
-      let count = case dict.get(acc, seg) {
-        Ok(n) -> n + 1
-        Error(Nil) -> 1
-      }
-      dict.insert(acc, seg, count)
-    })
+
+  let aliases = build_module_alias_map(all_modules)
+
   fn(module_path: String) -> String {
-    let seg = field_type.last_segment(module_path)
-    case dict.get(segment_counts, seg) {
-      Ok(n) if n > 1 -> module_to_underscored(module_path)
-      _ -> seg
+    case dict.get(aliases, module_path) {
+      Ok(alias) -> alias
+      Error(Nil) -> field_type.last_segment(module_path)
     }
   }
 }

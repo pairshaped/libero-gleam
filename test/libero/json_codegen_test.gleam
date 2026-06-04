@@ -490,6 +490,70 @@ pub fn generated_codec_non_string_dict_encodes_as_pairs_test() {
   |> should.be_true
 }
 
+pub fn generated_codec_list_decoder_uses_json_runtime_list_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/batch",
+      type_name: "Batch",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/batch",
+          variant_name: "Batch",
+          atom_name: "shared_batch__batch",
+          float_field_indices: [],
+          field_labels: [Some("items")],
+          fields: [field_type.ListOf(field_type.IntField)],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types))
+
+  string.contains(source, "json_runtime.list(raw, \"fields.items\")")
+  |> should.be_true
+}
+
+pub fn generated_codec_dict_decoders_use_json_runtime_entries_test() {
+  let types = [
+    walker.DiscoveredType(
+      module_path: "shared/lookups",
+      type_name: "Lookups",
+      type_params: [],
+      variants: [
+        walker.DiscoveredVariant(
+          module_path: "shared/lookups",
+          variant_name: "Lookups",
+          atom_name: "shared_lookups__lookups",
+          float_field_indices: [],
+          field_labels: [Some("by_name"), Some("by_id")],
+          fields: [
+            field_type.DictOf(field_type.StringField, field_type.IntField),
+            field_type.DictOf(field_type.IntField, field_type.StringField),
+          ],
+        ),
+      ],
+    ),
+  ]
+
+  let source = assert_generated(codegen.generate(types))
+
+  string.contains(
+    source,
+    "json_runtime.object_entries(raw, \"fields.by_name\")",
+  )
+  |> should.be_true
+  string.contains(source, "json_runtime.pair_entries(raw, \"fields.by_id\")")
+  |> should.be_true
+  string.contains(source, "decode.dict")
+  |> should.be_false
+  string.contains(source, "decode.list")
+  |> should.be_false
+  string.contains(source, "gleam/dynamic/decode")
+  |> should.be_false
+}
+
 pub fn generated_codec_bool_dict_key_is_supported_test() {
   let types = [
     walker.DiscoveredType(
@@ -722,7 +786,7 @@ pub fn simple_type_omits_bit_array_import_test() {
   source |> string.contains("gleam/bit_array") |> should.be_false()
 }
 
-pub fn labelled_type_includes_dict_import_for_strict_fields_test() {
+pub fn labelled_type_uses_runtime_object_size_for_strict_fields_test() {
   let types = [
     walker.DiscoveredType(
       module_path: "shared/counter",
@@ -742,7 +806,10 @@ pub fn labelled_type_includes_dict_import_for_strict_fields_test() {
   ]
 
   let source = assert_generated(codegen.generate(types))
-  source |> string.contains("gleam/dict") |> should.be_true()
+  source
+  |> string.contains("json_runtime.object_size(fields, \"fields\")")
+  |> should.be_true()
+  source |> string.contains("gleam/dict") |> should.be_false()
 }
 
 pub fn unlabelled_type_omits_dict_import_test() {
@@ -865,7 +932,7 @@ pub fn bit_array_field_decoder_expects_tagged_base64url_object_test() {
   let source = assert_generated(codegen.generate(types))
 
   source
-  |> string.contains("decode.field(\"encoding\", decode.string")
+  |> string.contains("json_runtime.field_string(raw, \"encoding\"")
   |> should.be_true()
   source
   |> string.contains("Ok(\"base64url\")")
@@ -900,7 +967,7 @@ pub fn dict_field_includes_dict_import_test() {
   source |> string.contains("gleam/dict") |> should.be_true()
 }
 
-pub fn unlabelled_fields_include_list_at_test() {
+pub fn unlabelled_fields_use_json_runtime_array_access_test() {
   let types = [
     walker.DiscoveredType(
       module_path: "shared/point",
@@ -920,10 +987,15 @@ pub fn unlabelled_fields_include_list_at_test() {
   ]
 
   let source = assert_generated(codegen.generate(types))
-  source |> string.contains("fn list_at") |> should.be_true()
+  source
+  |> string.contains("json_runtime.array_length(fields, \"fields\")")
+  |> should.be_true()
+  source
+  |> string.contains("json_runtime.array_at(arr, 0, \"fields[0]\")")
+  |> should.be_true()
 }
 
-pub fn labelled_tuple_field_includes_list_at_test() {
+pub fn labelled_tuple_field_uses_json_runtime_array_access_test() {
   let types = [
     walker.DiscoveredType(
       module_path: "shared/location",
@@ -945,7 +1017,12 @@ pub fn labelled_tuple_field_includes_list_at_test() {
   ]
 
   let source = assert_generated(codegen.generate(types))
-  source |> string.contains("fn list_at") |> should.be_true()
+  source
+  |> string.contains("json_runtime.array_length(raw, \"fields.coords\")")
+  |> should.be_true()
+  source
+  |> string.contains("json_runtime.array_at(raw, 0, \"fields.coords[0]\")")
+  |> should.be_true()
 }
 
 fn assert_generated(result: Result(String, List(a))) -> String {

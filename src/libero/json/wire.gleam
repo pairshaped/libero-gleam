@@ -133,6 +133,7 @@ pub fn encode_push(module module: String, value value: json.Json) -> String {
 
 // ---------- Server frame decode ----------
 
+@external(javascript, "./wire_ffi.mjs", "decode_server_frame")
 pub fn decode_server_frame(
   data data: String,
 ) -> Result(ServerFrame(Dynamic), List(JsonError)) {

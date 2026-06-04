@@ -83,7 +83,7 @@ pub fn generated_encoder_wraps_raw_values_as_json_test() {
   string.contains(source, "#(\"title\", f0)") |> should.be_false
 }
 
-pub fn generated_decoder_uses_decode_run_pattern_test() {
+pub fn generated_decoder_uses_json_runtime_helpers_test() {
   let types = [
     DiscoveredType(
       module_path: "shared/article",
@@ -104,17 +104,26 @@ pub fn generated_decoder_uses_decode_run_pattern_test() {
 
   let assert Ok(source) = codegen.generate(types)
 
-  // Decoder should use decode.run with decode.field, not bare decode.field
-  string.contains(source, "decode.run(value, decode.field(\"type\"")
+  // Decoder should use runtime helpers for envelope and field extraction.
+  string.contains(
+    source,
+    "json_runtime.field_string(value, \"type\", \"type\")",
+  )
   |> should.be_true
 
-  string.contains(source, "decode.run(value, decode.field(\"variant\"")
+  string.contains(
+    source,
+    "json_runtime.field_string(value, \"variant\", \"variant\")",
+  )
   |> should.be_true
 
-  string.contains(source, "decode.run(value, decode.field(\"fields\"")
+  string.contains(source, "json_runtime.field(value, \"fields\", \"fields\")")
   |> should.be_true
 
-  string.contains(source, "decode.run(fields, decode.field(\"title\"")
+  string.contains(
+    source,
+    "json_runtime.field(fields, \"title\", \"fields.title\")",
+  )
   |> should.be_true
 }
 
@@ -172,7 +181,7 @@ pub fn generated_codec_has_encoder_and_decoder_test() {
   |> should.be_true
 }
 
-pub fn generated_codec_uses_decode_success_test() {
+pub fn generated_codec_imports_json_runtime_test() {
   let types = [
     DiscoveredType(
       module_path: "shared/article",
@@ -193,8 +202,8 @@ pub fn generated_codec_uses_decode_success_test() {
 
   let assert Ok(source) = codegen.generate(types)
 
-  // All decode.field calls should use decode.success in the closure
-  string.contains(source, "decode.success") |> should.be_true
+  string.contains(source, "import libero/json/runtime as json_runtime")
+  |> should.be_true
 }
 
 pub fn generated_encoder_checks_safe_int_range_test() {

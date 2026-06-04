@@ -1,7 +1,7 @@
 ---
 # libero-628n
 title: Redo ETF vs JSON benchmarks with real APIs
-status: todo
+status: completed
 type: task
 priority: normal
 tags:
@@ -9,7 +9,7 @@ tags:
     - json
     - transport
 created_at: 2026-05-12T12:42:10Z
-updated_at: 2026-06-03T18:55:26Z
+updated_at: 2026-06-03T23:34:59Z
 parent: libero-lph9
 ---
 
@@ -26,3 +26,15 @@ Requirements:
 - Cover multiple payload shapes and sizes based on the old benchmark intent: small admin-style response with option fields and dicts, repeated records, nested event/game/team data, and a large shot-heavy payload.
 - Scale iteration counts by payload size so large payloads finish in a reasonable time while small payloads still have stable measurements.
 - Publish results only after the benchmark harness is reproducible from the repo and clearly states environment details.
+
+
+
+Completed: added `benchmarks/` with a reproducible temp-project harness that generates JSON through the default CLI path, generates ETF helper modules through public Libero generator APIs, measures BEAM server encode/decode, JS JSON parse-only, JS full JSON decode, JS ETF decode, and writes timestamped CSV/Markdown reports under `benchmarks/reports/`.
+
+Published report: `benchmarks/reports/20260603T232304Z/report.md`.
+
+Validation: `bash benchmarks/run.sh`, `gleam format --check src test benchmarks/fixture_src/src benchmarks/runner_src/src`, `gleam test --target erlang`, `beans check`, and `git diff --check` passed.
+
+
+
+Updated: added a `type_matrix` payload covering shared JSON/ETF support for primitives, BitArray, List, Option, Result, tuple fields, zero-field variants, unlabelled constructors, nested custom types, and Dict keys for String/Int/Bool. Reports now render results as a Markdown table with a `vs ETF` multiplier column using ETF as the 1.00x baseline. Latest report: `benchmarks/reports/20260603T233326Z/report.md`.
