@@ -3,9 +3,9 @@
 # Libero
 
 [![Package Version](https://img.shields.io/hexpm/v/libero)](https://hex.pm/packages/libero)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/libero/)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://libero.hexdocs.pm/)
 
-Libero is [Rally](https://hex.pm/packages/rally)'s typed wire-contract layer
+Libero is [Rally](https://rally.hexdocs.pm/)'s typed wire-contract layer
 for Gleam.
 
 Frameworks like Rally decide which values cross the boundary. Libero walks those
