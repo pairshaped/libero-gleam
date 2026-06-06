@@ -77,6 +77,13 @@ pub fn empty_discovered_emits_module_with_only_float_helper_test() {
   let assert True = string.contains(out, "encode_float(F) when is_float(F)")
 }
 
+pub fn empty_optional_sections_do_not_leave_blank_runs_test() {
+  let assert Ok(out) =
+    codegen_erl.generate(module_name: "x_wire", discovered: [])
+
+  let assert False = string.contains(out, "\n\n\n")
+}
+
 pub fn header_marks_generated_test() {
   let assert Ok(out) =
     codegen_erl.generate(module_name: "x_wire", discovered: [])
