@@ -8,7 +8,7 @@
 Libero is [Rally](https://hex.pm/packages/rally)'s typed wire-contract layer
 for Gleam.
 
-Framework code decides which values cross the boundary. Libero walks those
+Frameworks like Rally decide which values cross the boundary. Libero walks those
 seeded types, generates the codec artifacts, and exposes ETF and JSON wire
 helpers that agree on type identity. It does not scan handlers, generate
 dispatch modules, write app transport, or own request/result/push API design.
