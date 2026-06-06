@@ -5,7 +5,8 @@
 [![Package Version](https://img.shields.io/hexpm/v/libero)](https://hex.pm/packages/libero)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/libero/)
 
-Libero is Rally's typed wire-contract layer for Gleam.
+Libero is [Rally](https://hex.pm/packages/rally)'s typed wire-contract layer
+for Gleam.
 
 Framework code decides which values cross the boundary. Libero walks those
 seeded types, generates the codec artifacts, and exposes ETF and JSON wire
