@@ -123,6 +123,20 @@ ETF preserves BEAM term fidelity and uses generated wire hashes for user custom
 types. JSON uses readable type identity and contract hashes. Both codecs use the
 same discovered type graph.
 
+## Should I Use ETF Or JSON?
+
+Use ETF for Rally-style Gleam browser/server traffic. It is the path Rally uses
+by default, it preserves BEAM term fidelity, and it keeps the generated protocol
+surface compact.
+
+Use JSON when a non-Gleam client, SDK, fixture, log, or tool needs to inspect or
+produce protocol data without an ETF implementation. JSON is readable and uses
+the same contract hashes, but payloads are larger and generated validators do
+more shape checking at the boundary.
+
+For measured performance guidance, see the
+[benchmark README](benchmarks/README.md).
+
 ## ETF Safety
 
 Untrusted ETF input is decoded with `binary_to_term(Bin, [safe, used])` on the

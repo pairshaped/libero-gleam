@@ -49,7 +49,7 @@ The module path separates the two `Loaded` constructors.
 
 ## Why Shape Is Not Enough
 
-Shape-based decoding is tempting, but it is unsafe for a generated RPC contract.
+Shape-based decoding is tempting, but it is unsafe for a generated wire contract.
 
 These two types have the same field shape:
 
