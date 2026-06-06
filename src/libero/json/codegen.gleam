@@ -1112,6 +1112,7 @@ fn emit_raw_value_decode(
 
 /// Emit the builtin Option encoder function.
 fn emit_option_encoder() -> String {
+  // nolint: unnecessary_string_concatenation -- codegen template
   "pub fn json_encode_gleam_option__option(value, encode_inner: fn(a) -> json.Json) -> json.Json {\n"
   <> "  case value {\n"
   <> "    Some(inner) -> json.object([\n"
@@ -1130,6 +1131,7 @@ fn emit_option_encoder() -> String {
 
 /// Emit the builtin Option decoder function.
 fn emit_option_decoder() -> String {
+  // nolint: unnecessary_string_concatenation -- codegen template
   "pub fn json_decode_gleam_option__option(value: Dynamic, decode_inner: fn(Dynamic) -> Result(a, List(JsonError))) -> Result(Option(a), List(JsonError)) {\n"
   <> "  use _ <- result.try(\n"
   <> "    case json_runtime.field_string(value, \"type\", \"type\") {\n"
@@ -1163,6 +1165,7 @@ fn emit_option_decoder() -> String {
 
 /// Emit the builtin Result encoder function.
 fn emit_result_encoder() -> String {
+  // nolint: unnecessary_string_concatenation -- codegen template
   "pub fn json_encode_gleam_result__result(value, encode_ok: fn(a) -> json.Json, encode_err: fn(b) -> json.Json) -> json.Json {\n"
   <> "  case value {\n"
   <> "    Ok(inner) -> json.object([\n"
@@ -1181,6 +1184,7 @@ fn emit_result_encoder() -> String {
 
 /// Emit the builtin Result decoder function.
 fn emit_result_decoder() -> String {
+  // nolint: unnecessary_string_concatenation -- codegen template
   "pub fn json_decode_gleam_result__result(value: Dynamic, decode_ok: fn(Dynamic) -> Result(a, List(JsonError)), decode_err: fn(Dynamic) -> Result(b, List(JsonError))) -> Result(Result(a, b), List(JsonError)) {\n"
   <> "  use _ <- result.try(\n"
   <> "    case json_runtime.field_string(value, \"type\", \"type\") {\n"

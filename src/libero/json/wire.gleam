@@ -199,7 +199,7 @@ fn parse_json(data: String) -> Result(Dynamic, List(JsonError)) {
   use _ <- result.try(validate_input_size(data))
   case json.parse(from: data, using: decode.dynamic) {
     Ok(v) -> {
-      use _ <- result.try(validate_json_structure(v, depth: 0, path: ""))
+      use _ <- result.try(validate_json_structure(value: v, depth: 0, path: ""))
       Ok(v)
     }
     Error(_) -> Error([JsonError("", "failed to parse JSON")])
@@ -235,10 +235,10 @@ fn validate_json_structure(
     Ok(s) -> validate_json_string(s, path)
     Error(_) ->
       case decode.run(value, decode.list(of: decode.dynamic)) {
-        Ok(items) -> validate_json_array(items, depth, path)
+        Ok(items) -> validate_json_array(items:, depth:, path:)
         Error(_) ->
           case decode.run(value, decode.dict(decode.string, decode.dynamic)) {
-            Ok(entries) -> validate_json_object(entries, depth, path)
+            Ok(entries) -> validate_json_object(entries:, depth:, path:)
             Error(_) -> Ok(Nil)
           }
       }
@@ -274,7 +274,7 @@ fn validate_json_array(
     ]),
   )
   list.try_each(items, fn(item) {
-    validate_json_structure(item, depth: depth + 1, path: path <> "[]")
+    validate_json_structure(value: item, depth: depth + 1, path: path <> "[]")
   })
 }
 
@@ -292,7 +292,7 @@ fn validate_json_object(
   dict.fold(entries, Ok(Nil), fn(acc, key, item) {
     use _ <- result.try(acc)
     validate_json_structure(
-      item,
+      value: item,
       depth: depth + 1,
       path: append_path(path, key),
     )
