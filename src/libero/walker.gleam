@@ -72,6 +72,10 @@ type WalkerState {
   )
 }
 
+type AliasDef {
+  AliasDef(parameters: List(String), aliased: glance.Type)
+}
+
 /// Module prefixes that should never be walked - their types are
 /// handled by libero's auto-wire blocks in etf/wire_ffi.mjs.
 const registry_skip_prefixes = ["libero/", "gleam/"]
@@ -307,7 +311,7 @@ fn walk_custom_type_variants(
   type_name type_name: String,
   resolver resolver: TypeRefResolver,
   shared_resolver shared_resolver: glance_type_resolver.TypeResolver,
-  aliases aliases: Dict(String, glance.Type),
+  aliases aliases: Dict(String, AliasDef),
 ) -> Result(List(DiscoveredType), List(GenError)) {
   let #(variants_rev, new_queue_items_rev) =
     list.fold(custom_type.variants, #([], []), fn(acc, variant) {
@@ -499,19 +503,30 @@ fn collect_type_refs(
 fn field_type_of(
   t t: glance.Type,
   shared_resolver shared_resolver: glance_type_resolver.TypeResolver,
-  aliases aliases: Dict(String, glance.Type),
+  aliases aliases: Dict(String, AliasDef),
   current_module current_module: String,
 ) -> FieldType {
   case t {
-    glance.NamedType(name:, module: None, ..) ->
+    glance.NamedType(name:, module: None, parameters:, ..) ->
       case dict.get(aliases, name) {
-        Ok(aliased_type) ->
+        Ok(AliasDef(parameters: alias_params, aliased: aliased_type)) -> {
+          let bindings =
+            list.fold(
+              list.zip(alias_params, parameters),
+              dict.new(),
+              fn(acc, pair) {
+                let #(param, replacement) = pair
+                dict.insert(acc, param, replacement)
+              },
+            )
+          let aliased_type = substitute_type_vars(aliased_type, bindings)
           field_type_of(
             t: aliased_type,
             shared_resolver:,
             aliases:,
             current_module:,
           )
+        }
         Error(Nil) -> {
           let assert Ok(ft) =
             glance_type_resolver.type_to_field_type(
@@ -536,13 +551,50 @@ fn field_type_of(
   }
 }
 
+fn substitute_type_vars(
+  t: glance.Type,
+  bindings: Dict(String, glance.Type),
+) -> glance.Type {
+  case t {
+    glance.VariableType(name:, ..) ->
+      dict.get(bindings, name)
+      |> result.unwrap(t)
+    glance.NamedType(location:, name:, module:, parameters:) ->
+      glance.NamedType(
+        location:,
+        name:,
+        module:,
+        parameters: list.map(parameters, substitute_type_vars(_, bindings)),
+      )
+    glance.TupleType(location:, elements:) ->
+      glance.TupleType(
+        location:,
+        elements: list.map(elements, substitute_type_vars(_, bindings)),
+      )
+    glance.FunctionType(location:, parameters:, return:) ->
+      glance.FunctionType(
+        location:,
+        parameters: list.map(parameters, substitute_type_vars(_, bindings)),
+        return: substitute_type_vars(return, bindings),
+      )
+    glance.HoleType(..) -> t
+  }
+}
+
 /// Build a map from type alias names to their underlying glance.Type.
 /// Used to resolve aliases transparently in field_type_of.
 fn build_alias_map(
   type_aliases: List(glance.Definition(glance.TypeAlias)),
-) -> Dict(String, glance.Type) {
+) -> Dict(String, AliasDef) {
   list.fold(type_aliases, dict.new(), fn(acc, def) {
-    dict.insert(acc, def.definition.name, def.definition.aliased)
+    dict.insert(
+      acc,
+      def.definition.name,
+      AliasDef(
+        parameters: def.definition.parameters,
+        aliased: def.definition.aliased,
+      ),
+    )
   })
 }
 

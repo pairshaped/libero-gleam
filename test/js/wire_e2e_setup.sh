@@ -152,5 +152,5 @@ ERL_EBINS=$(find "$STAGED_FIXTURE/server/build/dev/erlang" -path '*/ebin' -type 
 erl -noshell -pa $ERL_EBINS -eval "$(cat "$ROOT_DIR/test/js/wire_e2e_decode_manifest.escript")" > "$DECODE_MANIFEST"
 
 # Verify atom pre-registration enables binary_to_term([safe]) with custom atoms
-# before the dispatch handler loads them via ensure_atoms().
+# before generated protocol code calls ensure_atoms().
 erl -noshell -pa $ERL_EBINS -eval "$(cat "$ROOT_DIR/test/js/wire_e2e_safe_atoms.escript")"

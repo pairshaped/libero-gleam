@@ -3,6 +3,7 @@
 import glance
 import gleam/int
 import gleam/list
+import libero/field_type
 import libero/gen_error
 import libero/source
 import libero/walker.{type DiscoveredType}
@@ -131,6 +132,42 @@ pub type Wrapper {
   let assert True = has_type(types, "Result")
 
   let assert Ok(Nil) = simplifile.delete_all([fixture_root <> "/shadow"])
+}
+
+pub fn substitutes_parameterized_local_type_aliases_test() {
+  let dir = fixture_root <> "/parameterized_alias/src/shared"
+  let assert Ok(Nil) = simplifile.create_directory_all(dir)
+  let assert Ok(Nil) =
+    simplifile.write(
+      dir <> "/types.gleam",
+      "type WirePair(a) =
+  #(a, List(a))
+
+pub type Wrapper {
+  Wrapper(ints: WirePair(Int), strings: WirePair(String))
+}
+",
+    )
+
+  let assert Ok(files) = source.walk_directory(path: dir)
+  let assert Ok(types) =
+    walker.walk(seeds: [#("shared/types", "Wrapper")], file_paths: files)
+
+  let assert Ok(wrapper) = find_type(types, "Wrapper")
+  let assert [variant] = wrapper.variants
+  let assert [
+    field_type.TupleOf([
+      field_type.IntField,
+      field_type.ListOf(field_type.IntField),
+    ]),
+    field_type.TupleOf([
+      field_type.StringField,
+      field_type.ListOf(field_type.StringField),
+    ]),
+  ] = variant.fields
+
+  let assert Ok(Nil) =
+    simplifile.delete_all([fixture_root <> "/parameterized_alias"])
 }
 
 fn has_type(types: List(DiscoveredType), name: String) -> Bool {

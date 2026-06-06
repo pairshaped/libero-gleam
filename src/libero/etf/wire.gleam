@@ -159,7 +159,7 @@ fn ffi_decode_safe(data: BitArray) -> Result(a, DecodeError) {
 /// Decode an ETF binary and apply a typed decoder by name.
 ///
 /// On JavaScript, this does the two-pass decode: raw ETF → typed decoder
-/// lookup via the registry populated by generated codec_ffi.mjs. The
+/// lookup via the registry populated by generated decoders_ffi.mjs. The
 /// `decoder_name` is the full function name, e.g.
 /// `"decode_pages_home__model"`.
 ///

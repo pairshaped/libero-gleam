@@ -1,9 +1,9 @@
 //// Convert parsed `glance.Type` values into Libero's shared `FieldType`.
 ////
-//// Scanner and walker both need the same type-resolution rules for imports,
-//// aliases, builtins, tuples, and unsupported syntax. This module owns that
-//// conversion so codegen sees one structured representation regardless of
-//// whether a type came from a handler signature or a discovered custom type.
+//// Seed discovery and codegen both need the same type-resolution rules for
+//// imports, aliases, builtins, tuples, and unsupported syntax. This module
+//// owns that conversion so codegen sees one structured representation
+//// regardless of where a type reference appears in discovered source.
 
 import gleam/dict
 import gleam/list

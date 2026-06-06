@@ -18,31 +18,8 @@ import {
 } from "../../../gleam_stdlib/gleam/dict.mjs";
 import { DecodeError as WireDecodeError } from "../error.mjs";
 
-// ---------- Custom type constructor registry ----------
-// Generated codec_ffi.mjs registers per-type constructors here at init
-// time. The ETF decoder (decodeTuple) looks up this registry when it
-// encounters an atom-tagged tuple for a custom type like {sponsor, ...}
-// and reconstructs the proper Gleam constructor instance.
-//
-// DEPRECATED: keyed by bare atom name, which causes collisions when
-// two modules define types with the same variant name. Use
-// registerTypedDecoder + decodeTyped instead.
-
-const constructorRegistry = new Map();
-
-/**
- * Register a custom type constructor for ETF decoding.
- * Called by the generated codec_ffi.mjs at module init time.
- * @param {string} atomName snake_case constructor name (e.g. "sponsor")
-   * @param {typeof import("../../../gleam_stdlib/gleam.mjs").CustomType} ctor
- * @param {number} fieldCount number of positional fields
- */
-export function registerConstructor(atomName, ctor, fieldCount) {
-  constructorRegistry.set(atomName, { ctor, fieldCount });
-}
-
 // ---------- Typed decoder registry ----------
-// Generated codec_ffi.mjs registers per-type decoder functions here so
+// Generated decoders_ffi.mjs registers per-type decoder functions here so
 // callers (e.g. SSR flag decoding) can apply the two-pass decode:
 // raw ETF decode → typed decoder.
 //
@@ -62,13 +39,8 @@ export function decodeTyped(value, decoderName) {
 }
 
 // Atom → decoder-name reverse mapping so the ETF decoder's non-raw mode
-// can reconstruct custom types without a constructor registry. Populated
-// alongside registerTypedDecoder by the generated codec_ffi.mjs.
-//
-// If two modules define the same atom name the second registration
-// overwrites the first, same as the old constructorRegistry. The two-pass
-// path (decode_safe_raw + apply_typed_decoder) handles collisions
-// correctly where the caller knows the expected type.
+// can reconstruct custom types. Populated alongside registerTypedDecoder by
+// generated decoders_ffi.mjs.
 const _atomToDecoderName = new Map();
 
 export function registerAtomDecoder(atomName, decoderName, decoderFn) {
@@ -503,8 +475,6 @@ class ETFDecoder {
     // instances so Gleam pattern matching works on bare atoms too.
     if (!this.raw) {
       if (name === "none") return new None();
-      const reg = constructorRegistry.get(name);
-      if (reg && reg.fieldCount === 0) return new reg.ctor();
       const decoderFn = lookupAtomDecoder(name);
       if (decoderFn) return decoderFn(name);
     }
@@ -568,23 +538,8 @@ class ETFDecoder {
         }
       }
 
-      // Custom type reconstruction: check the constructor registry
-      // populated by codec_ffi.mjs at init time.
-      if (!this.raw) {
-        const reg = constructorRegistry.get(atomName);
-        if (reg) {
-          const fields = [];
-          for (let i = 1; i < arity; i++) {
-            fields.push(this.decodeTerm(depth + 1));
-          }
-          while (fields.length < reg.fieldCount) fields.push(undefined);
-          fields.length = reg.fieldCount;
-          return new reg.ctor(...fields);
-        }
-      }
-
       // Typed decoder reconstruction: when not in raw mode, check the
-      // atom→decoder reverse mapping populated by generated codec_ffi.mjs.
+      // atom→decoder reverse mapping populated by generated decoders_ffi.mjs.
       // Decode fields in non-raw mode so nested custom types are resolved
       // through lookupAtomDecoder, then convert Gleam collection instances
       // (linked lists, Dicts, Some/None) back to raw ETF shapes that the
@@ -601,7 +556,7 @@ class ETFDecoder {
       }
 
       // Unknown custom type: return as raw array with atom string as
-      // first element. The generated typed decoders (codec_ffi.mjs)
+      // first element. The generated typed decoders (decoders_ffi.mjs)
       // resolve these in a second pass.
       const elements = [atomName];
       for (let i = 1; i < arity; i++) {
@@ -1291,7 +1246,7 @@ export function decode_push_frame(buffer) {
     if (bytes[0] !== 1) {
       return new ResultError(new WireDecodeError("invalid push frame: expected tag byte 1"));
     }
-    const payloadResult = decode_safe_raw(bytes.subarray(1));
+    const payloadResult = decode_safe(bytes.subarray(1));
     if (payloadResult instanceof Ok) {
       const value = payloadResult[0];
       if (Array.isArray(value) && value.length === 2
@@ -1340,7 +1295,7 @@ export function decode_server_frame(buffer) {
     }
 
     if (tag === 1) {
-      const payloadResult = decode_safe_raw(bytes.subarray(1));
+      const payloadResult = decode_safe(bytes.subarray(1));
       if (payloadResult instanceof Ok) {
         const tuple = payloadResult[0];
         if (Array.isArray(tuple) && tuple.length === 2

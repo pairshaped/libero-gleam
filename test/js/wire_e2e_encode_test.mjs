@@ -10,6 +10,7 @@ const webRoot = join(buildRoot, "clients/web/build/dev/javascript");
 const liberoEtf = await import(pathToFileURL(join(webRoot, "web/generated/libero/etf.mjs")).href);
 liberoEtf.ensure();
 const wire = await import(pathToFileURL(join(webRoot, "libero/libero/etf/wire.mjs")).href);
+const wireFfi = await import(pathToFileURL(join(webRoot, "libero/libero/etf/wire_ffi.mjs")).href);
 const types = await import(pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href);
 const collision = await import(pathToFileURL(join(webRoot, "shared/shared/collision.mjs")).href);
 const gleam = await import(pathToFileURL(join(webRoot, "gleam_stdlib/gleam.mjs")).href);
@@ -180,5 +181,19 @@ assert.throws(
   /unsupported value type/,
   "plain objects with root/size fields are not Gleam Dicts",
 );
+
+{
+  const frame = wireFfi.decode_push_frame(wire.encode_push("pages/home", 99));
+  assert.equal(frame.constructor.name, "Ok");
+  assert.deepEqual(frame[0], ["pages/home", 99]);
+}
+
+{
+  const frame = wireFfi.decode_server_frame(wire.encode_push("pages/home", 99));
+  assert.equal(frame.constructor.name, "Ok");
+  assert.equal(frame[0].kind, "push");
+  assert.equal(frame[0].module, "pages/home");
+  assert.equal(frame[0].value, 99);
+}
 
 console.log(`wire e2e encode test passed (${cases.length} cases)`);
