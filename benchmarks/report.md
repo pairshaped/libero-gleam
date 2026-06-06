@@ -12,9 +12,9 @@ Environment:
 Method:
 
 - Fixture project opts into JSON generation with `use_json = true` so the benchmark can compare JSON against Libero's default ETF transport.
-- ETF helper modules were generated through Libero's public generator APIs so the benchmark can call `generated@rpc_wire` without compiling the old ETF dispatch module.
+- ETF helper modules were generated through Libero's public generator APIs so the benchmark can call `generated@libero_wire` without compiling the old ETF dispatch module.
 - BEAM server encode rows include generated response helpers plus wire frame encoding.
-- BEAM server request decode rows include wire request decode plus generated `ClientMsg` decode.
+- BEAM server request decode rows include wire request decode plus generated `RequestMsg` decode.
 - JS client response decode rows include wire frame decode plus generated typed payload rebuild for JSON. ETF uses the generated decoder registration path.
 - Each result subsection compares ETF and JSON for one target, stage, and payload. The `Ratio` column is JSON divided by ETF for the same metric.
 - CSV files include additional diagnostic rows, such as JSON parse-only, JSON wire-decode-only, JSON typed-decode-only, BEAM `etf_full_data_precheck`, BEAM `etf_strict_data_terms`, and JS `etf_depth_limit` measurements. The Markdown report omits those rows because they are not the main ETF vs JSON comparison.

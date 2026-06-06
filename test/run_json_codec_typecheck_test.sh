@@ -27,7 +27,7 @@ simplifile = ">= 2.0.0 and < 3.0.0"
 libero = { path = "LIBERO_PATH" }
 TOML
 
-sed -i '' "s|LIBERO_PATH|$ROOT_DIR|" gleam.toml
+perl -0pi -e "s#LIBERO_PATH#$ROOT_DIR#g" gleam.toml
 
 mkdir -p src/pages
 mkdir -p src/generated/libero
@@ -95,11 +95,11 @@ pub type Status {
 }
 GLEAM
 
-cat > src/generated/libero/dispatch.gleam <<'GLEAM'
+cat > src/generated/libero/requests.gleam <<'GLEAM'
 import fixture
 import gleam/option.{type Option}
 
-pub type ClientMsg {
+pub type RequestMsg {
   ServerDrag(
     items: List(Option(fixture.Article)),
     selected: #(fixture.Article, Int),
@@ -198,8 +198,8 @@ pub fn main() {
     codegen.generate_transport_codecs_with_push_and_ssr(
       discovered: types,
       endpoints:,
-      client_msg_module_path: "generated/libero/dispatch",
-      client_msg_type_name: "ClientMsg",
+      request_msg_module_path: "generated/libero/requests",
+      request_msg_type_name: "RequestMsg",
       push_types: [
         contract.PushContract(
           module: "pages/article",
@@ -235,7 +235,7 @@ gleam check --target javascript
 
 cat > src/codec_smoke.gleam <<'GLEAM'
 import fixture
-import generated/libero/dispatch
+import generated/libero/requests
 import gen_json
 import gleam/dict
 import gleam/dynamic/decode
@@ -361,11 +361,11 @@ fn roundtrip_page_msg(value: fixture.PageMsg) -> fixture.PageMsg {
   decoded
 }
 
-fn roundtrip_client_msg(value: dispatch.ClientMsg) -> dispatch.ClientMsg {
-  let encoded = gen_json.json_encode_generated_libero_dispatch__client_msg(value)
+fn roundtrip_request_msg(value: requests.RequestMsg) -> requests.RequestMsg {
+  let encoded = gen_json.json_encode_generated_libero_requests__request_msg(value)
   let assert Ok(raw) = json.parse(json.to_string(encoded), decode.dynamic)
   let assert Ok(decoded) =
-    gen_json.json_decode_generated_libero_dispatch__client_msg(raw)
+    gen_json.json_decode_generated_libero_requests__request_msg(raw)
   decoded
 }
 
@@ -490,7 +490,7 @@ fn assert_container_roundtrips() {
   assert roundtrip_fallible(fixture.Fallible(Ok(7))) == fixture.Fallible(Ok(7))
   assert roundtrip_fallible(fixture.Fallible(Error("nope"))) == fixture.Fallible(Error("nope"))
   assert roundtrip_page_msg(fixture.Drag(#(3, -4), #(article(), Some(9)))) == fixture.Drag(#(3, -4), #(article(), Some(9)))
-  assert roundtrip_client_msg(dispatch.ServerDrag([Some(article())], #(article(), 7))) == dispatch.ServerDrag([Some(article())], #(article(), 7))
+  assert roundtrip_request_msg(requests.ServerDrag([Some(article())], #(article(), 7))) == requests.ServerDrag([Some(article())], #(article(), 7))
   assert_response_helper_uses_typed_json()
   assert_push_helper_uses_typed_json()
   assert_ssr_helper_uses_typed_json()
@@ -598,8 +598,8 @@ pub fn main() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
-      client_msg_module: "generated/libero/dispatch",
+      wire_module_tag: "libero",
+      request_msg_module: "generated/libero/requests",
       json_codecs_module: "generated/libero/json_codecs",
       contract_hash: "test-hash",
     )

@@ -5,7 +5,7 @@ import libero/gen_error
 import libero/scanner
 import simplifile
 
-// v6 criteria for an RPC endpoint:
+// v6 criteria for an transport endpoint:
 // 1. Public function
 // 2. Name starts with server_
 // 3. Has a parameter typed as the configured context type
@@ -160,7 +160,7 @@ fn scan_fixture_names() -> List(String) {
 }
 
 /// Two handler files exporting the same function name (after prefix strip)
-/// would compile into duplicate ClientMsg variants. The scanner surfaces this
+/// would compile into duplicate RequestMsg variants. The scanner surfaces this
 /// as a libero-level error.
 pub fn rejects_duplicate_fn_name_across_modules_test() {
   let dir = "build/.test_duplicate_fn_names"

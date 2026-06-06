@@ -1,4 +1,4 @@
-%% Libero RPC panic-catching FFI.
+%% Libero transport panic-catching FFI.
 %%
 %% try_call(F) runs the zero-arg function F and returns {ok, Result}
 %% on success, or {error, ReasonBinary} if the function throws or

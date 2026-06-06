@@ -20,7 +20,7 @@ import gleam/string
 import libero/frame.{type ServerFrame}
 import libero/json/error.{type JsonError, JsonError}
 
-const json_rpc_v1 = "json-rpc-v1"
+const libero_json_v1 = "libero-json-v1"
 
 const max_json_input_bytes = 1_048_576
 
@@ -47,7 +47,7 @@ pub fn encode_request(
   let assert True = request_id >= 0 && request_id <= 4_294_967_295
   json.object([
     #("kind", json.string("request")),
-    #("protocol_version", json.string(json_rpc_v1)),
+    #("protocol_version", json.string(libero_json_v1)),
     #("contract_hash", json.string(contract_hash)),
     #("module", json.string(module)),
     #("request_id", json.int(request_id)),
@@ -82,7 +82,7 @@ pub fn encode_response(
   let assert True = request_id >= 0 && request_id <= 4_294_967_295
   json.object([
     #("kind", json.string("response")),
-    #("protocol_version", json.string(json_rpc_v1)),
+    #("protocol_version", json.string(libero_json_v1)),
     #("request_id", json.int(request_id)),
     #("value", value),
   ])
@@ -104,7 +104,7 @@ pub fn encode_error(
   }
   json.object([
     #("kind", json.string("error")),
-    #("protocol_version", json.string(json_rpc_v1)),
+    #("protocol_version", json.string(libero_json_v1)),
     #("request_id", rid),
     #(
       "errors",
@@ -124,7 +124,7 @@ pub fn encode_error(
 pub fn encode_push(module module: String, value value: json.Json) -> String {
   json.object([
     #("kind", json.string("push")),
-    #("protocol_version", json.string(json_rpc_v1)),
+    #("protocol_version", json.string(libero_json_v1)),
     #("module", json.string(module)),
     #("value", value),
   ])
@@ -344,7 +344,7 @@ fn validate_kind(
 
 fn validate_protocol_version(parsed: Dynamic) -> Result(Nil, List(JsonError)) {
   case required_string_field(parsed, "protocol_version") {
-    Ok(s) if s == json_rpc_v1 -> Ok(Nil)
+    Ok(s) if s == libero_json_v1 -> Ok(Nil)
     Ok(s) ->
       Error([JsonError("protocol_version", "unsupported version: " <> s)])
     Error(errors) -> Error(errors)

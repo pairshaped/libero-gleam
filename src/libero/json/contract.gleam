@@ -81,7 +81,7 @@ fn canonical_fields(
     })
 
   [
-    #("protocol_version", json.string("json-rpc-v1")),
+    #("protocol_version", json.string("libero-json-v1")),
     #("typed_value_contract", json.string(typed_value_contract_v1)),
     #("libero_version", json.string("6.0.0")),
     #("endpoints", json.array(sorted_endpoints, of: endpoint_json)),

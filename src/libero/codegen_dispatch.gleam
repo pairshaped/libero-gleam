@@ -114,8 +114,8 @@ pub fn generate_with_extra_params(
       import_line: "import gleam/option.{type Option}",
     )
 
-  let client_msg_variants =
-    codegen.emit_client_msg_variants(endpoints:, resolve_alias:)
+  let request_msg_variants =
+    codegen.emit_request_msg_variants(endpoints:, resolve_alias:)
 
   let known_tag_arms =
     endpoints
@@ -141,7 +141,7 @@ pub fn generate_with_extra_params(
     option.Some(mod) ->
       "\n/// Pre-register all constructor atoms that may appear in client ETF
 /// payloads, so binary_to_term([safe]) can decode them. Called once
-/// on the first RPC call; subsequent calls are a no-op (persistent_term
+/// on the first transport call; subsequent calls are a no-op (persistent_term
 /// lookup).
 @external(erlang, \"" <> mod <> "\", \"ensure\")
 fn ensure_atoms() -> Nil
@@ -178,7 +178,7 @@ fn ensure_atoms() -> Nil
       let decode_ext =
         "\n@external(erlang, \""
         <> mod
-        <> "\", \"decode_client_msg\")\nfn wire_decode_client_msg(msg: a) -> b\n"
+        <> "\", \"decode_request_msg\")\nfn wire_decode_request_msg(msg: a) -> b\n"
       let response_exts =
         list.map(endpoints, fn(e) {
           "@external(erlang, \""
@@ -200,9 +200,9 @@ fn ensure_atoms() -> Nil
     _, _ -> False
   }
 
-  let rpc_dispatch_body = case should_decode_msg {
+  let request_dispatch_body = case should_decode_msg {
     True -> "      case trace.try_call(fn() {
-        let msg = wire_decode_client_msg(msg)
+        let msg = wire_decode_request_msg(msg)
         case wire.variant_tag(msg) {
 " <> inner_case <> "
         }
@@ -227,7 +227,7 @@ fn ensure_atoms() -> Nil
     _ -> "
 fn dispatch_known(msg, request_id, server_context" <> extra_args <> ") {
   case trace.try_call(fn() {
-  let typed_msg: ClientMsg = wire.coerce(msg)
+  let typed_msg: RequestMsg = wire.coerce(msg)
   case typed_msg {
 " <> string.join(case_arms, "\n") <> "
   }
@@ -256,8 +256,8 @@ import " <> context_module <> ".{type " <> context_type_name <> "}
     [] -> ""
     lines -> string.join(lines, "\n") <> "\n"
   } <> atoms_external <> wire_externals <> "
-pub type ClientMsg {
-" <> string.join(client_msg_variants, "\n") <> "
+pub type RequestMsg {
+" <> string.join(request_msg_variants, "\n") <> "
 }
 
 pub fn handle(
@@ -266,7 +266,7 @@ pub fn handle(
 ) -> #(BitArray, " <> context_type_name <> ") {
   " <> ensure_call <> "case wire.decode_request(data) {
     Ok(#(\"" <> wire_module_tag <> "\", request_id, msg)) -> {
-" <> rpc_dispatch_body <> "
+" <> request_dispatch_body <> "
     }
     Ok(#(name, request_id, _)) ->
       #(wire.encode_response(request_id:, value:Error(UnknownFunction(name))), server_context)
@@ -280,7 +280,7 @@ pub fn handle(
 /// Generate a JSON server dispatch module source from scanned endpoints.
 ///
 /// The generated module accepts JSON text, validates the JSON contract hash
-/// before decoding the request body, decodes `ClientMsg` through the generated
+/// before decoding the request body, decodes `RequestMsg` through the generated
 /// JSON codec module, and encodes handler results through generated response
 /// helpers from the same module.
 pub fn generate_json(
@@ -288,7 +288,7 @@ pub fn generate_json(
   context_module context_module: String,
   context_type_name context_type_name: String,
   wire_module_tag wire_module_tag: String,
-  client_msg_module client_msg_module: String,
+  request_msg_module request_msg_module: String,
   json_codecs_module json_codecs_module: String,
   contract_hash contract_hash: String,
 ) -> String {
@@ -297,7 +297,7 @@ pub fn generate_json(
     context_module:,
     context_type_name:,
     wire_module_tag:,
-    client_msg_module:,
+    request_msg_module:,
     json_codecs_module:,
     contract_hash:,
     extra_params: [],
@@ -309,7 +309,7 @@ pub fn generate_json_with_extra_params(
   context_module context_module: String,
   context_type_name context_type_name: String,
   wire_module_tag wire_module_tag: String,
-  client_msg_module client_msg_module: String,
+  request_msg_module request_msg_module: String,
   json_codecs_module json_codecs_module: String,
   contract_hash contract_hash: String,
   extra_params extra_params: List(ExtraParam),
@@ -369,8 +369,8 @@ pub fn generate_json_with_extra_params(
       "import gleam/io\n"
       <> "import libero/trace\n"
       <> "import "
-      <> client_msg_module
-      <> " as client_msg\n"
+      <> request_msg_module
+      <> " as request_msg\n"
       <> "import "
       <> json_codecs_module
       <> " as json_codecs\n"
@@ -379,7 +379,7 @@ pub fn generate_json_with_extra_params(
   let dispatch_known = case endpoints {
     [] -> ""
     _ -> "
-fn dispatch_known(typed_msg: client_msg.ClientMsg, request_id: Int, server_context: " <> context_type_name <> extra_handle_params <> ") {
+fn dispatch_known(typed_msg: request_msg.RequestMsg, request_id: Int, server_context: " <> context_type_name <> extra_handle_params <> ") {
   case trace.try_call(fn() {
     case typed_msg {
 " <> case_arms <> "
@@ -406,8 +406,8 @@ fn dispatch_known(typed_msg: client_msg.ClientMsg, request_id: Int, server_conte
       "        True -> {\n"
       <> "          case json_codecs.json_decode_"
       <> walker.qualified_atom_name(
-        module_path: client_msg_module,
-        variant_name: "ClientMsg",
+        module_path: request_msg_module,
+        variant_name: "RequestMsg",
       )
       <> "(message) {\n"
       <> "            Ok(typed_msg) -> dispatch_known(typed_msg, request_id, server_context"
@@ -530,7 +530,7 @@ fn emit_json_case_arm(
   let variant_name = codegen.to_pascal_case("server_" <> e.fn_name)
   let alias = handler_alias(e.module_path)
   let param_destructure =
-    "client_msg." <> codegen.variant_pattern(variant_name:, params: e.params)
+    "request_msg." <> codegen.variant_pattern(variant_name:, params: e.params)
 
   let handler_args = case e.msg_type {
     option.Some(#(msg_module, msg_constructor)) ->

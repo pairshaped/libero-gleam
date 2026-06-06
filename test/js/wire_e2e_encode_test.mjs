@@ -7,7 +7,8 @@ import { pathToFileURL } from "node:url";
 const buildRoot = readFileSync("test/js/.wire_e2e_build_root", "utf8").trim();
 const webRoot = join(buildRoot, "clients/web/build/dev/javascript");
 
-await import(pathToFileURL(join(webRoot, "web/generated/libero/rpc_decoders_ffi.mjs")).href);
+const liberoEtf = await import(pathToFileURL(join(webRoot, "web/generated/libero/etf.mjs")).href);
+liberoEtf.ensure();
 const wire = await import(pathToFileURL(join(webRoot, "libero/libero/etf/wire.mjs")).href);
 const types = await import(pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href);
 const collision = await import(pathToFileURL(join(webRoot, "shared/shared/collision.mjs")).href);
@@ -147,7 +148,7 @@ const cases = [
 ];
 
 const erlangCases = cases.map(([name, msg]) => {
-  const payload = wire.encode_request("rpc", 7, msg);
+  const payload = wire.encode_request("libero", 7, msg);
   return `{${JSON.stringify(name)},${JSON.stringify(Buffer.from(payload.rawBuffer).toString("base64"))}}`;
 });
 const printed = execFileSync(
@@ -169,13 +170,13 @@ const terms = new Map(
 
 for (const [name, _msg, expected] of cases) {
   const actual = terms.get(name);
-  assert.equal(actual.module, "<<114,112,99>>", `${name} module`);
+  assert.equal(actual.module, "<<108,105,98,101,114,111>>", `${name} module`);
   assert.equal(actual.requestId, "7", `${name} request id`);
   assert.equal(actual.term, expected, name);
 }
 
 assert.throws(
-  () => wire.encode_request("rpc", 7, { root: null, size: 0 }),
+  () => wire.encode_request("libero", 7, { root: null, size: 0 }),
   /unsupported value type/,
   "plain objects with root/size fields are not Gleam Dicts",
 );

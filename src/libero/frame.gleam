@@ -1,7 +1,7 @@
 //// Protocol-neutral frame type shared by ETF and JSON wire modules.
 ////
-//// Moved here from `libero/wire.gleam` so both protocol implementations
-//// can import it without creating a dependency from ETF onto JSON types.
+//// Shared by both protocol implementations so ETF and JSON code can use the
+//// same frame type without depending on each other.
 
 import gleam/option.{type Option}
 

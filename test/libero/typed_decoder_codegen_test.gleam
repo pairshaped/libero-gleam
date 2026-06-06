@@ -452,7 +452,7 @@ pub fn float_type_hint_registration_test() {
     )
   let assert True =
     string.contains(js, "_m_shared_measurements.Measurements.__wireAtom")
-  // Endpoint-side field hints (for ClientMsg variants) are not yet
+  // Endpoint-side field hints (for RequestMsg variants) are not yet
   // wired up under the new scheme; that lands when dispatch codegen
   // gains its own class-statics emission. Endpoint floats still flow
   // through the encoder's hint argument when a typed decoder calls
@@ -513,7 +513,7 @@ pub fn decoder_codegen_imports_shared_modules_from_caller_package_test() {
     string.contains(js, "from \"../../../shared/shared/collision.mjs\";")
 }
 
-pub fn client_msg_statics_emit_float_hints_test() {
+pub fn request_msg_statics_emit_float_hints_test() {
   let endpoints = [
     scanner.HandlerEndpoint(
       module_path: "server/audio",
@@ -548,21 +548,21 @@ pub fn client_msg_statics_emit_float_hints_test() {
   ]
 
   let statics =
-    codegen_decoders.emit_client_msg_statics(
+    codegen_decoders.emit_request_msg_statics(
       endpoints,
-      "_m_generated_libero_dispatch",
+      "_m_generated_libero_requests",
     )
 
   let assert True =
     string.contains(
       statics,
-      "_m_generated_libero_dispatch.ServerSetVolume.__fieldTypes = [\"float\"];",
+      "_m_generated_libero_requests.ServerSetVolume.__fieldTypes = [\"float\"];",
     )
   let assert False = string.contains(statics, "ServerGetItems")
   let assert True =
     string.contains(
       statics,
-      "_m_generated_libero_dispatch.ServerUpdatePrices.__fieldTypes = [{ kind: \"list\", element: \"float\" }, null];",
+      "_m_generated_libero_requests.ServerUpdatePrices.__fieldTypes = [{ kind: \"list\", element: \"float\" }, null];",
     )
 }
 
@@ -584,18 +584,18 @@ pub fn generate_decoders_ffi_includes_dispatch_import_test() {
       relpath_prefix: "../../../",
       package: "myapp",
       dependency_packages: [],
-      dispatch_module: option.Some("generated/libero/dispatch"),
+      dispatch_module: option.Some("generated/libero/requests"),
     )
 
   let assert True =
     string.contains(
       js,
-      "import * as _m_generated_libero_dispatch from \"./dispatch.mjs\";",
+      "import * as _m_generated_libero_requests from \"./requests.mjs\";",
     )
   let assert True =
     string.contains(
       js,
-      "_m_generated_libero_dispatch.ServerSetVolume.__fieldTypes = [\"float\"];",
+      "_m_generated_libero_requests.ServerSetVolume.__fieldTypes = [\"float\"];",
     )
 }
 

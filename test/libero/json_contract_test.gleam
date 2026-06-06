@@ -12,7 +12,7 @@ import libero/walker
 pub fn contract_artifact_is_deterministic_test() {
   let endpoints = [
     scanner.HandlerEndpoint(
-      module_path: "server/rpc",
+      module_path: "server/api",
       fn_name: "get_article",
       params: [#("slug", field_type.StringField)],
       return_ok: field_type.UserType("shared/article", "Article", []),
@@ -49,7 +49,7 @@ pub fn contract_artifact_is_deterministic_test() {
   one |> should.equal(two)
 
   string.contains(one, "\"protocol_version\"") |> should.be_true
-  string.contains(one, "\"json-rpc-v1\"") |> should.be_true
+  string.contains(one, "\"libero-json-v1\"") |> should.be_true
   string.contains(one, "\"typed_value_contract\"") |> should.be_true
   string.contains(one, "\"typed-json-v1\"") |> should.be_true
   string.contains(one, "\"contract_hash\"") |> should.be_true
@@ -61,7 +61,7 @@ pub fn contract_artifact_is_deterministic_test() {
 pub fn contract_artifact_includes_endpoints_test() {
   let endpoints = [
     scanner.HandlerEndpoint(
-      module_path: "server/rpc",
+      module_path: "server/api",
       fn_name: "get_article",
       params: [#("slug", field_type.StringField)],
       return_ok: field_type.UserType("shared/article", "Article", []),
@@ -187,7 +187,7 @@ pub fn contract_artifact_keeps_same_named_types_from_different_paths_test() {
 pub fn canonical_typed_json_contract_artifact_snapshot_test() {
   let endpoints = [
     scanner.HandlerEndpoint(
-      module_path: "server/rpc",
+      module_path: "server/api",
       fn_name: "save_article",
       params: [
         #("article", field_type.UserType("shared/article", "Article", [])),
@@ -198,7 +198,7 @@ pub fn canonical_typed_json_contract_artifact_snapshot_test() {
         field_type.NilField,
       ),
       mutates_context: True,
-      msg_type: Some(#("shared/messages", "ClientMsg")),
+      msg_type: Some(#("shared/messages", "RequestMsg")),
     ),
   ]
 
@@ -240,7 +240,7 @@ pub fn canonical_typed_json_contract_artifact_snapshot_test() {
     ),
     walker.DiscoveredType(
       module_path: "shared/messages",
-      type_name: "ClientMsg",
+      type_name: "RequestMsg",
       type_params: [],
       variants: [
         walker.DiscoveredVariant(

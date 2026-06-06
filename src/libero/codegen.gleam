@@ -70,11 +70,11 @@ pub fn variant_pattern(
   }
 }
 
-/// Emit the body lines of the generated `ClientMsg` type. Uses
+/// Emit the body lines of the generated `RequestMsg` type. Uses
 /// `resolve_alias` to qualify user-defined types with the correct
 /// import alias (needed when multiple modules share the same last
 /// segment, e.g. two different `id_` modules).
-pub fn emit_client_msg_variants(
+pub fn emit_request_msg_variants(
   endpoints endpoints: List(scanner.HandlerEndpoint),
   resolve_alias resolve_alias: fn(String) -> String,
 ) -> List(String) {

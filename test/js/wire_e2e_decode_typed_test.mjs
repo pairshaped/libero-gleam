@@ -20,15 +20,15 @@ const manifest = JSON.parse(
   readFileSync("test/js/.wire_e2e_decode_manifest.json", "utf8"),
 );
 
-const rpcFfi = await import(
+const etfFfi = await import(
   pathToFileURL(join(webRoot, "libero/libero/etf/wire_ffi.mjs")).href
 );
-// Importing the generated decoders has the side effect of calling
-// registerAtomDecoder for every user type, populating the atom→decoder
-// reverse map and the bare→qualified atom map that the encoder uses.
-await import(
-  pathToFileURL(join(webRoot, "web/generated/libero/rpc_decoders_ffi.mjs")).href
+// The generated ETF facade initializes the decoder registry and standard
+// collection/result constructors used by typed decoders.
+const liberoEtf = await import(
+  pathToFileURL(join(webRoot, "web/generated/libero/etf.mjs")).href
 );
+liberoEtf.ensure();
 const types = await import(
   pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href
 );
@@ -45,7 +45,7 @@ const dict = await import(
 
 function decodeOk(name) {
   const bytes = Buffer.from(manifest[name], "base64");
-  const decoded = rpcFfi.decode_value(bytes);
+  const decoded = etfFfi.decode_value(bytes);
   // Wire shape is {ok, {ok, Value}}; outer Ok is the framework
   // "no transport error" envelope, inner Ok is the user handler's
   // success branch. Use array indexing rather than property names
@@ -58,7 +58,7 @@ function decodeOk(name) {
 
 function decodeError(name) {
   const bytes = Buffer.from(manifest[name], "base64");
-  const decoded = rpcFfi.decode_value(bytes);
+  const decoded = etfFfi.decode_value(bytes);
   assert.ok(decoded instanceof gleam.Ok, `${name}: outer Ok`);
   const inner = decoded[0];
   assert.ok(inner instanceof gleam.Error, `${name}: inner Error`);

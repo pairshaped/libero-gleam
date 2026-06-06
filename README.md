@@ -5,22 +5,24 @@
 [![Package Version](https://img.shields.io/hexpm/v/libero)](https://hex.pm/packages/libero)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/libero/)
 
-Libero helps a Gleam client and server agree on a typed RPC surface: which
-calls exist, what arguments they take, and what each call returns.
+Libero helps Gleam tools and frameworks generate a typed wire contract: which
+requests exist, what data crosses the boundary, and how results, pushes, and
+hydration flags are encoded.
 
 Encoding and decoding are part of that, but they are not the whole point. The
-hard part is keeping the client and server agreement true across the protocol
-layer: request messages, response decoders, server dispatch, client state, and
-wire-format details all need to match the handler signatures.
+hard part is keeping every protocol-facing piece in agreement: request messages,
+result frames, push frames, server dispatch, generated decoders, and contract
+artifacts all need to match the same source types.
 
-Libero treats the server handler as the source of truth. It scans your handler
-functions, follows the types used in their signatures, and generates the RPC
-plumbing around them. That gives the client and server a shared typed contract
-without hand-written protocol messages or decoders.
+Libero can scan handler functions as the source of truth, then follow the types
+used in those signatures. Frameworks can also call the library API directly and
+choose where generated files live. In both cases, Libero owns the wire shape so
+consumers do not hand-write envelopes, frame parsing, or typed decoders.
 
-## What Libero Replaces
+## Core Model
 
-A server handler is a Gleam function that runs on the server:
+The default scanner treats a server handler as a Gleam function that runs on the
+server:
 
 ```gleam
 import gleam/result.{type Result}
@@ -33,26 +35,24 @@ pub fn server_get_items(
 }
 ```
 
-Libero treats a public function as an RPC handler when its name starts with
+Libero treats a public function as a request handler when its name starts with
 `server_`, it takes a `ServerContext`, and it returns either a read-only result
 or a result with an updated context. The context type must appear unqualified in
 the signature (`ServerContext`, not `ctx.ServerContext`). Functions that use a
 qualified context type are silently skipped.
 
-From just this handler, Libero writes all of the surrounding RPC code for you:
+From this handler, Libero can generate contract code such as:
 
-- A request variant such as `ServerGetItems`, which represents this call at the
-  protocol boundary. The server dispatch decodes it, and generated client or
-  framework code sends the matching shape.
-- An encoder that turns `ServerGetItems` into the selected wire format
-- Server dispatch code that receives the message and calls `server_get_items`
-- A response shape for `Result(List(Item), ItemError)`
-- A client decoder that turns the response back into Gleam values
-- Client state for loading, success, domain errors, and transport errors
+- A request variant such as `ServerGetItems`
+- Server dispatch code that decodes the request and calls `server_get_items`
+- A typed result shape for `Result(List(Item), ItemError)`
+- Protocol helpers for request, result, push, and flags data
+- Generated ETF or JSON codec code for the types that cross the wire
+- A contract artifact with a protocol version and contract hash
 
 If the handler signature changes, you simply regenerate instead. Libero owns the
-wire shape, whether you use the default ETF transport or opt into JSON, so
-application code can stay focused on typed messages and handler results.
+wire shape, whether you use the default ETF protocol or opt into JSON. Your app
+or framework owns when messages are sent and how decoded values affect state.
 
 ## Quick Start
 
@@ -63,8 +63,8 @@ gleam add libero
 gleam run -m libero
 ```
 
-Libero scans `src/`, finds RPC handlers, discovers the types they use, and writes
-generated files under `src/generated/libero/`.
+Libero scans `src/`, finds request handlers, discovers the types they use, and
+writes generated files under `src/generated/libero/`.
 
 ## Generated Files
 
@@ -73,11 +73,13 @@ After `gleam run -m libero`, you will see files like these:
 | File | Purpose |
 |------|---------|
 | `src/generated/libero/dispatch.gleam` | Server dispatch code for your handlers |
-| `src/generated/libero/rpc_decoders_ffi.mjs` | JavaScript ETF decoders for browser/client targets |
-| `src/generated/libero/rpc_decoders.gleam` | Gleam bindings for generated JavaScript ETF decoders |
-| `src/generated/libero/generated@rpc_atoms.erl` | ETF atom pre-registration module for safe BEAM decode |
-| `src/generated/libero/generated@rpc_wire.erl` | ETF wire transformer module |
-| `src/generated/libero/rpc_contract.json` | Contract artifact with protocol version and contract hash |
+| `src/generated/libero/requests.gleam` | Generated `RequestMsg` request type for JavaScript decoder hints |
+| `src/generated/libero/decoders_ffi.mjs` | JavaScript ETF decoders for browser/client targets |
+| `src/generated/libero/decoders.gleam` | Gleam bindings for generated JavaScript ETF decoders |
+| `src/generated/libero/etf.gleam` | Generated ETF facade for request/result/push/flags helpers |
+| `src/generated/libero/generated@libero_atoms.erl` | ETF atom pre-registration module for safe BEAM decode |
+| `src/generated/libero/generated@libero_wire.erl` | ETF wire transformer module |
+| `src/generated/libero/contract.json` | Contract artifact with protocol version and contract hash |
 
 Import the generated server modules in your app like any other Gleam module.
 
@@ -86,21 +88,22 @@ When `use_json = true`, Libero generates JSON-specific files instead:
 | File | Purpose |
 |------|---------|
 | `src/generated/libero/dispatch.gleam` | JSON server dispatch code for your handlers |
-| `src/generated/libero/messages.gleam` | Generated JSON `ClientMsg` request type |
+| `src/generated/libero/requests.gleam` | Generated JSON `RequestMsg` request type |
 | `src/generated/libero/json_codecs.gleam` | Typed JSON encoders, decoders, and response helpers |
-| `src/generated/libero/rpc_contract.json` | JSON contract artifact with protocol version and contract hash |
+| `src/generated/libero/contract.json` | JSON contract artifact with protocol version and contract hash |
 
 ## Transport Is Yours
 
 Libero leaves transport code to your app or framework. WebSocket setup, HTTP
-routes, reconnect behavior, and app-specific routing stay outside the generator.
+routes, reconnect behavior, browser lifecycle, SSR, routing, and app state stay
+outside the generator.
 
 ## Example
 
-[Rally Scoreboard](https://github.com/pairshaped/rally-scoreboard-example) shows Libero used as Rally's
-wire-contract layer. Rally drives Libero type discovery and generated ETF codec
-output under `src/generated/libero/**`, while Rally owns transport, SSR,
-hydration, browser lifecycle, and broadcast delivery.
+[Rally Scoreboard](https://github.com/pairshaped/rally-scoreboard-example)
+shows Libero used as Rally's wire-contract layer. Rally drives Libero type
+discovery and generated ETF codec output under `src/generated/libero/**`, while
+Rally owns transport, SSR, hydration, browser lifecycle, and broadcast delivery.
 
 ## Benchmarks
 
@@ -113,14 +116,14 @@ Current benchmark report:
 
 ## Advanced Usage
 
-### Client Output
+### Mirrored Output
 
-If your client lives in another package, mirror generated client files into that
+Projects with separate packages can mirror generated protocol files into another
 package:
 
 ```toml
 [tools.libero]
-js_output_dir = "../clients/web/src/generated/libero"
+mirrored_output_dir = "../clients/web/src/generated/libero"
 ```
 
 Then run:
@@ -132,20 +135,21 @@ gleam run -m libero
 For one-off scripts, the environment variable still overrides `gleam.toml`:
 
 ```sh
-LIBERO_JS_OUTPUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
+LIBERO_MIRRORED_OUTPUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
 ```
 
-For the default ETF transport, this copies `dispatch.gleam`,
-`rpc_decoders_ffi.mjs`, and `rpc_decoders.gleam`. When `use_json = true`, this
-copies `messages.gleam`, `json_codecs.gleam`, and `rpc_contract.json`. Libero
-still writes the server dispatch files to `src/generated/libero/`.
+For the default ETF protocol, this copies `requests.gleam`,
+`decoders_ffi.mjs`, `decoders.gleam`, and `etf.gleam`. When
+`use_json = true`, this copies `requests.gleam`, `json_codecs.gleam`, and
+`contract.json`. Libero still writes the server dispatch files to
+`src/generated/libero/`.
 Set `erlang_output_dir` when the generated server modules should live in a
 different directory under `src`:
 
 ```toml
 [tools.libero]
 erlang_output_dir = "src/server/generated"
-js_output_dir = "../clients/web/src/generated/libero"
+mirrored_output_dir = "../clients/web/src/generated/libero"
 ```
 
 ### Library API
@@ -166,11 +170,11 @@ let contract_src =
 let dispatch_src =
   libero.generate_json_dispatch(
     endpoints,
-    client_msg_module: "generated/libero/messages",
+    request_msg_module: "generated/libero/requests",
     json_codecs_module: "generated/libero/json_codecs",
     contract_hash: contract_hash,
   )
-let messages_src = libero.generate_client_msg_module(endpoints)
+let messages_src = libero.generate_request_msg_module(endpoints)
 ```
 
 The API returns generated source as strings, so you choose where to write it.
@@ -243,7 +247,7 @@ a defense stack designed for a specific threat model.
    new atom creation (atom-table exhaustion DoS) and rejects trailing bytes
    after the decoded term. Libero audits for bare `binary_to_term/1` calls;
    none exist in the codebase.
-3. **Atom pre-registration.** The generated `rpc_atoms` module calls
+3. **Atom pre-registration.** The generated `libero_atoms` module calls
    `binary_to_atom/2` for every constructor atom at boot. With `[safe]`,
    `binary_to_term` only succeeds for atoms that already exist in the table.
 4. **Typed dispatch.** The generated dispatch verifies the decoded term's

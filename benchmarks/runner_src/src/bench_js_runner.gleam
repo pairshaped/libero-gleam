@@ -1,7 +1,7 @@
 import bench_payloads
 import bench_timing
+import generated/libero/decoders
 import generated/libero/json_codecs
-import generated/libero/rpc_decoders
 import gleam/bit_array
 import gleam/dynamic
 import gleam/dynamic/decode
@@ -14,7 +14,7 @@ import libero/json/wire as json_wire
 import shared/bench.{type BenchError}
 
 pub fn main() {
-  let _ = rpc_decoders.ensure_decoders()
+  let _ = decoders.ensure_decoders()
   io.println(bench_timing.csv_header())
   run_admin()
   run_records()

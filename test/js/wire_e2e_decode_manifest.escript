@@ -9,22 +9,22 @@
 %% User-type values are in wire-shape (hashed atoms) via the generated
 %% wire transformers, matching what the dispatch handler would send.
 
-generated@rpc_atoms:ensure(),
+generated@libero_atoms:ensure(),
 
 %% Wire transformer aliases for user types
-EncItem = fun(V) -> 'generated@rpc_wire':encode_shared_types__item(V) end,
-EncStatus = fun(V) -> 'generated@rpc_wire':encode_shared_types__status(V) end,
-EncTree = fun(V) -> 'generated@rpc_wire':encode_shared_types__tree(V) end,
-EncItemError = fun(V) -> 'generated@rpc_wire':encode_shared_types__item_error(V) end,
-EncWithFloats = fun(V) -> 'generated@rpc_wire':encode_shared_types__with_floats(V) end,
-EncNested = fun(V) -> 'generated@rpc_wire':encode_shared_types__nested_record(V) end,
-EncItemListData = fun(V) -> 'generated@rpc_wire':encode_shared_types__item_list_data(V) end,
-EncItemSummaryData = fun(V) -> 'generated@rpc_wire':encode_shared_types__item_summary_data(V) end,
-EncFormPrefill = fun(V) -> 'generated@rpc_wire':encode_shared_types__form_prefill(V) end,
-EncNestedEnvelope = fun(V) -> 'generated@rpc_wire':encode_shared_types__nested_envelope(V) end,
-EncDictAndList = fun(V) -> 'generated@rpc_wire':encode_shared_types__dict_and_list_envelope(V) end,
-EncTypesTag = fun(V) -> 'generated@rpc_wire':encode_shared_types__tag(V) end,
-EncCollisionTag = fun(V) -> 'generated@rpc_wire':encode_shared_collision__tag(V) end,
+EncItem = fun(V) -> 'generated@libero_wire':encode_shared_types__item(V) end,
+EncStatus = fun(V) -> 'generated@libero_wire':encode_shared_types__status(V) end,
+EncTree = fun(V) -> 'generated@libero_wire':encode_shared_types__tree(V) end,
+EncItemError = fun(V) -> 'generated@libero_wire':encode_shared_types__item_error(V) end,
+EncWithFloats = fun(V) -> 'generated@libero_wire':encode_shared_types__with_floats(V) end,
+EncNested = fun(V) -> 'generated@libero_wire':encode_shared_types__nested_record(V) end,
+EncItemListData = fun(V) -> 'generated@libero_wire':encode_shared_types__item_list_data(V) end,
+EncItemSummaryData = fun(V) -> 'generated@libero_wire':encode_shared_types__item_summary_data(V) end,
+EncFormPrefill = fun(V) -> 'generated@libero_wire':encode_shared_types__form_prefill(V) end,
+EncNestedEnvelope = fun(V) -> 'generated@libero_wire':encode_shared_types__nested_envelope(V) end,
+EncDictAndList = fun(V) -> 'generated@libero_wire':encode_shared_types__dict_and_list_envelope(V) end,
+EncTypesTag = fun(V) -> 'generated@libero_wire':encode_shared_types__tag(V) end,
+EncCollisionTag = fun(V) -> 'generated@libero_wire':encode_shared_collision__tag(V) end,
 
 Encode = fun(Term) -> binary_to_list(base64:encode(libero_ffi:encode(Term))) end,
 

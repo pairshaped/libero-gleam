@@ -8,7 +8,7 @@
 ////
 //// `new_trace_id()` returns a short unique string built from a
 //// monotonic counter and system time, suitable for correlating log
-//// lines with RPC error responses. Unique enough for debugging;
+//// lines with transport error responses. Unique enough for debugging;
 //// not cryptographically random.
 ////
 //// **Logging is intentionally not part of this module.** Libero stays

@@ -56,7 +56,7 @@ pub fn decode_request_wrong_shape_test() {
 // ---------- Direct encode → decode round-trip ----------
 //
 // These exercise the public `wire.encode` and `wire.decode` functions
-// as a symmetric pair, the way consumers use them for non-RPC paths
+// as a symmetric pair, the way consumers use them for non-transport paths
 // (e.g. passing server-rendered state into a Lustre SPA via flags).
 // Distinct from the call-envelope round-trips in wire_roundtrip_test.
 // those wrap the value in `{name, args}` and use `decode_request`.

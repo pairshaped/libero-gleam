@@ -5,7 +5,7 @@
 ////   `json_encode_<qualified_atom_name>` — builds a `json.Json` value
 ////   `json_decode_<qualified_atom_name>` — validates and decodes from `Dynamic`
 ////
-//// The generated wire format follows the JSON-RPC-v1 contract shape:
+//// The generated wire format follows the JSON-transport-v1 contract shape:
 ////   { "type": "<module>.<type_name>",
 ////     "variant": "<variant_name>",
 ////     "fields": <object or array> }
@@ -160,24 +160,24 @@ fn generate_with_extra(
 }
 
 /// Generate JSON codecs for discovered user types plus the generated transport
-/// `ClientMsg` type built from handler endpoints.
+/// `RequestMsg` type built from handler endpoints.
 ///
-/// Browser/page code should use this generated `ClientMsg` codec before passing
+/// Browser/page code should use this generated `RequestMsg` codec before passing
 /// request messages to `libero/json/wire.encode_request`.
 pub fn generate_transport_codecs(
   discovered discovered: List(DiscoveredType),
   endpoints endpoints: List(scanner.HandlerEndpoint),
-  client_msg_module_path client_msg_module_path: String,
-  client_msg_type_name client_msg_type_name: String,
+  request_msg_module_path request_msg_module_path: String,
+  request_msg_type_name request_msg_type_name: String,
 ) -> Result(String, List(JsonError)) {
   let all_types = case endpoints {
     [] -> discovered
     _ ->
       list.append(discovered, [
-        client_msg_discovered_type(
+        request_msg_discovered_type(
           endpoints:,
-          module_path: client_msg_module_path,
-          type_name: client_msg_type_name,
+          module_path: request_msg_module_path,
+          type_name: request_msg_type_name,
         ),
       ])
   }
@@ -191,12 +191,12 @@ pub fn generate_transport_codecs(
   )
 }
 
-/// Generate JSON codecs and transport wrappers for RPC, push, and SSR.
+/// Generate JSON codecs and transport wrappers for transport, push, and SSR.
 pub fn generate_transport_codecs_with_push_and_ssr(
   discovered discovered: List(DiscoveredType),
   endpoints endpoints: List(scanner.HandlerEndpoint),
-  client_msg_module_path client_msg_module_path: String,
-  client_msg_type_name client_msg_type_name: String,
+  request_msg_module_path request_msg_module_path: String,
+  request_msg_type_name request_msg_type_name: String,
   push_types push_types: List(contract.PushContract),
   ssr_models ssr_models: List(contract.SsrModelContract),
 ) -> Result(String, List(JsonError)) {
@@ -204,10 +204,10 @@ pub fn generate_transport_codecs_with_push_and_ssr(
     [] -> discovered
     _ ->
       list.append(discovered, [
-        client_msg_discovered_type(
+        request_msg_discovered_type(
           endpoints:,
-          module_path: client_msg_module_path,
-          type_name: client_msg_type_name,
+          module_path: request_msg_module_path,
+          type_name: request_msg_type_name,
         ),
       ])
   }
@@ -365,9 +365,9 @@ fn emit_ssr_helpers(ssr_models: List(contract.SsrModelContract)) -> String {
   |> string.join("\n\n")
 }
 
-/// Build the generated transport `ClientMsg` type used by JSON request
+/// Build the generated transport `RequestMsg` type used by JSON request
 /// envelopes. The caller owns where that type lives by passing `module_path`.
-pub fn client_msg_discovered_type(
+pub fn request_msg_discovered_type(
   endpoints endpoints: List(scanner.HandlerEndpoint),
   module_path module_path: String,
   type_name type_name: String,

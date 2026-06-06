@@ -149,7 +149,7 @@ pub fn same_shaped_types_generate_distinct_json_codecs_test() {
   string.contains(source, "shared/forms.Published") |> should.be_true
 }
 
-pub fn transport_codecs_include_generated_client_msg_test() {
+pub fn transport_codecs_include_generated_request_msg_test() {
   let types = [
     walker.DiscoveredType(
       module_path: "shared/article",
@@ -201,18 +201,18 @@ pub fn transport_codecs_include_generated_client_msg_test() {
     assert_generated(codegen.generate_transport_codecs(
       discovered: types,
       endpoints:,
-      client_msg_module_path: "generated/libero/dispatch",
-      client_msg_type_name: "ClientMsg",
+      request_msg_module_path: "generated/libero/requests",
+      request_msg_type_name: "RequestMsg",
     ))
 
-  string.contains(source, "import generated/libero/dispatch")
+  string.contains(source, "import generated/libero/requests")
   |> should.be_true
   string.contains(
     source,
-    "pub fn json_encode_generated_libero_dispatch__client_msg",
+    "pub fn json_encode_generated_libero_requests__request_msg",
   )
   |> should.be_true
-  string.contains(source, "generated/libero/dispatch.ClientMsg")
+  string.contains(source, "generated/libero/requests.RequestMsg")
   |> should.be_true
   string.contains(source, "\"ServerSendDrag\"")
   |> should.be_true
@@ -255,8 +255,8 @@ pub fn transport_codecs_include_push_and_ssr_wrappers_test() {
       codegen.generate_transport_codecs_with_push_and_ssr(
         discovered: types,
         endpoints: [],
-        client_msg_module_path: "generated/libero/messages",
-        client_msg_type_name: "ClientMsg",
+        request_msg_module_path: "generated/libero/requests",
+        request_msg_type_name: "RequestMsg",
         push_types: [
           contract.PushContract(
             module: "public/pages/article",

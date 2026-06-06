@@ -1,4 +1,4 @@
-//// Wire codec for Libero RPC.
+//// Wire codec for Libero transport.
 ////
 //// Libero owns the protocol boundary. Consumers should use the
 //// high-level frame API (encode_response, decode_server_frame,
@@ -10,7 +10,7 @@
 //// uses `erlang:binary_to_term/1` to reconstruct the original terms.
 ////
 //// **Wire shape:**
-//// - Request envelope: `{module_name_binary, request_id, client_msg_value}` -
+//// - Request envelope: `{module_name_binary, request_id, request_msg_value}` -
 ////   a 3-tuple ETF payload wrapped in a request frame.
 //// - Response frame: tag byte 0, 32-bit request ID, ETF payload.
 //// - Push frame: tag byte 1, ETF payload (`{module, value}` tuple).
@@ -20,7 +20,7 @@
 //// `term_to_binary` / `binary_to_term`. The JavaScript path uses
 //// libero's own ETF encoder/decoder in `wire_ffi.mjs`, which requires
 //// that any custom-type constructors in the value have been registered
-//// via the generated `rpc_decoders.gleam` module (which surfaces
+//// via the generated `decoders.gleam` module (which surfaces
 //// `ensure_decoders` from the FFI). Libero's generator emits that
 //// registration for every type reachable from a handler's params or
 //// return type.
@@ -86,7 +86,7 @@ pub fn js_term_depth_limit() -> Int
 /// go over the wire as bare BEAM atoms, not hashed wire identities.
 ///
 /// For user values, use the typed entry points instead:
-/// - `encode_response` for RPC handler returns
+/// - `encode_response` for transport handler returns
 /// - Generated `encode_push/2` pre-encoder before `wire.encode_push`
 ///   frames server-initiated messages
 /// - Per-type generated pre-encoders before encoding SSR flags
@@ -101,17 +101,17 @@ pub fn encode(value: a) -> BitArray
 
 /// Decode an ETF binary into an arbitrary Gleam value.
 ///
-/// Works on both Erlang and JavaScript targets. Use this for non-RPC
+/// Works on both Erlang and JavaScript targets. Use this for non-transport
 /// paths - for example, reading server-rendered state from Lustre
-/// flags on client boot. For decoding incoming RPC request envelopes
+/// flags on client boot. For decoding incoming transport request envelopes
 /// specifically, use `decode_request` instead.
 ///
 /// Any custom types in the decoded value must be reachable from a
 /// handler's params or return type so their constructors are registered
-/// with the JavaScript codec (via the generated `rpc_decoders.gleam`
+/// with the JavaScript codec (via the generated `decoders.gleam`
 /// module, which calls `ensure_decoders` on import). On Erlang this
 /// is automatic because atoms are pre-registered by the generated
-/// `rpc_atoms` module.
+/// `libero_atoms` module.
 ///
 /// **Warning: type safety is the caller's responsibility.** The return
 /// type `a` is unwitnessed: the function returns whatever the ETF
@@ -136,7 +136,7 @@ pub fn decode(data: BitArray) -> a
 /// Decode an ETF binary into an arbitrary Gleam value, returning a
 /// `Result` instead of panicking on malformed input.
 ///
-/// Use this for non-RPC paths where the input may be untrusted or
+/// Use this for non-transport paths where the input may be untrusted or
 /// user-influenced - for example, reading server-rendered state from
 /// Lustre flags on client boot where the binary may have been
 /// corrupted in transit.
@@ -192,7 +192,7 @@ fn ffi_decode_typed(
 /// Since `binary_to_term` returns real Erlang terms, no rebuild step
 /// is needed - atoms are atoms, tuples are tuples, maps are maps.
 ///
-/// This is specifically for RPC request envelopes. For decoding
+/// This is specifically for transport request envelopes. For decoding
 /// arbitrary values, use `decode`.
 pub fn decode_request(
   data: BitArray,
@@ -212,10 +212,10 @@ fn ffi_decode_request(
 // ---------- Request envelope encoder ----------
 
 /// Encode a request envelope: `{module_name, request_id, msg}` as ETF binary.
-/// Used by generated client stub functions to pack a `ClientMsg` value
-/// for transport to the server.
+/// Used by generated request senders to pack a `RequestMsg` value for
+/// transport to the server.
 ///
-/// Encode an outbound RPC request as ETF.
+/// Encode an outbound transport request as ETF.
 pub fn encode_request(
   module module: String,
   request_id request_id: Int,
@@ -384,7 +384,7 @@ fn ffi_variant_tag(value: dynamic.Dynamic) -> Result(String, Nil) {
 
 /// Cast a Dynamic value to any type.
 /// Used by generated server dispatch code to coerce the decoded
-/// `ClientMsg` value to its typed form. Safe when client and server are
+/// `RequestMsg` value to its typed form. Safe when client and server are
 /// built from the same source (the generator guarantees the types match).
 ///
 /// **Warning: unwitnessed cast.** Same safety model as `decode`. Type

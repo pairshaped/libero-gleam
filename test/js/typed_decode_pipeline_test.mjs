@@ -9,7 +9,7 @@
 // 2. Typed decoder prelude (decoders_prelude.mjs): decode_result_of,
 //    decode_option_of, decode_list_of, etc. reconstruct custom types
 //    from raw arrays. These are called by the generated codec_ffi.mjs
-//    for ClientMsg variants, not by the ETF decoder directly.
+//    for RequestMsg variants, not by the ETF decoder directly.
 //
 // This test exercises the prelude layer (layer 2), which is still
 // needed for custom type reconstruction. The ETF decoder layer
@@ -206,7 +206,7 @@ function listToArray(list) {
   console.log("PASS: [] raw → Empty");
 }
 
-// ---- The critical RPC response scenario ----
+// ---- The critical transport response scenario ----
 // When the server returns Ok([Sponsor(...), Sponsor(...)]), the client
 // must rebuild an Ok instance wrapping a linked list of Sponsor instances.
 // decode_value (typed) does this. decode_value_raw would produce the
@@ -261,7 +261,7 @@ function listToArray(list) {
   assert.equal(arr[1].name, "Beta");
   assert.equal(arr[1].tier, 2);
 
-  console.log("PASS: RPC response scenario — Ok([Sponsor, Sponsor])");
+  console.log("PASS: transport response scenario — Ok([Sponsor, Sponsor])");
 }
 
 // ---- Verify raw values DON'T match Gleam patterns ----
@@ -292,5 +292,5 @@ function listToArray(list) {
 }
 
 console.log("\nAll typed decode pipeline tests passed.");
-console.log("Remember: use decode_value (typed) for RPC responses and push frames.");
+console.log("Remember: use decode_value (typed) for transport responses and push frames.");
 console.log("Only use decode_value_raw when you plan to re-decode through typed decoders manually.");

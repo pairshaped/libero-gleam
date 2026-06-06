@@ -65,7 +65,7 @@ pub fn generate(
     |> string.join("\n\n")
   let encode_term = emit_encode_term(discovered)
   let decode_term = emit_decode_term(discovered)
-  let decode_client_msg = emit_decode_client_msg(endpoints)
+  let decode_request_msg = emit_decode_request_msg(endpoints)
   let encode_responses = emit_encode_responses(endpoints)
   let encode_push = emit_encode_push(push_dispatches)
 
@@ -93,7 +93,7 @@ pub fn generate(
 
 " <> decode_term <> "
 
-" <> decode_client_msg <> "
+" <> decode_request_msg <> "
 
 " <> encode_responses <> "
 " <> encode_push <> "
@@ -157,7 +157,7 @@ fn build_exports(
     _ -> {
       let response_exports =
         list.map(endpoints, fn(e) { "encode_response_" <> e.fn_name <> "/1" })
-      list.append(["decode_client_msg/1"], response_exports)
+      list.append(["decode_request_msg/1"], response_exports)
     }
   }
   let push_exports = case push_dispatches {
@@ -259,16 +259,16 @@ fn emit_decode_term(discovered: List(DiscoveredType)) -> String {
   <> "decode_term(Other, _Depth) -> Other."
 }
 
-fn emit_decode_client_msg(endpoints: List(scanner.HandlerEndpoint)) -> String {
+fn emit_decode_request_msg(endpoints: List(scanner.HandlerEndpoint)) -> String {
   case endpoints {
     [] -> ""
     _ -> {
       let duplicate_hashes = duplicate_endpoint_wire_hashes(endpoints)
       let clauses =
-        list.map(endpoints, emit_decode_client_msg_clause(_, duplicate_hashes:))
-      let fallback = "decode_client_msg(Other, _Depth) ->\n    Other"
-      "decode_client_msg(Msg) -> decode_client_msg(Msg, 0).\n\n"
-      <> "decode_client_msg(_Msg, Depth) when Depth >= 512 ->\n    error({wire_depth_exceeded, Depth});\n"
+        list.map(endpoints, emit_decode_request_msg_clause(_, duplicate_hashes:))
+      let fallback = "decode_request_msg(Other, _Depth) ->\n    Other"
+      "decode_request_msg(Msg) -> decode_request_msg(Msg, 0).\n\n"
+      <> "decode_request_msg(_Msg, Depth) when Depth >= 512 ->\n    error({wire_depth_exceeded, Depth});\n"
       <> string.join(list.append(clauses, [fallback]), ";\n")
       <> "."
     }
@@ -292,7 +292,7 @@ fn duplicate_endpoint_wire_hashes(
   |> list.unique()
 }
 
-fn emit_decode_client_msg_clause(
+fn emit_decode_request_msg_clause(
   e: scanner.HandlerEndpoint,
   duplicate_hashes duplicate_hashes: List(String),
 ) -> String {
@@ -310,7 +310,7 @@ fn emit_decode_client_msg_clause(
     [] ->
       wire_atoms
       |> list.map(fn(atom) {
-        "decode_client_msg(" <> atom <> ", _Depth) ->\n    " <> fn_atom
+        "decode_request_msg(" <> atom <> ", _Depth) ->\n    " <> fn_atom
       })
       |> string.join(";\n")
     params -> {
@@ -337,7 +337,7 @@ fn emit_decode_client_msg_clause(
       |> list.map(fn(atom) {
         let pattern =
           "{" <> atom <> ", " <> string.join(pattern_vars, ", ") <> "}"
-        "decode_client_msg("
+        "decode_request_msg("
         <> pattern
         <> ", "
         <> depth_var

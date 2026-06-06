@@ -1,13 +1,13 @@
-//// Error envelope for Libero RPC responses.
+//// Error envelope for Libero transport responses.
 ////
-//// Every RPC response is shaped as `Result(T, RpcError)`. The wire
+//// Every transport response is shaped as `Result(T, TransportError)`. The wire
 //// carries this envelope uniformly regardless of the server function's
 //// return type.
 ////
 //// ## Two categories of failure
 ////
 //// 1. Framework errors (`MalformedRequest`, `UnknownFunction`) are
-////    errors in the RPC layer itself. The request was garbage or
+////    errors in the transport layer itself. The request was garbage or
 ////    named a function that doesn't exist. Usually deployment skew
 ////    or a client-side bug.
 ////
@@ -24,12 +24,12 @@ pub type DecodeError {
   DecodeError(message: String)
 }
 
-/// The error envelope for every Libero RPC response.
-pub type RpcError {
+/// The error envelope for every Libero transport response.
+pub type TransportError {
   /// The server couldn't parse the incoming request envelope.
   MalformedRequest
 
-  /// The named RPC function doesn't exist in the server's dispatch
+  /// The named transport function doesn't exist in the server's dispatch
   /// table. Usually deployment skew or a client-side typo.
   UnknownFunction(name: String)
 

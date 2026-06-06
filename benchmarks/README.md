@@ -25,7 +25,7 @@ Current report:
 The benchmark deliberately measures separate stages:
 
 - server encode: generated response helper plus wire frame encoding
-- server request decode: wire request decode plus generated `ClientMsg` decode
+- server request decode: wire request decode plus generated `RequestMsg` decode
 - JS JSON parse only: `gleam/json.parse` without generated typed rebuild
 - JS JSON wire decode: `libero/json/wire.decode_server_frame` without generated
   typed rebuild

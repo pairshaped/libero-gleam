@@ -22,7 +22,7 @@ import simplifile
 // ---------- Types ----------
 
 /// A single handler endpoint discovered by scanning function signatures.
-/// Each represents one RPC function that clients can call.
+/// Each represents one transport function that clients can call.
 pub type HandlerEndpoint {
   HandlerEndpoint(
     /// Handler module path, e.g. "pages/login"

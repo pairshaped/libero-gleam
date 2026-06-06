@@ -16,7 +16,7 @@ pub fn encode_request_produces_correct_shape_test() {
 
   let encoded =
     wire.encode_request(
-      module: "rpc",
+      module: "libero",
       request_id: 1,
       msg: message,
       contract_hash: "abc123",
@@ -25,11 +25,11 @@ pub fn encode_request_produces_correct_shape_test() {
   string.contains(encoded, "\"kind\"") |> should.be_true()
   string.contains(encoded, "\"request\"") |> should.be_true()
   string.contains(encoded, "\"protocol_version\"") |> should.be_true()
-  string.contains(encoded, "json-rpc-v1") |> should.be_true()
+  string.contains(encoded, "libero-json-v1") |> should.be_true()
   string.contains(encoded, "\"contract_hash\"") |> should.be_true()
   string.contains(encoded, "abc123") |> should.be_true()
   string.contains(encoded, "\"module\"") |> should.be_true()
-  string.contains(encoded, "\"rpc\"") |> should.be_true()
+  string.contains(encoded, "\"libero\"") |> should.be_true()
   string.contains(encoded, "\"request_id\"") |> should.be_true()
   string.contains(encoded, "\"message\"") |> should.be_true()
 }
@@ -91,7 +91,7 @@ pub fn encode_flags_escapes_html_unsafe_chars_test() {
 }
 
 pub fn decode_server_frame_handles_unknown_kind_test() {
-  let data = "{\"kind\":\"unknown\",\"protocol_version\":\"json-rpc-v1\"}"
+  let data = "{\"kind\":\"unknown\",\"protocol_version\":\"libero-json-v1\"}"
 
   let result = wire.decode_server_frame(data)
 
@@ -107,9 +107,9 @@ pub fn decode_request_validates_contract_hash_test() {
   let data =
     "{
     \"kind\": \"request\",
-    \"protocol_version\": \"json-rpc-v1\",
+    \"protocol_version\": \"libero-json-v1\",
     \"contract_hash\": \"wrong-hash\",
-    \"module\": \"rpc\",
+    \"module\": \"libero\",
     \"request_id\": 1,
     \"message\": {\"type\":\"t\",\"variant\":\"v\",\"fields\":{}}
   }"

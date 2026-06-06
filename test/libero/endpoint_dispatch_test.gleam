@@ -9,7 +9,7 @@ import libero/scanner
 import libero/walker.{DiscoveredType, DiscoveredVariant}
 import simplifile
 
-pub fn endpoint_dispatch_generates_client_msg_test() {
+pub fn endpoint_dispatch_generates_request_msg_test() {
   let item_params = field_type.UserType("shared/items", "ItemParams", [])
   let endpoints = [
     scanner.HandlerEndpoint(
@@ -54,7 +54,7 @@ pub fn endpoint_dispatch_generates_client_msg_test() {
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
@@ -87,7 +87,7 @@ pub fn endpoint_dispatch_wraps_read_only_handler_test() {
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
@@ -111,7 +111,7 @@ pub fn endpoint_dispatch_rebuilds_msg_type_for_handler_test() {
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
@@ -150,7 +150,7 @@ pub fn dispatch_known_tags_call_shared_helper_test() {
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
@@ -194,15 +194,15 @@ pub fn dispatch_decodes_wire_message_inside_malformed_request_guard_test() {
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
-      wire_module: option.Some("generated@rpc_wire"),
+      wire_module: option.Some("generated@libero_wire"),
     )
 
   let assert True =
     string.contains(
       content,
-      "Ok(#(\"rpc\", request_id, msg)) -> {\n      case trace.try_call(fn() {\n        let msg = wire_decode_client_msg(msg)\n        case wire.variant_tag(msg) {",
+      "Ok(#(\"libero\", request_id, msg)) -> {\n      case trace.try_call(fn() {\n        let msg = wire_decode_request_msg(msg)\n        case wire.variant_tag(msg) {",
     )
   let assert True =
     string.contains(
@@ -231,8 +231,8 @@ pub fn json_dispatch_uses_generated_typed_json_codecs_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
-      client_msg_module: "generated/libero/messages",
+      wire_module_tag: "libero",
+      request_msg_module: "generated/libero/requests",
       json_codecs_module: "generated/libero/json_codecs",
       contract_hash: "abc123",
     )
@@ -249,11 +249,11 @@ pub fn json_dispatch_uses_generated_typed_json_codecs_test() {
       "wire.decode_request(data, expected_hash: \"abc123\")",
     )
   let assert True =
-    string.contains(content, "import generated/libero/messages as client_msg")
+    string.contains(content, "import generated/libero/requests as request_msg")
   let assert True =
     string.contains(
       content,
-      "json_codecs.json_decode_generated_libero_messages__client_msg(message)",
+      "json_codecs.json_decode_generated_libero_requests__request_msg(message)",
     )
   let assert True =
     string.contains(
@@ -280,8 +280,8 @@ pub fn json_dispatch_empty_endpoints_omits_active_dispatch_imports_test() {
       endpoints: [],
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
-      client_msg_module: "generated/libero/messages",
+      wire_module_tag: "libero",
+      request_msg_module: "generated/libero/requests",
       json_codecs_module: "generated/libero/json_codecs",
       contract_hash: "abc123",
     )
@@ -289,7 +289,7 @@ pub fn json_dispatch_empty_endpoints_omits_active_dispatch_imports_test() {
   let assert False = string.contains(content, "import gleam/io")
   let assert False = string.contains(content, "import libero/trace")
   let assert False =
-    string.contains(content, "import generated/libero/messages as client_msg")
+    string.contains(content, "import generated/libero/requests as request_msg")
   let assert False =
     string.contains(
       content,
@@ -321,7 +321,7 @@ pub fn dispatch_msg_type_patterns_bind_fields_for_constructor_rebuild_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
@@ -354,16 +354,16 @@ pub fn json_dispatch_msg_type_patterns_bind_fields_for_constructor_rebuild_test(
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
-      client_msg_module: "generated/libero/messages",
+      wire_module_tag: "libero",
+      request_msg_module: "generated/libero/requests",
       json_codecs_module: "generated/libero/json_codecs",
       contract_hash: "abc123",
     )
 
   let assert True =
-    string.contains(content, "client_msg.ServerSetDarkMode(enabled:) ->")
+    string.contains(content, "request_msg.ServerSetDarkMode(enabled:) ->")
   let assert False =
-    string.contains(content, "client_msg.ServerSetDarkMode(enabled: _) ->")
+    string.contains(content, "request_msg.ServerSetDarkMode(enabled: _) ->")
   let assert True =
     string.contains(
       content,
@@ -437,7 +437,7 @@ pub fn endpoint_dispatch_keeps_type_import_when_handler_module_is_prefix_test() 
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
@@ -494,15 +494,15 @@ pub fn dispatch_includes_ensure_atoms_when_module_set_test() {
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
-      atoms_module: option.Some("generated@rpc_atoms"),
+      wire_module_tag: "libero",
+      atoms_module: option.Some("generated@libero_atoms"),
       wire_module: option.None,
     )
   let assert True = string.contains(content, "ensure_atoms()")
   let assert True =
     string.contains(
       content,
-      "@external(erlang, \"generated@rpc_atoms\", \"ensure\")",
+      "@external(erlang, \"generated@libero_atoms\", \"ensure\")",
     )
 }
 
@@ -523,7 +523,7 @@ pub fn dispatch_omits_ensure_atoms_when_module_is_none_test() {
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
@@ -556,12 +556,12 @@ pub fn generate_atoms_erl_produces_valid_erlang_test() {
     codegen_dispatch.generate_atoms_erl(
       endpoints,
       [],
-      "generated@rpc_atoms",
+      "generated@libero_atoms",
       option.None,
     )
 
   // Module declaration
-  let assert True = string.contains(content, "-module(generated@rpc_atoms).")
+  let assert True = string.contains(content, "-module(generated@libero_atoms).")
   let assert True = string.contains(content, "-export([ensure/0]).")
 
   // Framework atoms always present
@@ -628,12 +628,12 @@ pub fn dispatch_variant_names_include_server_prefix_test() {
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
 
-  // ClientMsg variant uses Server prefix
+  // RequestMsg variant uses Server prefix
   let assert True = string.contains(content, "ServerLoadSponsors")
 
   // Tag match uses server_ prefix
@@ -776,7 +776,7 @@ pub fn empty_endpoints_generates_valid_dispatch_test() {
       endpoints: [],
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
@@ -891,32 +891,32 @@ pub fn dispatch_wire_module_emits_decode_and_encode_externals_test() {
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
-      wire_module: option.Some("generated@rpc_wire"),
+      wire_module: option.Some("generated@libero_wire"),
     )
 
   let assert True =
     string.contains(
       content,
-      "@external(erlang, \"generated@rpc_wire\", \"decode_client_msg\")",
+      "@external(erlang, \"generated@libero_wire\", \"decode_request_msg\")",
     )
   let assert True =
-    string.contains(content, "fn wire_decode_client_msg(msg: a) -> b")
+    string.contains(content, "fn wire_decode_request_msg(msg: a) -> b")
 
   let assert True =
     string.contains(
       content,
-      "@external(erlang, \"generated@rpc_wire\", \"encode_response_echo_item\")",
+      "@external(erlang, \"generated@libero_wire\", \"encode_response_echo_item\")",
     )
   let assert True =
     string.contains(
       content,
-      "@external(erlang, \"generated@rpc_wire\", \"encode_response_load_items\")",
+      "@external(erlang, \"generated@libero_wire\", \"encode_response_load_items\")",
     )
 
   let assert True =
-    string.contains(content, "let msg = wire_decode_client_msg(msg)")
+    string.contains(content, "let msg = wire_decode_request_msg(msg)")
 
   let assert True =
     string.contains(
@@ -947,12 +947,12 @@ pub fn dispatch_no_wire_externals_when_wire_module_none_test() {
       endpoints: endpoints,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
 
-  let assert False = string.contains(content, "wire_decode_client_msg")
+  let assert False = string.contains(content, "wire_decode_request_msg")
   let assert False = string.contains(content, "wire_encode_response_")
 }
 
@@ -975,7 +975,7 @@ pub fn dispatch_extra_params_adds_import_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
       extra_params: [
@@ -1007,7 +1007,7 @@ pub fn dispatch_extra_params_on_handle_signature_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
       extra_params: [
@@ -1039,7 +1039,7 @@ pub fn dispatch_extra_params_threaded_to_handler_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
       extra_params: [
@@ -1081,7 +1081,7 @@ pub fn dispatch_extra_params_threaded_to_dispatch_known_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
       extra_params: [
@@ -1122,7 +1122,7 @@ pub fn dispatch_extra_params_two_params_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
       extra_params: [
@@ -1168,7 +1168,7 @@ pub fn dispatch_zero_extra_params_unchanged_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
       extra_params: [],
@@ -1178,7 +1178,7 @@ pub fn dispatch_zero_extra_params_unchanged_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
     )
@@ -1203,7 +1203,7 @@ pub fn dispatch_with_extra_param_and_msg_type_compiles_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
       extra_params: [
@@ -1241,7 +1241,7 @@ pub fn dispatch_with_extra_param_no_msg_type_compiles_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
       extra_params: [
@@ -1378,7 +1378,7 @@ pub fn dispatch_with_extra_param_mutating_context_compiles_test() {
       endpoints:,
       context_module: "server_context",
       context_type_name: "ServerContext",
-      wire_module_tag: "rpc",
+      wire_module_tag: "libero",
       atoms_module: option.None,
       wire_module: option.None,
       extra_params: [

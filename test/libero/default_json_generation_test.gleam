@@ -7,12 +7,12 @@ import libero/json/codegen as json_codegen
 import libero/json/contract
 import libero/scanner
 
-pub fn generated_client_msg_module_is_separate_from_dispatch_test() {
+pub fn generated_request_msg_module_is_separate_from_dispatch_test() {
   let endpoints = [save_article_endpoint()]
 
-  let source = libero.generate_client_msg_module(endpoints)
+  let source = libero.generate_request_msg_module(endpoints)
 
-  string.contains(source, "pub type ClientMsg") |> should.be_true()
+  string.contains(source, "pub type RequestMsg") |> should.be_true()
   string.contains(source, "import gleam/option.{type Option}")
   |> should.be_true()
   string.contains(source, "import shared/article")
@@ -25,25 +25,25 @@ pub fn generated_client_msg_module_is_separate_from_dispatch_test() {
   string.contains(source, "libero/etf/wire") |> should.be_false()
 }
 
-pub fn generated_json_contract_can_include_client_msg_type_test() {
+pub fn generated_json_contract_can_include_request_msg_type_test() {
   let endpoints = [save_article_endpoint()]
-  let client_msg_type =
-    json_codegen.client_msg_discovered_type(
+  let request_msg_type =
+    json_codegen.request_msg_discovered_type(
       endpoints:,
-      module_path: "generated/libero/messages",
-      type_name: "ClientMsg",
+      module_path: "generated/libero/requests",
+      type_name: "RequestMsg",
     )
   let artifact =
     contract.generate(
       endpoints:,
-      discovered: [client_msg_type],
+      discovered: [request_msg_type],
       push_types: [],
       ssr_models: [],
     )
 
-  string.contains(artifact, "\"module_path\":\"generated/libero/messages\"")
+  string.contains(artifact, "\"module_path\":\"generated/libero/requests\"")
   |> should.be_true()
-  string.contains(artifact, "\"type_name\":\"ClientMsg\"")
+  string.contains(artifact, "\"type_name\":\"RequestMsg\"")
   |> should.be_true()
   string.contains(artifact, "\"variant_name\":\"ServerSaveArticle\"")
   |> should.be_true()
@@ -52,17 +52,17 @@ pub fn generated_json_contract_can_include_client_msg_type_test() {
 pub fn generated_etf_codec_module_wraps_neutral_runtime_test() {
   let source =
     libero.generate_etf_codec_module(
-      atoms_module: "generated@rpc_atoms",
-      decoders_module: "generated/libero/rpc_decoders",
+      atoms_module: "generated@libero_atoms",
+      decoders_module: "generated/libero/decoders",
     )
 
-  string.contains(source, "import generated/libero/rpc_decoders")
+  string.contains(source, "import generated/libero/decoders")
   |> should.be_true()
   string.contains(source, "import libero/etf/wire as etf_wire")
   |> should.be_true()
   string.contains(
     source,
-    "@external(erlang, \"generated@rpc_atoms\", \"ensure\")",
+    "@external(erlang, \"generated@libero_atoms\", \"ensure\")",
   )
   |> should.be_true()
   string.contains(source, "pub fn ensure() -> Nil")
@@ -75,13 +75,52 @@ pub fn generated_etf_codec_module_wraps_neutral_runtime_test() {
   string.contains(source, "api/to_server") |> should.be_false()
 }
 
+pub fn generated_etf_codec_module_exposes_protocol_facade_test() {
+  let source =
+    libero.generate_etf_codec_module(
+      atoms_module: "generated@libero_atoms",
+      decoders_module: "generated/libero/decoders",
+    )
+
+  string.contains(source, "pub fn encode_request(") |> should.be_true()
+  string.contains(source, "etf_wire.encode_request(") |> should.be_true()
+  string.contains(source, "pub fn decode_request(") |> should.be_true()
+  string.contains(source, "etf_wire.decode_request(bytes)") |> should.be_true()
+
+  string.contains(source, "pub fn encode_response(") |> should.be_true()
+  string.contains(source, "etf_wire.encode_response(") |> should.be_true()
+  string.contains(source, "pub fn decode_server_frame(") |> should.be_true()
+  string.contains(source, "etf_wire.decode_server_frame(bytes)")
+  |> should.be_true()
+
+  string.contains(source, "pub fn encode_push(") |> should.be_true()
+  string.contains(source, "etf_wire.encode_push(") |> should.be_true()
+
+  string.contains(source, "pub fn encode_flags(") |> should.be_true()
+  string.contains(source, "etf_wire.encode_flags(value)") |> should.be_true()
+  string.contains(source, "pub fn decode_flags_typed(") |> should.be_true()
+  string.contains(source, "etf_wire.decode_flags_typed(") |> should.be_true()
+}
+
+pub fn generated_decoders_skip_request_import_when_no_endpoints_test() {
+  let source =
+    libero.generate_decoders_ffi(
+      discovered: [],
+      endpoints: [],
+      package: "app",
+      dependency_packages: [],
+    )
+
+  string.contains(source, "requests.mjs") |> should.be_false()
+}
+
 pub fn json_contract_hash_helper_returns_contract_hash_test() {
   let endpoints = [save_article_endpoint()]
   let discovered = [
-    json_codegen.client_msg_discovered_type(
+    json_codegen.request_msg_discovered_type(
       endpoints:,
-      module_path: "generated/libero/messages",
-      type_name: "ClientMsg",
+      module_path: "generated/libero/requests",
+      type_name: "RequestMsg",
     ),
   ]
 

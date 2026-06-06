@@ -29,11 +29,11 @@ gleam run -m libero
 
 CONTRACT_HASH=$(
   sed -n 's/.*"contract_hash":"\([^"]*\)".*/\1/p' \
-    src/generated/libero/rpc_contract.json
+    src/generated/libero/contract.json
 )
 
 if [ -z "$CONTRACT_HASH" ]; then
-  echo "Could not read contract_hash from generated rpc_contract.json" >&2
+  echo "Could not read contract_hash from generated contract.json" >&2
   exit 1
 fi
 
@@ -57,8 +57,8 @@ rm -f \
   src/bench_etf_request_helpers.gleam \
   src/bench_etf_request_helpers_ffi.erl \
   src/bench_time_ffi.erl \
-  src/generated@rpc_atoms.erl \
-  src/generated@rpc_wire.erl
+  src/generated@libero_atoms.erl \
+  src/generated@libero_wire.erl
 
 echo "== Running JavaScript benchmarks =="
 gleam run --target javascript -m bench_js_runner > "$REPORT_DIR/js.csv"
@@ -218,9 +218,9 @@ awk -F, '
   echo "Method:"
   echo
   echo "- Fixture project opts into JSON generation with \`use_json = true\` so the benchmark can compare JSON against Libero's default ETF transport."
-  echo "- ETF helper modules were generated through Libero's public generator APIs so the benchmark can call \`generated@rpc_wire\` without compiling the old ETF dispatch module."
+  echo "- ETF helper modules were generated through Libero's public generator APIs so the benchmark can call \`generated@libero_wire\` without compiling the old ETF dispatch module."
   echo "- BEAM server encode rows include generated response helpers plus wire frame encoding."
-  echo "- BEAM server request decode rows include wire request decode plus generated \`ClientMsg\` decode."
+  echo "- BEAM server request decode rows include wire request decode plus generated \`RequestMsg\` decode."
   echo "- JS client response decode rows include wire frame decode plus generated typed payload rebuild for JSON. ETF uses the generated decoder registration path."
   echo "- Each result subsection compares ETF and JSON for one target, stage, and payload. The \`Ratio\` column is JSON divided by ETF for the same metric."
   echo "- CSV files include additional diagnostic rows, such as JSON parse-only, JSON wire-decode-only, JSON typed-decode-only, BEAM \`etf_full_data_precheck\`, BEAM \`etf_strict_data_terms\`, and JS \`etf_depth_limit\` measurements. The Markdown report omits those rows because they are not the main ETF vs JSON comparison."

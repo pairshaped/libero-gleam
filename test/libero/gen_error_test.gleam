@@ -141,7 +141,7 @@ pub fn error_box_duplicate_endpoint_shows_modules_test() {
         "  server/handler_b",
       ],
       hint: Some(
-        "Handler function names must be unique across the server source\n        tree, since each one becomes a ClientMsg variant.",
+        "Handler function names must be unique across the server source\n        tree, since each one becomes a RequestMsg variant.",
       ),
     )
   let assert True = string.contains(result, "server/handler_a")

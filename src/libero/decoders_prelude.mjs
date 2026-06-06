@@ -1,10 +1,10 @@
 // Static library of primitive + combinator decoders used by generated
-// rpc_decoders_ffi.mjs files. This module ships with libero; it is not
+// decoders_ffi.mjs files. This module ships with libero; it is not
 // generated.
 //
 // Gleam stdlib types (Ok, Error, Some, None, Empty, NonEmpty) are
 // injected via setters at module load time - same pattern as etf/wire_ffi.mjs.
-// The generated register file calls these setters before any RPC arrives.
+// The generated register file calls these setters before any transport arrives.
 
 // --- Gleam stdlib types (set via setters, no direct imports) ---
 

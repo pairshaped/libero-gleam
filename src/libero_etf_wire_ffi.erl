@@ -5,16 +5,16 @@
 %% and return a Gleam-shaped Result: {ok, {Name, RequestId, Value}} or
 %% {error, {decode_error, Message}}.
 %%
-%% The wire envelope is {module_name_binary, request_id, client_msg_value} -
+%% The wire envelope is {module_name_binary, request_id, request_msg_value} -
 %% a 3-tuple where the first element is a UTF-8 binary carrying the wire
 %% envelope, the second is an integer request ID, and the third is the
-%% generated ClientMsg value. The request ID lets the client correlate
+%% generated RequestMsg value. The request ID lets the client correlate
 %% responses to calls.
 %%
 %% Note: binary_to_term/2 is called with [safe, used] to prevent atom
 %% exhaustion attacks and reject trailing bytes. All legitimate constructor
-%% atoms must be pre-registered (via binary_to_atom) before the first RPC
-%% arrives. Libero's codegen generates an rpc_atoms module that handles this.
+%% atoms must be pre-registered (via binary_to_atom) before the first transport
+%% arrives. Libero's codegen generates an libero_atoms module that handles this.
 decode_request(Bin) when is_binary(Bin) ->
     try
         Term = decode_binary_term(Bin),

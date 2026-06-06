@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 const buildRoot = readFileSync("test/js/.wire_e2e_build_root", "utf8").trim();
 const webRoot = join(buildRoot, "clients/web/build/dev/javascript");
 
-const rpcFfi = await import(
+const etfFfi = await import(
   pathToFileURL(join(webRoot, "libero/libero/etf/wire_ffi.mjs")).href
 );
 const gleam = await import(pathToFileURL(join(webRoot, "gleam_stdlib/gleam.mjs")).href);
@@ -20,24 +20,24 @@ function nestedSingleTuple(depth) {
   return Buffer.from(bytes);
 }
 
-rpcFfi.set_js_term_depth_limit(0);
-assert.equal(rpcFfi.js_term_depth_limit(), 0);
+etfFfi.set_js_term_depth_limit(0);
+assert.equal(etfFfi.js_term_depth_limit(), 0);
 
-const uncapped = rpcFfi.decode_safe(nestedSingleTuple(4));
+const uncapped = etfFfi.decode_safe(nestedSingleTuple(4));
 assert.ok(uncapped instanceof gleam.Ok);
 
-rpcFfi.set_js_term_depth_limit(3);
-assert.equal(rpcFfi.js_term_depth_limit(), 3);
+etfFfi.set_js_term_depth_limit(3);
+assert.equal(etfFfi.js_term_depth_limit(), 3);
 
-const capped = rpcFfi.decode_safe(nestedSingleTuple(4));
+const capped = etfFfi.decode_safe(nestedSingleTuple(4));
 assert.ok(capped instanceof gleam.Error);
 assert.match(capped[0].message, /term nesting depth/);
 
-rpcFfi.set_js_term_depth_limit(0);
-assert.equal(rpcFfi.js_term_depth_limit(), 0);
+etfFfi.set_js_term_depth_limit(0);
+assert.equal(etfFfi.js_term_depth_limit(), 0);
 
-assert.equal(rpcFfi.strict_data_terms_enabled(), false);
-assert.equal(rpcFfi.set_strict_data_terms(true), undefined);
-assert.equal(rpcFfi.strict_data_terms_enabled(), false);
+assert.equal(etfFfi.strict_data_terms_enabled(), false);
+assert.equal(etfFfi.set_strict_data_terms(true), undefined);
+assert.equal(etfFfi.strict_data_terms_enabled(), false);
 
 console.log("wire e2e security-config test passed");

@@ -10,15 +10,13 @@ const manifest = JSON.parse(
 );
 const textDecoder = new TextDecoder();
 
-const rpcFfi = await import(
+const etfFfi = await import(
   pathToFileURL(join(webRoot, "libero/libero/etf/wire_ffi.mjs")).href
 );
-const decoders = await import(
-  pathToFileURL(join(webRoot, "web/generated/libero/rpc_decoders_ffi.mjs")).href
+const liberoEtf = await import(
+  pathToFileURL(join(webRoot, "web/generated/libero/etf.mjs")).href
 );
-const remoteData = await import(
-  pathToFileURL(join(webRoot, "libero/libero/remote_data.mjs")).href
-);
+liberoEtf.ensure();
 const types = await import(
   pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href
 );
@@ -37,26 +35,30 @@ function decodeFrame(base64) {
   const frame = Buffer.from(base64, "base64");
   assert.equal(frame[0], 0);
   const requestId = frame.readUInt32BE(1);
-  const raw = rpcFfi.decode_value_raw(frame.subarray(5));
-  return { requestId, raw };
+  const body = frame.subarray(5);
+  const raw = etfFfi.decode_value_raw(body);
+  const decoded = etfFfi.decode_value(body);
+  return { requestId, raw, decoded };
 }
 
-function expectSuccess(frame, decoder) {
-  const data = decoder(frame.raw);
-  assert.ok(data instanceof remoteData.Success);
-  return data[0];
+function rawSuccess(frame) {
+  assert.equal(frame.raw[0], "ok");
+  assert.equal(frame.raw[1][0], "ok");
+  return frame.raw[1][1];
 }
 
-function expectFailure(frame, decoder) {
-  const data = decoder(frame.raw);
-  assert.ok(data instanceof remoteData.Failure);
-  return data[0];
+function expectSuccess(frame) {
+  assert.ok(frame.decoded instanceof gleam.Ok);
+  const inner = frame.decoded[0];
+  assert.ok(inner instanceof gleam.Ok);
+  return inner[0];
 }
 
-function expectDomainFailure(frame, decoder) {
-  const outcome = expectFailure(frame, decoder);
-  assert.ok(outcome instanceof remoteData.DomainError);
-  return outcome[0];
+function expectDomainFailure(frame) {
+  assert.ok(frame.decoded instanceof gleam.Ok);
+  const inner = frame.decoded[0];
+  assert.ok(inner instanceof gleam.Error);
+  return inner[0];
 }
 
 function dictGet(dictValue, key) {
@@ -74,6 +76,13 @@ function expectValidationFailed(err) {
   assert.ok(err instanceof types.ValidationFailed);
   assert.equal(err.field, "name");
   assert.equal(err.reason, "required");
+}
+
+function bitArrayBytes(value) {
+  if (value.rawBuffer instanceof Uint8Array) return [...value.rawBuffer];
+  if (value.rawBuffer instanceof ArrayBuffer) return [...new Uint8Array(value.rawBuffer)];
+  if (typeof value === "string") return [...value].map((ch) => ch.charCodeAt(0));
+  throw new TypeError("expected BitArray rawBuffer");
 }
 
 function rawBinaryToString(value) {
@@ -117,97 +126,85 @@ for (const [name, requestId] of Object.entries(expectedRequestIds)) {
 }
 
 assert.equal(
-  expectSuccess(decodeFrame(manifest["echo_int/positive"]), decoders.decode_response_echo_int),
+  expectSuccess(decodeFrame(manifest["echo_int/positive"])),
   5,
 );
 assert.equal(
   expectSuccess(
     decodeFrame(manifest["echo_int_negated/positive"]),
-    decoders.decode_response_echo_int_negated,
   ),
   -5,
 );
 assert.equal(
   expectSuccess(
     decodeFrame(manifest["echo_string/utf8_cafe"]),
-    decoders.decode_response_echo_string,
   ),
   "café",
 );
 assert.equal(
-  expectSuccess(decodeFrame(manifest["echo_string/cjk"]), decoders.decode_response_echo_string),
+  expectSuccess(decodeFrame(manifest["echo_string/cjk"])),
   "漢字",
 );
 assert.deepEqual(
-  [...expectSuccess(
-    decodeFrame(manifest["echo_bit_array/bytes"]),
-    decoders.decode_response_echo_bit_array,
-  ).rawBuffer],
+  bitArrayBytes(rawSuccess(decodeFrame(manifest["echo_bit_array/bytes"]))),
   [1, 2, 3],
 );
 assert.deepEqual(
   Array.from(
-    expectSuccess(decodeFrame(manifest["echo_list_int/many"]), decoders.decode_response_echo_list_int),
+    expectSuccess(decodeFrame(manifest["echo_list_int/many"])),
   ),
   [1, 2, 3],
 );
 const resultValue = expectSuccess(
   decodeFrame(manifest["echo_result_int_string/error"]),
-  decoders.decode_response_echo_result_int_string,
 );
 assert.ok(resultValue instanceof gleam.Error);
 assert.equal(resultValue[0], "bad");
 
 const dictInts = expectSuccess(
   decodeFrame(manifest["echo_dict_string_int/pairs"]),
-  decoders.decode_response_echo_dict_string_int,
 );
 assert.equal(dictGet(dictInts, "one"), 1);
 assert.equal(dictGet(dictInts, "two"), 2);
 
 assert.ok(
-  expectSuccess(decodeFrame(manifest["echo_status/active"]), decoders.decode_response_echo_status)
+  expectSuccess(decodeFrame(manifest["echo_status/active"]))
     instanceof types.Active,
 );
 expectItem(
-  expectSuccess(decodeFrame(manifest["echo_item/basic"]), decoders.decode_response_echo_item),
+  expectSuccess(decodeFrame(manifest["echo_item/basic"])),
   7,
 );
 assert.ok(
-  expectSuccess(decodeFrame(manifest["echo_tree/deep"]), decoders.decode_response_echo_tree)
+  expectSuccess(decodeFrame(manifest["echo_tree/deep"]))
     instanceof types.Node,
 );
 expectValidationFailed(
   expectSuccess(
     decodeFrame(manifest["echo_item_error/validation_failed"]),
-    decoders.decode_response_echo_item_error,
   ),
 );
 
 const optionItem = expectSuccess(
   decodeFrame(manifest["echo_option_item/some"]),
-  decoders.decode_response_echo_option_item,
 );
 assert.ok(optionItem instanceof option.Some);
 expectItem(optionItem[0], 7);
 
 const dictItems = expectSuccess(
   decodeFrame(manifest["echo_dict_string_item/pairs"]),
-  decoders.decode_response_echo_dict_string_item,
 );
 expectItem(dictGet(dictItems, "one"), 7);
 expectItem(dictGet(dictItems, "two"), 8);
 
 const nested = expectSuccess(
   decodeFrame(manifest["echo_nested_record/basic"]),
-  decoders.decode_response_echo_nested_record,
 );
 assert.ok(nested instanceof types.NestedRecord);
 expectItem(dictGet(nested.by_id, "one"), 7);
 
 const typesTag = expectSuccess(
   decodeFrame(manifest["echo_types_tag/basic"]),
-  decoders.decode_response_echo_types_tag,
 );
 assert.ok(typesTag instanceof types.Tag);
 assert.equal(typesTag.label, "sale");
@@ -215,7 +212,6 @@ assert.equal(typesTag.color, "red");
 
 const collisionTag = expectSuccess(
   decodeFrame(manifest["echo_collision_tag/basic"]),
-  decoders.decode_response_echo_collision_tag,
 );
 assert.ok(collisionTag instanceof collision.Tag);
 assert.equal(collisionTag.label, "promo");
@@ -223,7 +219,6 @@ assert.equal(collisionTag.label, "promo");
 expectValidationFailed(
   expectDomainFailure(
     decodeFrame(manifest["echo_typed_err/validation_failed"]),
-    decoders.decode_response_echo_typed_err,
   ),
 );
 
@@ -253,7 +248,7 @@ assert.equal(unknownVariant.raw[0], "error");
 assert.equal(unknownVariant.raw[1][0], "unknown_function");
 assert.equal(
   rawBinaryToString(unknownVariant.raw[1][1]),
-  "rpc.bogus_function",
+  "libero.bogus_function",
 );
 
 // Known module, known tag, malformed body (wrong arity). Must return
@@ -281,7 +276,7 @@ assert.equal(overDepthTree.raw[1], "malformed_request");
     readFileSync("test/js/.wire_e2e_decode_manifest.json", "utf8"),
   );
   const bytes = Buffer.from(decodeManifest["echo_nested_record/basic"], "base64");
-  const decoded = rpcFfi.decode_value(bytes);
+  const decoded = etfFfi.decode_value(bytes);
   // Outer is Ok(Ok(NestedRecord(...)))
   assert.ok(decoded instanceof gleam.Ok, "non-raw: outer Ok");
   assert.ok(decoded[0] instanceof gleam.Ok, "non-raw: inner Ok");

@@ -800,7 +800,7 @@ function makeStringBytes(str) {
   _typedDecoderRegistry.delete("decode_pages_b_envelope");
 }
 
-// ---- Regression: RPC response with record wrapping nested custom type ----
+// ---- Regression: transport response with record wrapping nested custom type ----
 // Wire shape: {ok, {ok, {envelope, {item, int, int}, total}}}
 // The outer Ok layers are framework-special-cased; the envelope goes
 // through lookupAtomDecoder; the nested custom type must also be
@@ -840,18 +840,18 @@ function makeStringBytes(str) {
 
   const decoded = new MiniETFDecoder(bytes).decode();
 
-  assert.ok(decoded instanceof Ok, "RPC: outer Ok");
+  assert.ok(decoded instanceof Ok, "transport: outer Ok");
   const inner1 = decoded[0];
-  assert.ok(inner1 instanceof Ok, "RPC: inner Ok");
+  assert.ok(inner1 instanceof Ok, "transport: inner Ok");
   const envelope = inner1[0];
-  assert.ok(envelope instanceof Envelope, "RPC: envelope via atom→decoder");
+  assert.ok(envelope instanceof Envelope, "transport: envelope via atom→decoder");
   // Nested item via atom→decoder (not stripped by toRawShape)
   const item = envelope[0];
-  assert.ok(item instanceof Item, "RPC: nested item is Item instance (atom→decoder preserved)");
+  assert.ok(item instanceof Item, "transport: nested item is Item instance (atom→decoder preserved)");
   assert.equal(item.x, 10);
   assert.equal(item.y, 20);
-  assert.equal(envelope[1], 99, "RPC: total field");
-  console.log("PASS: RPC response — Ok(Ok(Envelope{item: Item, total}))");
+  assert.equal(envelope[1], 99, "transport: total field");
+  console.log("PASS: transport response — Ok(Ok(Envelope{item: Item, total}))");
 
   _atomToDecoderName.delete("item");
   _atomToDecoderName.delete("envelope");

@@ -1,13 +1,13 @@
 // @ts-check
 //
-// ETF wire format for libero RPC.
+// ETF wire format for libero transport.
 //
 // Wire shape: Erlang External Term Format (ETF), subset used by Gleam.
 // WebSocket uses binary frames (ArrayBuffer).
 //
 // Gleam lists are rebuilt as linked lists so `gleam/list` operations
 // work on them. Custom type decoding is handled by the typed decoder
-// generated per consumer (rpc_decoders_ffi.mjs).
+// generated per consumer (decoders_ffi.mjs).
 
 import { Ok, Error as ResultError, CustomType, Empty, NonEmpty, BitArray } from "../../../gleam_stdlib/gleam.mjs";
 import { Some, None } from "../../../gleam_stdlib/gleam/option.mjs";
@@ -246,7 +246,7 @@ function gleamListToArray(list) {
 // `<<"ok">>` or `{1, 2}` from `[1, 2]`.
 //
 // Libero doesn't need wrappers because the typed decoder layer
-// (rpc_decoders_ffi.mjs, generated per consumer) knows the expected
+// (decoders_ffi.mjs, generated per consumer) knows the expected
 // shape from the Gleam type graph. When raw mode hands back
 // `["some", 42]`, the typed decoder sees an `Option(Int)` field at that
 // position and constructs `_Some(42)`. Same for atoms-vs-binaries: the
@@ -1129,7 +1129,7 @@ function snakeCase(name) {
  * Encode a standalone Gleam value to an ETF binary. Used by the
  * public `libero/etf/wire.encode` function. Unlike `encode_request`, there
  * is no envelope; the result is the raw ETF encoding of a single
- * value. Intended for non-RPC paths like passing state into a
+ * value. Intended for non-transport paths like passing state into a
  * Lustre SPA via init flags.
  * @param {any} value
  * @returns {BitArray}
@@ -1144,7 +1144,7 @@ export function encode_value(value) {
 /**
  * Decode a standalone Gleam value from an ETF binary. Symmetric with
  * `encode_value`. Custom type reconstruction is handled by the typed
- * decoder (rpc_decoders_ffi.mjs).
+ * decoder (decoders_ffi.mjs).
  * @param {DecoderInput} buffer
  * @returns {any}
  */
@@ -1206,7 +1206,7 @@ export function decode_safe_raw(buffer) {
 
 /**
  * Two-pass decode: raw ETF → typed decoder lookup.
- * Used by wire.decode_typed for SSR flags and other non-RPC paths
+ * Used by wire.decode_typed for SSR flags and other non-transport paths
  * where the caller knows the expected type at codegen time.
  * @param {DecoderInput} buffer
  * @param {string} decoderName e.g. "decode_pages_home__model"

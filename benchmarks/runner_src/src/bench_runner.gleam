@@ -3,7 +3,7 @@ import bench_etf_request_helpers
 import bench_payloads
 import bench_timing
 import generated/libero/json_codecs
-import generated/libero/messages
+import generated/libero/requests
 import gleam/bit_array
 import gleam/dynamic
 import gleam/io
@@ -34,7 +34,7 @@ fn run_admin() {
       json_codecs.json_encode_response_load_admin(Ok(value))
     },
     json_message: fn(value) {
-      json_codecs.json_encode_generated_libero_messages__client_msg(
+      json_codecs.json_encode_generated_libero_requests__request_msg(
         messages.ServerLoadAdmin(
           title: value.title,
           selected: value.selected,
@@ -43,7 +43,7 @@ fn run_admin() {
         ),
       )
     },
-    json_decode_message: json_codecs.json_decode_generated_libero_messages__client_msg,
+    json_decode_message: json_codecs.json_decode_generated_libero_requests__request_msg,
     etf_response: fn(value) {
       etf_helpers.encode_response_load_admin(Ok(value))
     },
@@ -62,7 +62,7 @@ fn run_records() {
       json_codecs.json_encode_response_load_records(Ok(value))
     },
     json_message: fn(value) {
-      json_codecs.json_encode_generated_libero_messages__client_msg(
+      json_codecs.json_encode_generated_libero_requests__request_msg(
         messages.ServerLoadRecords(
           items: value.items,
           total: value.total,
@@ -70,7 +70,7 @@ fn run_records() {
         ),
       )
     },
-    json_decode_message: json_codecs.json_decode_generated_libero_messages__client_msg,
+    json_decode_message: json_codecs.json_decode_generated_libero_requests__request_msg,
     etf_response: fn(value) {
       etf_helpers.encode_response_load_records(Ok(value))
     },
@@ -89,7 +89,7 @@ fn run_game() {
       json_codecs.json_encode_response_load_game(Ok(value))
     },
     json_message: fn(value) {
-      json_codecs.json_encode_generated_libero_messages__client_msg(
+      json_codecs.json_encode_generated_libero_requests__request_msg(
         messages.ServerLoadGame(
           game_id: value.game_id,
           home: value.home,
@@ -99,7 +99,7 @@ fn run_game() {
         ),
       )
     },
-    json_decode_message: json_codecs.json_decode_generated_libero_messages__client_msg,
+    json_decode_message: json_codecs.json_decode_generated_libero_requests__request_msg,
     etf_response: fn(value) { etf_helpers.encode_response_load_game(Ok(value)) },
     etf_message: bench_etf_request_helpers.load_game,
   )
@@ -116,7 +116,7 @@ fn run_shots() {
       json_codecs.json_encode_response_load_shots(Ok(value))
     },
     json_message: fn(value) {
-      json_codecs.json_encode_generated_libero_messages__client_msg(
+      json_codecs.json_encode_generated_libero_requests__request_msg(
         messages.ServerLoadShots(
           game_id: value.game_id,
           shots: value.shots,
@@ -124,7 +124,7 @@ fn run_shots() {
         ),
       )
     },
-    json_decode_message: json_codecs.json_decode_generated_libero_messages__client_msg,
+    json_decode_message: json_codecs.json_decode_generated_libero_requests__request_msg,
     etf_response: fn(value) {
       etf_helpers.encode_response_load_shots(Ok(value))
     },
@@ -143,7 +143,7 @@ fn run_matrix() {
       json_codecs.json_encode_response_load_matrix(Ok(value))
     },
     json_message: fn(value) {
-      json_codecs.json_encode_generated_libero_messages__client_msg(
+      json_codecs.json_encode_generated_libero_requests__request_msg(
         messages.ServerLoadMatrix(
           blob: value.blob,
           status: value.status,
@@ -158,7 +158,7 @@ fn run_matrix() {
         ),
       )
     },
-    json_decode_message: json_codecs.json_decode_generated_libero_messages__client_msg,
+    json_decode_message: json_codecs.json_decode_generated_libero_requests__request_msg,
     etf_response: fn(value) {
       etf_helpers.encode_response_load_matrix(Ok(value))
     },
@@ -173,7 +173,7 @@ fn run_case(
   json_response json_response: fn(payload) -> json.Json,
   json_message json_message: fn(payload) -> json.Json,
   json_decode_message json_decode_message: fn(dynamic.Dynamic) ->
-    Result(messages.ClientMsg, List(JsonError)),
+    Result(messages.RequestMsg, List(JsonError)),
   etf_response etf_response: fn(payload) -> dynamic.Dynamic,
   etf_message etf_message: fn(payload) -> dynamic.Dynamic,
 ) {
@@ -184,14 +184,14 @@ fn run_case(
 
   let json_request =
     json_wire.encode_request(
-      module: "rpc",
+      module: "libero",
       request_id: 1,
       msg: json_message(payload),
       contract_hash:,
     )
   let etf_request =
     etf_wire.encode_request(
-      module: "rpc",
+      module: "libero",
       request_id: 1,
       msg: etf_message(payload),
     )
@@ -252,7 +252,7 @@ fn run_case(
       operation: fn() {
         let assert Ok(#(_, request_id, message)) =
           etf_wire.decode_request(etf_request)
-        let _ = etf_helpers.decode_client_msg(message)
+        let _ = etf_helpers.decode_request_msg(message)
         request_id
       },
     ),
@@ -270,7 +270,7 @@ fn run_case(
         let assert Ok(#(_, request_id, message)) =
           etf_wire.decode_request(etf_request)
         let _ = etf_helpers.validate_data_term(message)
-        let _ = etf_helpers.decode_client_msg(message)
+        let _ = etf_helpers.decode_request_msg(message)
         request_id
       },
     ),
@@ -288,7 +288,7 @@ fn run_case(
       operation: fn() {
         let assert Ok(#(_, request_id, message)) =
           etf_wire.decode_request(etf_request)
-        let _ = etf_helpers.decode_client_msg(message)
+        let _ = etf_helpers.decode_request_msg(message)
         request_id
       },
     ),

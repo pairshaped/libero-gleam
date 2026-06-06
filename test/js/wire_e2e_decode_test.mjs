@@ -9,15 +9,13 @@ const manifest = JSON.parse(
   readFileSync("test/js/.wire_e2e_decode_manifest.json", "utf8"),
 );
 
-const rpcFfi = await import(
+const etfFfi = await import(
   pathToFileURL(join(webRoot, "libero/libero/etf/wire_ffi.mjs")).href
 );
-const decoders = await import(
-  pathToFileURL(join(webRoot, "web/generated/libero/rpc_decoders_ffi.mjs")).href
+const liberoEtf = await import(
+  pathToFileURL(join(webRoot, "web/generated/libero/etf.mjs")).href
 );
-const remoteData = await import(
-  pathToFileURL(join(webRoot, "libero/libero/remote_data.mjs")).href
-);
+liberoEtf.ensure();
 const types = await import(
   pathToFileURL(join(webRoot, "shared/shared/types.mjs")).href
 );
@@ -32,29 +30,41 @@ const dict = await import(
   pathToFileURL(join(webRoot, "gleam_stdlib/gleam/dict.mjs")).href
 );
 
-function decodeCase(name, decoder) {
+function decodeCase(name) {
   const bytes = Buffer.from(manifest[name], "base64");
-  return decoder(rpcFfi.decode_value_raw(bytes));
+  return etfFfi.decode_value(bytes);
+}
+
+function decodeCaseRawSuccess(name) {
+  const raw = etfFfi.decode_value_raw(Buffer.from(manifest[name], "base64"));
+  assert.equal(raw[0], "ok");
+  assert.equal(raw[1][0], "ok");
+  return raw[1][1];
 }
 
 function expectSuccess(data) {
-  assert.ok(data instanceof remoteData.Success);
-  return data[0];
-}
-
-function expectFailure(data) {
-  assert.ok(data instanceof remoteData.Failure);
-  return data[0];
+  assert.ok(data instanceof gleam.Ok);
+  const inner = data[0];
+  assert.ok(inner instanceof gleam.Ok);
+  return inner[0];
 }
 
 function expectDomainFailure(data) {
-  const outcome = expectFailure(data);
-  assert.ok(outcome instanceof remoteData.DomainError);
-  return outcome[0];
+  assert.ok(data instanceof gleam.Ok);
+  const inner = data[0];
+  assert.ok(inner instanceof gleam.Error);
+  return inner[0];
 }
 
 function listToArray(list) {
   return Array.from(list);
+}
+
+function bitArrayBytes(value) {
+  if (value.rawBuffer instanceof Uint8Array) return [...value.rawBuffer];
+  if (value.rawBuffer instanceof ArrayBuffer) return [...new Uint8Array(value.rawBuffer)];
+  if (typeof value === "string") return [...value].map((ch) => ch.charCodeAt(0));
+  throw new TypeError("expected BitArray rawBuffer");
 }
 
 function expectItem(item, expected) {
@@ -94,54 +104,51 @@ const item = { id: 7, name: "wrench", price: 12.5, in_stock: true };
 const item2 = { id: 8, name: "bolt", price: 1.25, in_stock: false };
 
 const cases = [
-  ["echo_int/positive", decoders.decode_response_echo_int, (v) => assert.equal(v, 5)],
-  ["echo_int/zero", decoders.decode_response_echo_int, (v) => assert.equal(v, 0)],
-  ["echo_int/negative", decoders.decode_response_echo_int, (v) => assert.equal(v, -7)],
-  ["echo_float/fractional", decoders.decode_response_echo_float, (v) => assert.equal(v, 3.5)],
-  ["echo_float/negative", decoders.decode_response_echo_float, (v) => assert.equal(v, -1.5)],
-  ["echo_float/whole", decoders.decode_response_echo_float, (v) => assert.equal(v, 2.0)],
-  ["echo_string/ascii", decoders.decode_response_echo_string, (v) => assert.equal(v, "hello")],
-  ["echo_string/empty", decoders.decode_response_echo_string, (v) => assert.equal(v, "")],
-  ["echo_string/null_byte", decoders.decode_response_echo_string, (v) => assert.equal(v, "a\0b")],
-  ["echo_string/utf8_cafe", decoders.decode_response_echo_string, (v) => assert.equal(v, "café")],
-  ["echo_string/cjk", decoders.decode_response_echo_string, (v) => assert.equal(v, "漢字")],
-  ["echo_bool/true", decoders.decode_response_echo_bool, (v) => assert.equal(v, true)],
-  ["echo_bool/false", decoders.decode_response_echo_bool, (v) => assert.equal(v, false)],
-  ["echo_bit_array/bytes", decoders.decode_response_echo_bit_array, (v) => assert.deepEqual([...v.rawBuffer], [1, 2, 3])],
-  ["echo_bit_array/empty", decoders.decode_response_echo_bit_array, (v) => assert.deepEqual([...v.rawBuffer], [])],
-  ["echo_bit_array/single", decoders.decode_response_echo_bit_array, (v) => assert.deepEqual([...v.rawBuffer], [255])],
-  ["echo_unit/nil", decoders.decode_response_echo_unit, (v) => assert.equal(v, undefined)],
-  ["echo_list_int/many", decoders.decode_response_echo_list_int, (v) => assert.deepEqual(listToArray(v), [1, 2, 3])],
-  ["echo_list_int/empty", decoders.decode_response_echo_list_int, (v) => assert.deepEqual(listToArray(v), [])],
-  ["echo_list_int/single", decoders.decode_response_echo_list_int, (v) => assert.deepEqual(listToArray(v), [42])],
-  ["echo_option_string/some", decoders.decode_response_echo_option_string, (v) => {
+  ["echo_int/positive", (v) => assert.equal(v, 5)],
+  ["echo_int/zero", (v) => assert.equal(v, 0)],
+  ["echo_int/negative", (v) => assert.equal(v, -7)],
+  ["echo_float/fractional", (v) => assert.equal(v, 3.5)],
+  ["echo_float/negative", (v) => assert.equal(v, -1.5)],
+  ["echo_float/whole", (v) => assert.equal(v, 2.0)],
+  ["echo_string/ascii", (v) => assert.equal(v, "hello")],
+  ["echo_string/empty", (v) => assert.equal(v, "")],
+  ["echo_string/null_byte", (v) => assert.equal(v, "a\0b")],
+  ["echo_string/utf8_cafe", (v) => assert.equal(v, "café")],
+  ["echo_string/cjk", (v) => assert.equal(v, "漢字")],
+  ["echo_bool/true", (v) => assert.equal(v, true)],
+  ["echo_bool/false", (v) => assert.equal(v, false)],
+  ["echo_unit/nil", (v) => assert.equal(v, undefined)],
+  ["echo_list_int/many", (v) => assert.deepEqual(listToArray(v), [1, 2, 3])],
+  ["echo_list_int/empty", (v) => assert.deepEqual(listToArray(v), [])],
+  ["echo_list_int/single", (v) => assert.deepEqual(listToArray(v), [42])],
+  ["echo_option_string/some", (v) => {
     assert.ok(v instanceof option.Some);
     assert.equal(v[0], "hello");
   }],
-  ["echo_option_string/none", decoders.decode_response_echo_option_string, (v) => assert.ok(v instanceof option.None)],
-  ["echo_result_int_string/ok", decoders.decode_response_echo_result_int_string, (v) => {
+  ["echo_option_string/none", (v) => assert.ok(v instanceof option.None)],
+  ["echo_result_int_string/ok", (v) => {
     assert.ok(v instanceof gleam.Ok);
     assert.equal(v[0], 7);
   }],
-  ["echo_result_int_string/error", decoders.decode_response_echo_result_int_string, (v) => {
+  ["echo_result_int_string/error", (v) => {
     assert.ok(v instanceof gleam.Error);
     assert.equal(v[0], "bad");
   }],
-  ["echo_dict_string_int/pairs", decoders.decode_response_echo_dict_string_int, (v) => {
+  ["echo_dict_string_int/pairs", (v) => {
     assert.equal(dictGet(v, "one"), 1);
     assert.equal(dictGet(v, "two"), 2);
   }],
-  ["echo_dict_string_int/empty", decoders.decode_response_echo_dict_string_int, (v) => {
+  ["echo_dict_string_int/empty", (v) => {
     assert.equal(dict.size(v), 0);
   }],
-  ["echo_tuple_int_string/pair", decoders.decode_response_echo_tuple_int_string, (v) => assert.deepEqual(v, [9, "nine"])],
-  ["echo_status/active", decoders.decode_response_echo_status, (v) => assert.ok(v instanceof types.Active)],
-  ["echo_status/pending", decoders.decode_response_echo_status, (v) => assert.ok(v instanceof types.Pending)],
-  ["echo_status/cancelled", decoders.decode_response_echo_status, (v) => assert.ok(v instanceof types.Cancelled)],
-  ["echo_item/basic", decoders.decode_response_echo_item, (v) => expectItem(v, item)],
-  ["echo_tree/leaf", decoders.decode_response_echo_tree, (v) => assert.ok(v instanceof types.Leaf)],
-  ["echo_tree/deep", decoders.decode_response_echo_tree, expectDeepTree],
-  ["echo_tree/deep_left", decoders.decode_response_echo_tree, (v) => {
+  ["echo_tuple_int_string/pair", (v) => assert.deepEqual(v, [9, "nine"])],
+  ["echo_status/active", (v) => assert.ok(v instanceof types.Active)],
+  ["echo_status/pending", (v) => assert.ok(v instanceof types.Pending)],
+  ["echo_status/cancelled", (v) => assert.ok(v instanceof types.Cancelled)],
+  ["echo_item/basic", (v) => expectItem(v, item)],
+  ["echo_tree/leaf", (v) => assert.ok(v instanceof types.Leaf)],
+  ["echo_tree/deep", expectDeepTree],
+  ["echo_tree/deep_left", (v) => {
     assert.ok(v instanceof types.Node);
     assert.equal(v.value, 1);
     assert.ok(v.left instanceof types.Node);
@@ -151,33 +158,33 @@ const cases = [
     assert.ok(v.left.right instanceof types.Leaf);
     assert.ok(v.right instanceof types.Leaf);
   }],
-  ["echo_item_error/not_found", decoders.decode_response_echo_item_error, (v) => assert.ok(v instanceof types.NotFound)],
-  ["echo_item_error/validation_failed", decoders.decode_response_echo_item_error, expectValidationFailed],
-  ["echo_with_floats/whole", decoders.decode_response_echo_with_floats, (v) => {
+  ["echo_item_error/not_found", (v) => assert.ok(v instanceof types.NotFound)],
+  ["echo_item_error/validation_failed", expectValidationFailed],
+  ["echo_with_floats/whole", (v) => {
     assert.ok(v instanceof types.WithFloats);
     assert.equal(v.x, 2.0);
     assert.equal(v.y, 3.0);
     assert.equal(v.label, "whole");
   }],
-  ["echo_list_of_items/many", decoders.decode_response_echo_list_of_items, (v) => {
+  ["echo_list_of_items/many", (v) => {
     const values = listToArray(v);
     assert.equal(values.length, 2);
     expectItem(values[0], item);
     expectItem(values[1], item2);
   }],
-  ["echo_option_item/some", decoders.decode_response_echo_option_item, (v) => {
+  ["echo_option_item/some", (v) => {
     assert.ok(v instanceof option.Some);
     expectItem(v[0], item);
   }],
-  ["echo_option_item/none", decoders.decode_response_echo_option_item, (v) => assert.ok(v instanceof option.None)],
-  ["echo_dict_string_item/pairs", decoders.decode_response_echo_dict_string_item, (v) => {
+  ["echo_option_item/none", (v) => assert.ok(v instanceof option.None)],
+  ["echo_dict_string_item/pairs", (v) => {
     expectItem(dictGet(v, "one"), item);
     expectItem(dictGet(v, "two"), item2);
   }],
-  ["echo_dict_string_item/empty", decoders.decode_response_echo_dict_string_item, (v) => {
+  ["echo_dict_string_item/empty", (v) => {
     assert.equal(dict.size(v), 0);
   }],
-  ["echo_nested_record/basic", decoders.decode_response_echo_nested_record, (v) => {
+  ["echo_nested_record/basic", (v) => {
     assert.ok(v instanceof types.NestedRecord);
     assert.equal(listToArray(v.items).length, 2);
     assert.ok(v.primary instanceof option.Some);
@@ -188,27 +195,32 @@ const cases = [
     assert.ok(statuses[2] instanceof types.Cancelled);
     expectItem(dictGet(v.by_id, "one"), item);
   }],
-  ["echo_types_tag/basic", decoders.decode_response_echo_types_tag, (v) => {
+  ["echo_types_tag/basic", (v) => {
     assert.ok(v instanceof types.Tag);
     assert.equal(v.label, "sale");
     assert.equal(v.color, "red");
   }],
-  ["echo_collision_tag/basic", decoders.decode_response_echo_collision_tag, (v) => {
+  ["echo_collision_tag/basic", (v) => {
     assert.ok(v instanceof collision.Tag);
     assert.equal(v.label, "promo");
   }],
 ];
 
-for (const [name, decoder, assertValue] of cases) {
-  assertValue(expectSuccess(decodeCase(name, decoder)));
+for (const [name, assertValue] of cases) {
+  assertValue(expectSuccess(decodeCase(name)));
 }
+
+assert.deepEqual(bitArrayBytes(decodeCaseRawSuccess("echo_bit_array/bytes")), [
+  1, 2, 3,
+]);
+assert.deepEqual(bitArrayBytes(decodeCaseRawSuccess("echo_bit_array/empty")), []);
+assert.deepEqual(bitArrayBytes(decodeCaseRawSuccess("echo_bit_array/single")), [
+  255,
+]);
 
 expectValidationFailed(
   expectDomainFailure(
-    decodeCase(
-      "echo_typed_err/validation_failed",
-      decoders.decode_response_echo_typed_err,
-    ),
+    decodeCase("echo_typed_err/validation_failed"),
   ),
 );
 

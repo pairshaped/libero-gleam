@@ -1,14 +1,14 @@
 //// Tests for libero/error wire roundtrip and InternalError message field.
 
 import gleam/dynamic.{type Dynamic}
-import libero/error.{type RpcError, InternalError}
+import libero/error.{type TransportError, InternalError}
 import libero/etf/wire
 
 /// InternalError carries a client-safe message that consumers can
 /// display directly. Verify the field survives construction and
 /// partial pattern matching.
 pub fn internal_error_message_accessible_via_pattern_match_test() {
-  let err: RpcError =
+  let err: TransportError =
     InternalError(
       trace_id: "trace42",
       message: "Something went wrong, please try again.",
@@ -23,7 +23,7 @@ pub fn internal_error_message_accessible_via_pattern_match_test() {
 /// a request envelope. This exercises the BEAM's atom encoding of
 /// the InternalError constructor tag.
 pub fn internal_error_roundtrips_through_wire_test() {
-  let value: Result(String, RpcError) =
+  let value: Result(String, TransportError) =
     Error(InternalError(
       trace_id: "abc123",
       message: "Something went wrong, please try again.",
@@ -32,7 +32,8 @@ pub fn internal_error_roundtrips_through_wire_test() {
   // Wrap in a request envelope {module, request_id, value} and decode to verify structure survives.
   let envelope = ffi_encode(coerce(#("shared/test", 0, coerce(encoded))))
   let assert Ok(#("shared/test", 0, rebuilt)) = wire.decode_request(envelope)
-  let decoded: Result(String, RpcError) = wire.decode(unsafe_coerce(rebuilt))
+  let decoded: Result(String, TransportError) =
+    wire.decode(unsafe_coerce(rebuilt))
   let assert Error(InternalError(
     trace_id: "abc123",
     message: "Something went wrong, please try again.",

@@ -5,7 +5,7 @@
 //// panic) produces the correct wire response at runtime.
 
 import gleam/string
-import libero/error.{type RpcError, InternalError}
+import libero/error.{type TransportError, InternalError}
 import libero/etf/wire
 import libero/trace
 
@@ -25,7 +25,7 @@ pub fn panicking_handler_produces_internal_error_test() {
     }
   }
   let assert <<0, 0, 0, 0, 1, payload:bits>> = response
-  let result: Result(Nil, RpcError) = wire.decode(payload)
+  let result: Result(Nil, TransportError) = wire.decode(payload)
   let assert Error(InternalError(trace_id:, message: "Something went wrong")) =
     result
   let assert True = string.length(trace_id) > 0
@@ -47,7 +47,7 @@ pub fn successful_handler_produces_ok_response_test() {
     }
   }
   let assert <<0, 0, 0, 0, 42, payload:bits>> = response
-  let result: Result(Int, RpcError) = wire.decode(payload)
+  let result: Result(Int, TransportError) = wire.decode(payload)
   let assert Ok(123) = result
 }
 
@@ -76,7 +76,7 @@ pub fn mutating_handler_panic_preserves_original_context_test() {
   }
   let assert "mutated_ctx" = ctx
   let assert <<0, 0, 0, 0, 1, payload:bits>> = response
-  let result: Result(Int, RpcError) = wire.decode(payload)
+  let result: Result(Int, TransportError) = wire.decode(payload)
   let assert Ok(42) = result
 }
 
@@ -108,7 +108,7 @@ pub fn mutating_handler_panic_returns_original_context_test() {
   }
   let assert "original" = ctx
   let assert <<0, 0, 0, 0, 1, payload:bits>> = response
-  let result: Result(Nil, RpcError) = wire.decode(payload)
+  let result: Result(Nil, TransportError) = wire.decode(payload)
   let assert Error(InternalError(trace_id:, message: "Something went wrong")) =
     result
   let assert True = string.length(trace_id) > 0

@@ -1,14 +1,14 @@
 # Libero Context
 
-Libero is an RPC plumbing library for Gleam (6.0.0). It scans Gleam source for handler function signatures and generates typed server dispatch, JavaScript decoders, Erlang atom pre-registration, ETF wire protocol code, and a contract artifact. Most users run `gleam run -m libero` to generate files into `src/generated/libero/`. ETF is the default transport; JSON generation is available with `use_json = true`. Frameworks call the library API programmatically.
+Libero is a typed wire-contract library for Gleam (6.0.0). It scans Gleam source for handler function signatures, follows the types that cross the boundary, and generates server dispatch, JavaScript decoders, Erlang atom pre-registration, protocol facade code, and a contract artifact. The standalone CLI runs with `gleam run -m libero` and writes files into `src/generated/libero/`. ETF is the default protocol; JSON generation is available with `use_json = true`. Frameworks call the library API programmatically.
 
 Target boundary: Libero owns the typed client/server contract derived from handler signatures. Consumers should use generated modules and protocol helpers instead of knowing the wire shape. A good boundary test is that consumers can switch between the default ETF transport and generated JSON by regenerating Libero-owned modules or updating facade imports. They should not rewrite transport lifecycle, response handling, push handling, or hydration logic because the configured protocol changed. See `pages/reference/contract-boundary.md`.
 
 ## Conventions
 
-Libero is opinionated: context type is `ServerContext` in the `server_context` module, wire tag is `"rpc"`, source is always `src/`, default server output is `src/generated/libero/`, ETF atoms output is `src/generated/libero/generated@rpc_atoms.erl`, and `src/generated/` is skipped during scanning. `erlang_output_dir` can move generated server files under another `src` directory.
+The default scanner is opinionated: context type is `ServerContext` in the `server_context` module, handler functions use a `server_` prefix, wire tag is `"libero"`, source is always `src/`, default server output is `src/generated/libero/`, ETF atoms output is `src/generated/libero/generated@libero_atoms.erl`, and `src/generated/` is skipped during scanning. `erlang_output_dir` can move generated server files under another `src` directory.
 
-Libero does not generate client stubs, WebSocket clients, routers, SSR, scaffolded apps, or framework transport. Frameworks such as Rally own those layers. Rally may use Libero for scanner, walker, dispatch, atoms, and ETF primitives, but Rally should generate its own client `ClientMsg` mirror and transport API.
+Libero does not generate client stubs, WebSocket clients, routers, SSR, scaffolded apps, or framework transport. Frameworks such as Rally own those layers. Rally may use Libero for scanner, walker, dispatch, atoms, ETF generated files, and protocol facade helpers, while Rally generates its own request/result/push API and transport lifecycle.
 
 Canonical framework example: [Rally Scoreboard](https://github.com/pairshaped/rally-scoreboard-example)
 uses Libero as Rally's wire-contract layer. Rally drives Libero type discovery
@@ -26,11 +26,13 @@ By default, writes ETF files to `src/generated/libero/`:
 | File | Purpose |
 |------|---------|
 | `dispatch.gleam` | Server dispatch code for handlers |
-| `rpc_decoders_ffi.mjs` | Typed JS ETF decoders for every discovered type |
-| `rpc_decoders.gleam` | Gleam wrapper that registers the JS decoders |
-| `generated@rpc_atoms.erl` | Erlang atom pre-registration module for safe BEAM decode |
-| `generated@rpc_wire.erl` | Erlang ETF wire transformer module |
-| `rpc_contract.json` | Contract artifact with protocol version and contract hash |
+| `requests.gleam` | Generated `RequestMsg` request type for JavaScript decoder hints |
+| `decoders_ffi.mjs` | Typed JS ETF decoders for every discovered type |
+| `decoders.gleam` | Gleam wrapper that registers the JS decoders |
+| `etf.gleam` | Generated ETF facade for request/result/push/flags helpers |
+| `generated@libero_atoms.erl` | Erlang atom pre-registration module for safe BEAM decode |
+| `generated@libero_wire.erl` | Erlang ETF wire transformer module |
+| `contract.json` | Contract artifact with protocol version and contract hash |
 
 To generate JSON dispatch and codec files instead:
 
@@ -39,20 +41,20 @@ To generate JSON dispatch and codec files instead:
 use_json = true
 ```
 
-JSON mode writes `dispatch.gleam`, `messages.gleam`, `json_codecs.gleam`, and `rpc_contract.json`.
+JSON mode writes `dispatch.gleam`, `requests.gleam`, `json_codecs.gleam`, and `contract.json`.
 
-To mirror generated client files into another package, set `js_output_dir` in `gleam.toml` or `LIBERO_JS_OUTPUT_DIR` for one-off runs:
+Projects with separate packages can mirror generated protocol files into another package by setting `mirrored_output_dir` in `gleam.toml` or `LIBERO_MIRRORED_OUTPUT_DIR` for one-off runs:
 
 ```toml
 [tools.libero]
-js_output_dir = "../clients/web/src/generated/libero"
+mirrored_output_dir = "../clients/web/src/generated/libero"
 ```
 
 ```sh
-LIBERO_JS_OUTPUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
+LIBERO_MIRRORED_OUTPUT_DIR="../clients/web/src/generated/libero" gleam run -m libero
 ```
 
-In ETF mode, client output copies `dispatch.gleam`, `rpc_decoders_ffi.mjs`, and `rpc_decoders.gleam`. In JSON mode, it copies `messages.gleam`, `json_codecs.gleam`, and `rpc_contract.json`. Use `erlang_output_dir` to change where server generated files are written under `src`.
+In ETF mode, mirrored output copies `requests.gleam`, `decoders_ffi.mjs`, `decoders.gleam`, and `etf.gleam`. In JSON mode, it copies `requests.gleam`, `json_codecs.gleam`, and `contract.json`. Use `erlang_output_dir` to change where server generated files are written under `src`.
 
 ## Library API
 
@@ -72,11 +74,11 @@ let contract_hash =
 let dispatch_source =
   libero.generate_json_dispatch(                                      // 5. Generate JSON dispatch
     endpoints,
-    client_msg_module: "generated/libero/messages",
+    request_msg_module: "generated/libero/requests",
     json_codecs_module: "generated/libero/json_codecs",
     contract_hash: contract_hash,
   )
-let messages_source = libero.generate_client_msg_module(endpoints)    // 6. Generate request type
+let requests_source = libero.generate_request_msg_module(endpoints)   // 6. Generate request type
 let contract_source =
   libero.generate_json_contract(endpoints, discovered, [], [])        // 7. Generate contract artifact
 ```
@@ -89,21 +91,19 @@ Each function returns a string, so the caller owns file I/O. ETF APIs such as `g
 
 2. **Walker** (`libero/walker`): BFS traversal of the type graph starting from scanner output. Discovers all custom types reachable from handler params and return types.
 
-3. **Dispatch codegen** (`libero/codegen_dispatch`): Generates a Gleam dispatch module with a `handle` function. ETF dispatch includes the request message type inline; JSON dispatch imports the generated `messages.gleam` type. Both paths wrap handlers in `trace.try_call` for panic safety.
+3. **Dispatch codegen** (`libero/codegen_dispatch`): Generates a Gleam dispatch module with a `handle` function. ETF dispatch includes the request message type inline; JSON dispatch imports the generated `requests.gleam` type. Both paths wrap handlers in `trace.try_call` for panic safety.
 
 4. **Decoder codegen** (`libero/codegen_decoders`, `libero/json/codegen`): Generates JavaScript typed decoders for ETF and typed JSON encoders, decoders, and response helpers for JSON. ETF decoder code also emits float type hints used by the JS ETF encoder.
 
-5. **Wire protocols** (`libero/etf/wire`, `libero/json/wire`): ETF codec for Erlang and JavaScript targets, plus JSON wire framing helpers. `libero/wire` remains as a compatibility wrapper for ETF.
+5. **Wire protocols** (`libero/etf/wire`, `libero/json/wire`): ETF codec for Erlang and JavaScript targets, plus JSON wire framing helpers. Consumers should use protocol-level operations such as `encode_request`, `encode_response`, `decode_server_frame`, `encode_push`, `encode_flags`, and `decode_flags_typed`.
 
-6. **RemoteData** (`libero/remote_data`): Client-side state machine for async data. `RpcData(value, domain)` separates transport errors from domain errors.
+6. **Error types** (`libero/error`): `TransportError` (MalformedRequest, UnknownFunction, InternalError), `DecodeError`, `PanicInfo`.
 
-7. **Error types** (`libero/error`): `RpcError` (MalformedRequest, UnknownFunction, InternalError), `DecodeError`, `PanicInfo`.
-
-8. **Trace** (`libero/trace`): Panic catching via Erlang try/catch, trace ID generation for log correlation.
+7. **Trace** (`libero/trace`): Panic catching via Erlang try/catch, trace ID generation for log correlation.
 
 ## Handler-as-Contract
 
-Libero's scanner detects RPC endpoints by checking:
+Libero's scanner detects transport endpoints by checking:
 
 1. Public function with `server_` prefix
 2. A `ServerContext` parameter
@@ -137,7 +137,7 @@ import libero/error.{InternalError, MalformedRequest, UnknownFunction}
 import libero/trace
 import libero/etf/wire
 
-pub type ClientMsg {
+pub type RequestMsg {
   GetItems
   CreateItem(params: types.ItemParams)
 }
@@ -147,27 +147,27 @@ pub fn handle(
   data data: BitArray,
 ) -> #(BitArray, ServerContext) {
   case wire.decode_request(data) {
-    Ok(#("rpc", request_id, msg)) -> {
+    Ok(#("libero", request_id, msg)) -> {
       case wire.variant_tag(msg) {
         Ok("get_items") | Ok("create_item") -> {
-          let typed_msg: ClientMsg = wire.coerce(msg)
+          let typed_msg: RequestMsg = wire.coerce(msg)
           case typed_msg {
             GetItems -> {
               case trace.try_call(fn() { handler.server_get_items(server_context:) }) {
                 Ok(result) ->
-                  #(wire.tag_response(request_id:, data: wire.encode(result)), server_context)
+                  #(wire.encode_response(request_id:, value: Ok(result)), server_context)
                 Error(reason) -> {
                   let trace_id = trace.new_trace_id()
                   io.println_error("[libero] " <> trace_id <> " get_items: " <> reason)
-                  #(wire.tag_response(request_id:, data: wire.encode(Error(InternalError(trace_id:, message: "Something went wrong")))), server_context)
+                  #(wire.encode_response(request_id:, value: Error(InternalError(trace_id:, message: "Something went wrong"))), server_context)
                 }
               }
             }
             // ...
           }
         }
-        Ok(tag) -> #(wire.tag_response(..., Error(UnknownFunction(...))), server_context)
-        Error(_) -> #(wire.tag_response(..., Error(MalformedRequest)), server_context)
+        Ok(tag) -> #(wire.encode_response(request_id:, value: Error(UnknownFunction("libero." <> tag))), server_context)
+        Error(_) -> #(wire.encode_response(request_id:, value: Error(MalformedRequest)), server_context)
       }
     }
     // ...
@@ -177,9 +177,9 @@ pub fn handle(
 
 ## Wire protocol
 
-- Default transport: ETF. Configure `[tools.libero] use_json = true` to generate JSON dispatch and codecs.
+- Default protocol: ETF. Configure `[tools.libero] use_json = true` to generate JSON dispatch and codecs.
 - Format: ETF (Erlang External Term Format), binary WebSocket frames
-- Request envelope: `{module_name_binary, request_id, client_msg_value}` (3-tuple)
+- Request envelope: `{module_name_binary, request_id, request_msg_value}` (3-tuple)
 - Response frame: `<<0x00, request_id:32-big, etf_bytes>>`
 - Push frame: `<<0x01, etf_bytes>>` (server-initiated, no request ID)
 - JS codec: custom ETF encoder/decoder in `libero/etf/wire_ffi.mjs` with typed decoder layer
@@ -200,22 +200,8 @@ The report compares default ETF and generated JSON across BEAM request decode, B
 ## Error model
 
 Two tiers:
-1. **Domain errors**: inside the handler's Result. `Error(NotFound)` arrives as `Failure(DomainError(NotFound))`.
-2. **Transport errors**: `MalformedRequest`, `UnknownFunction(name)`, `InternalError(trace_id, message)`. Arrives as `Failure(TransportError(rpc_err))`.
-
-## RemoteData
-
-```gleam
-pub type RemoteData(value, error) {
-  NotAsked | Loading | Failure(error) | Success(value)
-}
-
-pub type RpcOutcome(domain) {
-  TransportError(RpcError) | DomainError(domain)
-}
-
-pub type RpcData(value, domain) = RemoteData(value, RpcOutcome(domain))
-```
+1. **Domain errors**: inside the handler's Result. `Error(NotFound)` is encoded as `Ok(Error(NotFound))`.
+2. **Transport errors**: `MalformedRequest`, `UnknownFunction(name)`, `InternalError(trace_id, message)`. These are encoded as `Error(transport_err)`.
 
 ## Module layout
 
@@ -230,9 +216,7 @@ pub type RpcData(value, domain) = RemoteData(value, RpcOutcome(domain))
 | `libero/json/wire` | both | JSON wire helpers |
 | `libero/codegen` | both | Cross-cutting codegen helpers |
 | `libero/etf/wire` | both | ETF codec |
-| `libero/wire` | both | Compatibility wrapper for ETF codec |
-| `libero/error` | both | RpcError, DecodeError, PanicInfo |
-| `libero/remote_data` | both | RemoteData/RpcData |
+| `libero/error` | both | TransportError, DecodeError, PanicInfo |
 | `libero/field_type` | both | Structured type representation |
 | `libero/trace` | erlang | Panic catching + trace IDs |
 | `libero/format` | erlang | Gleam code formatter integration |

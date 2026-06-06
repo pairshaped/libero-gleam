@@ -15,7 +15,7 @@ libero = { path = "../../../.." }
 [tools.libero]
 use_json = false
 erlang_output_dir = "src/generated/libero"
-js_output_dir = "../clients/web/src/generated/libero"
+mirrored_output_dir = "../clients/web/src/generated/libero"
 port = 8080
 server.generated_dir = "src/server/generated"
 shared.src_dir = "../shared/src/shared"

@@ -9,17 +9,17 @@
 %% generated wire transformers, matching what a JS client would send.
 
 W = fun(F) -> fun(V) -> F(V) end end,
-Enc = W(fun 'generated@rpc_wire':encode_shared_types__item/1),
-EncStatus = W(fun 'generated@rpc_wire':encode_shared_types__status/1),
-EncTree = W(fun 'generated@rpc_wire':encode_shared_types__tree/1),
-EncItemError = W(fun 'generated@rpc_wire':encode_shared_types__item_error/1),
-EncItemListData = W(fun 'generated@rpc_wire':encode_shared_types__item_list_data/1),
+Enc = W(fun 'generated@libero_wire':encode_shared_types__item/1),
+EncStatus = W(fun 'generated@libero_wire':encode_shared_types__status/1),
+EncTree = W(fun 'generated@libero_wire':encode_shared_types__tree/1),
+EncItemError = W(fun 'generated@libero_wire':encode_shared_types__item_error/1),
+EncItemListData = W(fun 'generated@libero_wire':encode_shared_types__item_list_data/1),
 
 EncodeCall = fun(RequestId, Msg) ->
-  libero_ffi:encode({<<"rpc">>, RequestId, Msg})
+  libero_ffi:encode({<<"libero">>, RequestId, Msg})
 end,
 EncodeRawCall = fun(RequestId, Msg) ->
-  erlang:term_to_binary({<<"rpc">>, RequestId, Msg})
+  erlang:term_to_binary({<<"libero">>, RequestId, Msg})
 end,
 EncodeFrame = fun(Frame) -> binary_to_list(base64:encode(Frame)) end,
 

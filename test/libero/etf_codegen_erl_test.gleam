@@ -11,7 +11,7 @@ import gleam/list
 import gleam/option
 import gleam/string
 import libero/error
-import libero/etf/codegen_erl as codegen_wire_erl
+import libero/etf/codegen_erl
 import libero/etf/wire
 import libero/field_type.{
   BitArrayField, BoolField, DictOf, FloatField, IntField, ListOf, NilField,
@@ -72,7 +72,7 @@ fn hash_for(
 
 pub fn empty_discovered_emits_module_with_only_float_helper_test() {
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [],
@@ -85,7 +85,7 @@ pub fn empty_discovered_emits_module_with_only_float_helper_test() {
 
 pub fn header_marks_generated_test() {
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [],
@@ -105,7 +105,7 @@ pub fn primitive_record_emits_encode_and_decode_test() {
   let hash =
     hash_for("shared/discount", "Discount", [IntField, StringField, BoolField])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -141,7 +141,7 @@ pub fn float_field_wraps_with_encode_float_on_encode_test() {
   let dt =
     typ("m", "Discount", [variant("m", "Discount", [IntField, FloatField])])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -165,7 +165,7 @@ pub fn zero_arity_variant_emits_bare_atom_to_hash_test() {
   let pending_hash = hash_for("shared/types", "Pending", [])
   let active_hash = hash_for("shared/types", "Active", [])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -205,7 +205,7 @@ pub fn sum_type_n_arity_variants_emit_separate_clauses_test() {
   let nf_hash = hash_for("m", "NotFound", [IntField])
   let is_hash = hash_for("m", "InvalidState", [StringField])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -235,7 +235,7 @@ pub fn list_of_user_type_recurses_via_named_call_test() {
       variant("admin/discounts", "DiscountAdminData", [ListOf(inner_type)]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [envelope_dt],
       endpoints: [],
@@ -259,7 +259,7 @@ pub fn option_of_user_type_pattern_matches_some_none_test() {
   let inner = UserType("m", "Item", [])
   let dt = typ("m", "Wrapper", [variant("m", "Wrapper", [OptionOf(inner)])])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -281,7 +281,7 @@ pub fn result_of_user_type_pattern_matches_ok_error_test() {
       ]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -305,7 +305,7 @@ pub fn dict_with_user_value_transforms_only_values_test() {
       ]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -324,7 +324,7 @@ pub fn dict_with_user_value_transforms_only_values_test() {
 pub fn list_of_int_passes_through_test() {
   let dt = typ("m", "Bucket", [variant("m", "Bucket", [ListOf(IntField)])])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -343,7 +343,7 @@ pub fn tuple_of_primitives_passes_through_test() {
       variant("m", "Bucket", [TupleOf([IntField, StringField, BoolField])]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -367,7 +367,7 @@ pub fn recursive_type_emits_self_referencing_calls_test() {
       variant("m", "Node", [IntField, tree_ref, tree_ref]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -393,7 +393,7 @@ pub fn same_named_types_in_different_modules_get_distinct_function_names_test() 
       variant("admin/pages/promos", "Discount", [IntField, StringField]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt_a, dt_b],
       endpoints: [],
@@ -415,7 +415,7 @@ pub fn same_named_same_arity_types_from_different_modules_succeed_test() {
       variant("waivers/id_", "Waiver", [IntField, StringField]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt_a, dt_b],
       endpoints: [],
@@ -442,7 +442,7 @@ pub fn same_shaped_types_from_different_modules_use_distinct_wire_tags_test() {
   let hash_b = hash_for("shared/private", "Marker", [IntField, StringField])
 
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt_a, dt_b],
       endpoints: [],
@@ -493,7 +493,7 @@ pub fn same_shaped_types_with_different_names_use_distinct_wire_tags_test() {
   let hash_b = hash_for("shared/forms", "Published", [IntField, StringField])
 
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt_a, dt_b],
       endpoints: [],
@@ -517,7 +517,7 @@ pub fn tuple_field_destructures_and_rebuilds_test() {
       variant("m", "Pair", [TupleOf([IntField, UserType("m", "Item", [])])]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -541,7 +541,7 @@ pub fn bitarray_and_nil_pass_through_test() {
       variant("m", "Blob", [BitArrayField, NilField]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -560,7 +560,7 @@ pub fn encode_term_and_decode_term_exported_test() {
       variant("m", "Item", [StringField, IntField]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -578,7 +578,7 @@ pub fn encode_term_does_not_dispatch_zero_arity_variants_test() {
       variant("shared/types", "Active", []),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -596,7 +596,7 @@ pub fn encode_term_does_not_dispatch_n_arity_variants_test() {
       variant("m", "Item", [StringField, IntField, BoolField]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -620,7 +620,7 @@ pub fn decode_term_maps_hashed_atoms_for_zero_arity_variants_test() {
       variant("shared/types", "Active", []),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -638,7 +638,7 @@ pub fn decode_term_matches_hash_and_arity_for_n_arity_variants_test() {
       variant("m", "Item", [StringField, IntField, BoolField]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt],
       endpoints: [],
@@ -663,7 +663,7 @@ pub fn encode_term_is_container_only_with_mixed_types_test() {
       variant("m", "Item", [StringField, IntField]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt_status, dt_item],
       endpoints: [],
@@ -695,7 +695,7 @@ pub fn duplicate_zero_arity_across_modules_typed_encoders_distinct_test() {
   let assert True = hash_a != hash_b
 
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt_a, dt_b],
       endpoints: [],
@@ -731,7 +731,7 @@ pub fn duplicate_zero_arity_decode_term_handles_both_hashes_test() {
   let hash_b = hash_for("pages/b", "Identity", [])
 
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt_a, dt_b],
       endpoints: [],
@@ -753,7 +753,7 @@ pub fn duplicate_n_arity_across_modules_no_encode_term_dispatch_test() {
       variant("pages/b", "Item", [StringField, IntField]),
     ])
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [dt_a, dt_b],
       endpoints: [],
@@ -776,7 +776,7 @@ pub fn duplicate_n_arity_across_modules_no_encode_term_dispatch_test() {
     string.contains(out, "{'" <> hash_b <> "', 3} -> decode_pages_b__item")
 }
 
-// -- decode_client_msg -------------------------------------------------------
+// -- decode_request_msg -------------------------------------------------------
 
 fn endpoint(
   fn_name: String,
@@ -805,10 +805,10 @@ fn endpoint_with_msg_type(
   HandlerEndpoint(..ep, msg_type: option.Some(#(msg_module, msg_constructor)))
 }
 
-pub fn decode_client_msg_zero_arity_endpoint_passes_bare_atom_test() {
+pub fn decode_request_msg_zero_arity_endpoint_passes_bare_atom_test() {
   let ep = endpoint("load_discounts", [], NilField, NilField)
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -817,17 +817,17 @@ pub fn decode_client_msg_zero_arity_endpoint_passes_bare_atom_test() {
       push_dispatches: [],
     )
 
-  let assert True = string.contains(out, "decode_client_msg/1")
+  let assert True = string.contains(out, "decode_request_msg/1")
   let assert True =
     string.contains(
       out,
-      "decode_client_msg(server_load_discounts, _Depth) ->\n    server_load_discounts",
+      "decode_request_msg(server_load_discounts, _Depth) ->\n    server_load_discounts",
     )
   let assert True =
-    string.contains(out, "decode_client_msg(Other, _Depth) ->\n    Other")
+    string.contains(out, "decode_request_msg(Other, _Depth) ->\n    Other")
 }
 
-pub fn decode_client_msg_zero_arity_msg_type_accepts_wire_hash_test() {
+pub fn decode_request_msg_zero_arity_msg_type_accepts_wire_hash_test() {
   let ep =
     endpoint_with_msg_type(
       "load_sponsors",
@@ -836,7 +836,7 @@ pub fn decode_client_msg_zero_arity_msg_type_accepts_wire_hash_test() {
       "ServerLoadSponsors",
     )
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -849,20 +849,22 @@ pub fn decode_client_msg_zero_arity_msg_type_accepts_wire_hash_test() {
   let assert True =
     string.contains(
       out,
-      "decode_client_msg('" <> hash <> "', _Depth) ->\n    server_load_sponsors",
+      "decode_request_msg('"
+        <> hash
+        <> "', _Depth) ->\n    server_load_sponsors",
     )
   let assert True =
     string.contains(
       out,
-      "decode_client_msg(server_load_sponsors, _Depth) ->\n    server_load_sponsors",
+      "decode_request_msg(server_load_sponsors, _Depth) ->\n    server_load_sponsors",
     )
 }
 
-pub fn decode_client_msg_user_type_param_calls_decoder_test() {
+pub fn decode_request_msg_user_type_param_calls_decoder_test() {
   let item_type = UserType("shared_types", "Item", [])
   let ep = endpoint("echo_item", [#("item", item_type)], item_type, NilField)
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -874,11 +876,11 @@ pub fn decode_client_msg_user_type_param_calls_decoder_test() {
   let assert True =
     string.contains(
       out,
-      "decode_client_msg({server_echo_item, F0}, Depth) ->\n    {server_echo_item, decode_shared_types__item(F0, Depth + 1)}",
+      "decode_request_msg({server_echo_item, F0}, Depth) ->\n    {server_echo_item, decode_shared_types__item(F0, Depth + 1)}",
     )
 }
 
-pub fn decode_client_msg_mixed_primitive_and_user_type_params_test() {
+pub fn decode_request_msg_mixed_primitive_and_user_type_params_test() {
   let discount_type = UserType("admin/discounts", "DiscountParams", [])
   let ep =
     endpoint(
@@ -888,7 +890,7 @@ pub fn decode_client_msg_mixed_primitive_and_user_type_params_test() {
       NilField,
     )
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -900,11 +902,11 @@ pub fn decode_client_msg_mixed_primitive_and_user_type_params_test() {
   let assert True =
     string.contains(
       out,
-      "decode_client_msg({server_update_discount, F0, F1}, Depth) ->\n    {server_update_discount, F0, decode_admin_discounts__discount_params(F1, Depth + 1)}",
+      "decode_request_msg({server_update_discount, F0, F1}, Depth) ->\n    {server_update_discount, F0, decode_admin_discounts__discount_params(F1, Depth + 1)}",
     )
 }
 
-pub fn decode_client_msg_param_msg_type_accepts_wire_hash_test() {
+pub fn decode_request_msg_param_msg_type_accepts_wire_hash_test() {
   let params_type = UserType("admin/sponsors", "SponsorParams", [])
   let ep =
     endpoint_with_msg_type(
@@ -914,7 +916,7 @@ pub fn decode_client_msg_param_msg_type_accepts_wire_hash_test() {
       "ServerUpdateSponsor",
     )
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -926,13 +928,13 @@ pub fn decode_client_msg_param_msg_type_accepts_wire_hash_test() {
   let hash =
     hash_for("admin/sponsors", "ServerUpdateSponsor", [IntField, params_type])
   let expected =
-    "decode_client_msg({'"
+    "decode_request_msg({'"
     <> hash
     <> "', F0, F1}, Depth) ->\n    {server_update_sponsor, F0, decode_admin_sponsors__sponsor_params(F1, Depth + 1)}"
   let assert True = string.contains(out, expected)
 }
 
-pub fn decode_client_msg_duplicate_msg_type_hash_uses_endpoint_tags_only_test() {
+pub fn decode_request_msg_duplicate_msg_type_hash_uses_endpoint_tags_only_test() {
   let ep_a =
     endpoint_with_msg_type(
       "echo_item",
@@ -948,7 +950,7 @@ pub fn decode_client_msg_duplicate_msg_type_hash_uses_endpoint_tags_only_test() 
       "Item",
     )
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [ep_a, ep_b],
@@ -957,25 +959,25 @@ pub fn decode_client_msg_duplicate_msg_type_hash_uses_endpoint_tags_only_test() 
 
   let hash = hash_for("shared/types", "Item", [IntField, StringField])
   let assert False =
-    string.contains(out, "decode_client_msg({'" <> hash <> "', F0, F1})")
+    string.contains(out, "decode_request_msg({'" <> hash <> "', F0, F1})")
   let assert True =
     string.contains(
       out,
-      "decode_client_msg({server_echo_item, F0, F1}, _Depth) ->\n    {server_echo_item, F0, F1}",
+      "decode_request_msg({server_echo_item, F0, F1}, _Depth) ->\n    {server_echo_item, F0, F1}",
     )
   let assert True =
     string.contains(
       out,
-      "decode_client_msg({server_validate_item, F0, F1}, _Depth) ->\n    {server_validate_item, F0, F1}",
+      "decode_request_msg({server_validate_item, F0, F1}, _Depth) ->\n    {server_validate_item, F0, F1}",
     )
 }
 
-pub fn decode_client_msg_list_of_user_type_param_test() {
+pub fn decode_request_msg_list_of_user_type_param_test() {
   let item_type = UserType("m", "Item", [])
   let ep =
     endpoint("batch", [#("items", ListOf(item_type))], NilField, NilField)
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -987,20 +989,20 @@ pub fn decode_client_msg_list_of_user_type_param_test() {
   let assert True =
     string.contains(
       out,
-      "decode_client_msg({server_batch, F0}, Depth) ->\n    {server_batch, [decode_m__item(_X0, Depth + 1 + 1) || _X0 <- F0]}",
+      "decode_request_msg({server_batch, F0}, Depth) ->\n    {server_batch, [decode_m__item(_X0, Depth + 1 + 1) || _X0 <- F0]}",
     )
 }
 
-pub fn decode_client_msg_not_exported_when_no_endpoints_test() {
+pub fn decode_request_msg_not_exported_when_no_endpoints_test() {
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [],
       push_dispatches: [],
     )
 
-  let assert False = string.contains(out, "decode_client_msg")
+  let assert False = string.contains(out, "decode_request_msg")
 }
 
 // -- encode_response_<fn> ----------------------------------------------------
@@ -1010,7 +1012,7 @@ pub fn encode_response_user_type_ok_and_err_test() {
   let err_type = UserType("m", "ItemError", [])
   let ep = endpoint("echo_item", [#("item", item_type)], item_type, err_type)
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -1035,7 +1037,7 @@ pub fn encode_response_user_type_ok_and_err_test() {
 pub fn encode_response_primitive_ok_and_nil_err_passthrough_test() {
   let ep = endpoint("get_count", [], IntField, NilField)
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -1058,7 +1060,7 @@ pub fn encode_response_list_of_user_type_ok_test() {
   let item_type = UserType("m", "Item", [])
   let ep = endpoint("list_items", [], ListOf(item_type), NilField)
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -1078,7 +1080,7 @@ pub fn endpoint_param_with_bad_dict_key_rejected_test() {
   let bad_param = DictOf(UserType("m", "Item", []), IntField)
   let ep = endpoint("bad", [#("data", bad_param)], NilField, NilField)
   let assert Error(_) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -1092,7 +1094,7 @@ pub fn endpoint_return_ok_with_bad_dict_key_rejected_test() {
   let bad_return = DictOf(UserType("m", "Item", []), IntField)
   let ep = endpoint("bad", [], bad_return, NilField)
   let assert Error(_) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [
@@ -1104,7 +1106,7 @@ pub fn endpoint_return_ok_with_bad_dict_key_rejected_test() {
 
 pub fn encode_response_not_exported_when_no_endpoints_test() {
   let assert Ok(out) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "x_wire",
       discovered: [],
       endpoints: [],
@@ -1146,7 +1148,7 @@ fn clear_wire_module() -> Nil
 @external(erlang, "libero_test_ffi", "term_to_binary")
 fn term_to_binary(term: a) -> BitArray
 
-pub fn decode_client_msg_routes_to_correct_decoder_for_same_name_types_test() {
+pub fn decode_request_msg_routes_to_correct_decoder_for_same_name_types_test() {
   let waiver_a_type = UserType("waivers", "Waiver", [])
   let waiver_b_type = UserType("waivers/id_", "Waiver", [])
   let dt_a =
@@ -1163,7 +1165,7 @@ pub fn decode_client_msg_routes_to_correct_decoder_for_same_name_types_test() {
     endpoint("use_waiver_b", [#("w", waiver_b_type)], NilField, NilField)
 
   let assert Ok(source) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "boundary_decode_test",
       discovered: [dt_a, dt_b],
       endpoints: [ep_a, ep_b],
@@ -1176,7 +1178,7 @@ pub fn decode_client_msg_routes_to_correct_decoder_for_same_name_types_test() {
   let assert True = hash_a != hash_b
 
   let wire_msg_a: #(atom, #(atom, Int, String)) =
-    erl_apply(mod, binary_to_atom("decode_client_msg"), [
+    erl_apply(mod, binary_to_atom("decode_request_msg"), [
       #(
         binary_to_atom("server_use_waiver_a"),
         #(binary_to_atom(hash_a), 1, "name"),
@@ -1186,7 +1188,7 @@ pub fn decode_client_msg_routes_to_correct_decoder_for_same_name_types_test() {
   let assert True = tag_a == binary_to_atom("waiver")
 
   let wire_msg_b: #(atom, #(atom, Int, String)) =
-    erl_apply(mod, binary_to_atom("decode_client_msg"), [
+    erl_apply(mod, binary_to_atom("decode_request_msg"), [
       #(
         binary_to_atom("server_use_waiver_b"),
         #(binary_to_atom(hash_b), 1, "name"),
@@ -1198,7 +1200,7 @@ pub fn decode_client_msg_routes_to_correct_decoder_for_same_name_types_test() {
 
 pub fn decode_term_rejects_over_depth_generic_terms_test() {
   let assert Ok(source) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "depth_generic_decode_test",
       discovered: [],
       endpoints: [],
@@ -1220,7 +1222,7 @@ pub fn decode_term_rejects_over_depth_recursive_custom_types_test() {
       variant("m", "Node", [IntField, tree_ref, tree_ref]),
     ])
   let assert Ok(source) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "depth_custom_decode_test",
       discovered: [dt],
       endpoints: [],
@@ -1238,7 +1240,7 @@ pub fn decode_term_rejects_over_depth_recursive_custom_types_test() {
   let assert True = reason == binary_to_atom("wire_depth_exceeded")
 }
 
-pub fn decode_client_msg_rejects_over_depth_recursive_custom_types_test() {
+pub fn decode_request_msg_rejects_over_depth_recursive_custom_types_test() {
   let tree_ref = UserType("m", "Tree", [])
   let dt =
     typ("m", "Tree", [
@@ -1247,8 +1249,8 @@ pub fn decode_client_msg_rejects_over_depth_recursive_custom_types_test() {
     ])
   let ep = endpoint("save_tree", [#("tree", tree_ref)], NilField, NilField)
   let assert Ok(source) =
-    codegen_wire_erl.generate(
-      module_name: "depth_client_msg_decode_test",
+    codegen_erl.generate(
+      module_name: "depth_request_msg_decode_test",
       discovered: [dt],
       endpoints: [ep],
       push_dispatches: [],
@@ -1260,7 +1262,7 @@ pub fn decode_client_msg_rejects_over_depth_recursive_custom_types_test() {
   let term =
     deep_tree(binary_to_atom(node_hash), binary_to_atom(leaf_hash), 513)
   let result: Result(Nil, #(atom, Int)) =
-    erl_apply_catch(mod, binary_to_atom("decode_client_msg"), [
+    erl_apply_catch(mod, binary_to_atom("decode_request_msg"), [
       #(binary_to_atom("server_save_tree"), term),
     ])
   let assert Error(#(reason, _depth)) = result
@@ -1269,7 +1271,7 @@ pub fn decode_client_msg_rejects_over_depth_recursive_custom_types_test() {
 
 pub fn decode_safe_rejects_over_depth_generic_terms_test() {
   let assert Ok(source) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "decode_safe_depth_generic_test",
       discovered: [],
       endpoints: [],
@@ -1294,7 +1296,7 @@ pub fn decode_safe_rejects_over_depth_recursive_custom_types_test() {
       variant("m", "Node", [IntField, tree_ref, tree_ref]),
     ])
   let assert Ok(source) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "decode_safe_depth_custom_test",
       discovered: [dt],
       endpoints: [],
@@ -1321,7 +1323,7 @@ pub fn decode_safe_returns_decoded_wire_module_terms_test() {
       variant("public/pages/games/wire", "PublicGamesLoad", []),
     ])
   let assert Ok(source) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "decode_safe_rewrite_test",
       discovered: [dt],
       endpoints: [],
@@ -1354,7 +1356,7 @@ pub fn encode_response_uses_correct_encoder_for_same_name_types_test() {
   let ep_b = endpoint("get_waiver_b", [], waiver_b_type, NilField)
 
   let assert Ok(source) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "boundary_encode_test",
       discovered: [dt_a, dt_b],
       endpoints: [ep_a, ep_b],
@@ -1406,7 +1408,7 @@ pub fn encode_response_uses_correct_nested_encoder_for_same_name_types_test() {
   let ep_b = endpoint("get_envelope_b", [], envelope_b_type, NilField)
 
   let assert Ok(source) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "nested_boundary_encode_test",
       discovered: [dt_tag_a, dt_tag_b, dt_envelope_a, dt_envelope_b],
       endpoints: [ep_a, ep_b],
@@ -1446,7 +1448,7 @@ pub fn encode_response_uses_correct_nested_encoder_for_same_name_types_test() {
 
 pub fn encode_push_not_emitted_when_no_dispatches_test() {
   let result =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "test_wire",
       discovered: [],
       endpoints: [],
@@ -1463,12 +1465,12 @@ pub fn encode_push_dispatches_to_typed_encoder_test() {
     ]),
   ]
   let result =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "test_wire",
       discovered: discovered,
       endpoints: [],
       push_dispatches: [
-        codegen_wire_erl.PushDispatch(
+        codegen_erl.PushDispatch(
           page_tag: "Home",
           type_atom: "pages_home__to_client",
         ),
@@ -1492,20 +1494,20 @@ pub fn encode_push_multiple_pages_and_client_context_test() {
     ]),
   ]
   let result =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "test_wire",
       discovered: discovered,
       endpoints: [],
       push_dispatches: [
-        codegen_wire_erl.PushDispatch(
+        codegen_erl.PushDispatch(
           page_tag: "Home",
           type_atom: "pages_home__to_client",
         ),
-        codegen_wire_erl.PushDispatch(
+        codegen_erl.PushDispatch(
           page_tag: "Settings",
           type_atom: "pages_settings__to_client",
         ),
-        codegen_wire_erl.PushDispatch(
+        codegen_erl.PushDispatch(
           page_tag: "__ClientContext__",
           type_atom: "client_context__client_context_msg",
         ),
@@ -1532,16 +1534,16 @@ pub fn encode_push_routes_to_correct_encoder_for_duplicate_variants_test() {
     ])
 
   let assert Ok(source) =
-    codegen_wire_erl.generate(
+    codegen_erl.generate(
       module_name: "boundary_push_test",
       discovered: [dt_a, dt_b],
       endpoints: [],
       push_dispatches: [
-        codegen_wire_erl.PushDispatch(
+        codegen_erl.PushDispatch(
           page_tag: "Dashboard",
           type_atom: "pages_dashboard__to_client",
         ),
-        codegen_wire_erl.PushDispatch(
+        codegen_erl.PushDispatch(
           page_tag: "Reports",
           type_atom: "pages_reports__to_client",
         ),

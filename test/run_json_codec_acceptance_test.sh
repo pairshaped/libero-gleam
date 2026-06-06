@@ -19,7 +19,7 @@ simplifile = ">= 2.0.0 and < 3.0.0"
 libero = { path = "LIBERO_PATH" }
 TOML
 
-sed -i '' "s|LIBERO_PATH|$ROOT_DIR|" gleam.toml
+perl -0pi -e "s#LIBERO_PATH#$ROOT_DIR#g" gleam.toml
 
 mkdir -p src
 

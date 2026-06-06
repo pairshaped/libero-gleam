@@ -6,7 +6,7 @@
 // The inlined decoder runs in "raw" mode (no Gleam prelude): atoms stay as
 // strings, tagged tuples stay as plain arrays, and lists are JS arrays.
 // This matches the production decoder's raw mode, which the typed decoder
-// (rpc_decoders_ffi.mjs) post-processes into proper Gleam constructors.
+// (decoders_ffi.mjs) post-processes into proper Gleam constructors.
 //
 // Run: node test/js/etf_codec_test.mjs
 
@@ -213,7 +213,7 @@ class ETFDecoder {
     if (name === "true") return true;
     if (name === "false") return false;
     if (name === "nil" || name === "undefined") return undefined;
-    // Raw mode: return atom as string. The typed decoder (rpc_decoders_ffi.mjs)
+    // Raw mode: return atom as string. The typed decoder (decoders_ffi.mjs)
     // resolves the correct constructor per type at a higher level.
     return name;
   }
@@ -245,7 +245,7 @@ class ETFDecoder {
       }
 
       // Atom-tagged tuple: return as array with atom string as first element.
-      // Typed decoder (rpc_decoders_ffi.mjs) resolves the correct constructor.
+      // Typed decoder (decoders_ffi.mjs) resolves the correct constructor.
       const elements = [atomName];
       for (let i = 1; i < arity; i++) {
         elements.push(this.decodeTerm(depth + 1));
@@ -1407,16 +1407,16 @@ test("FloatHints", "type hint roundtrip: whole-number floats preserved BEAM → 
 });
 
 // ============================================================
-// RpcError envelope cross-runtime tests
+// TransportError envelope cross-runtime tests
 // ============================================================
 //
-// Response frame wire shape: Result(handler_return, RpcError).
+// Response frame wire shape: Result(handler_return, TransportError).
 // Error variants per libero/error.gleam:
 //   malformed_request                 -> MalformedRequest (bare atom)
 //   {unknown_function, name}          -> UnknownFunction(name)
 //   {internal_error, traceId, msg}    -> InternalError(traceId, msg)
 
-console.log("\nRpcError envelope tests:");
+console.log("\nTransportError envelope tests:");
 
 testDecode("Error(MalformedRequest) envelope",
   "{error, malformed_request}", r => {

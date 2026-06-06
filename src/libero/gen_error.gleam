@@ -139,7 +139,7 @@ fn to_string(err: GenError) -> String {
           ..list.map(modules, fn(m) { "  " <> m })
         ],
         hint: Some(
-          "Handler function names must be unique across the server source\n        tree, since each one becomes a ClientMsg variant.",
+          "Handler function names must be unique across the server source\n        tree, since each one becomes a RequestMsg variant.",
         ),
       )
 

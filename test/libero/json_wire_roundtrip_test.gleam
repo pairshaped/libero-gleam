@@ -17,7 +17,7 @@ pub fn request_encode_then_decode_roundtrip_test() {
 
   let encoded =
     wire.encode_request(
-      module: "rpc",
+      module: "libero",
       request_id: 42,
       msg: message,
       contract_hash: "test-hash",
@@ -27,7 +27,7 @@ pub fn request_encode_then_decode_roundtrip_test() {
 
   case decoded {
     Ok(wire.RequestEnvelope(module:, request_id:, message: _)) -> {
-      module |> should.equal("rpc")
+      module |> should.equal("libero")
       request_id |> should.equal(42)
     }
     Error(_errors) -> should.fail()
@@ -91,7 +91,7 @@ pub fn error_roundtrip_test() {
 
 pub fn protocol_version_mismatch_test() {
   let data =
-    "{\"kind\":\"request\",\"protocol_version\":\"json-rpc-v2\",\"module\":\"rpc\",\"request_id\":1,\"message\":{}}"
+    "{\"kind\":\"request\",\"protocol_version\":\"libero-json-v2\",\"module\":\"libero\",\"request_id\":1,\"message\":{}}"
 
   case wire.decode_request(data, expected_hash: "any") {
     Error(errors) -> {
@@ -105,7 +105,7 @@ pub fn protocol_version_mismatch_test() {
 }
 
 pub fn protocol_version_mismatch_is_checked_before_request_body_test() {
-  let data = "{\"kind\":\"request\",\"protocol_version\":\"json-rpc-v2\"}"
+  let data = "{\"kind\":\"request\",\"protocol_version\":\"libero-json-v2\"}"
 
   case wire.decode_request(data, expected_hash: "any") {
     Error([first, ..]) -> {
@@ -119,7 +119,7 @@ pub fn protocol_version_mismatch_is_checked_before_request_body_test() {
 
 pub fn contract_hash_mismatch_is_checked_before_message_body_test() {
   let data =
-    "{\"kind\":\"request\",\"protocol_version\":\"json-rpc-v1\",\"contract_hash\":\"wrong\"}"
+    "{\"kind\":\"request\",\"protocol_version\":\"libero-json-v1\",\"contract_hash\":\"wrong\"}"
 
   case wire.decode_request(data, expected_hash: "expected") {
     Error([first, ..]) -> {
@@ -132,7 +132,7 @@ pub fn contract_hash_mismatch_is_checked_before_message_body_test() {
 }
 
 pub fn decode_server_frame_unknown_kind_test() {
-  let data = "{\"kind\":\"unknown\",\"protocol_version\":\"json-rpc-v1\"}"
+  let data = "{\"kind\":\"unknown\",\"protocol_version\":\"libero-json-v1\"}"
 
   case wire.decode_server_frame(data) {
     Error(errors) -> {
@@ -161,7 +161,7 @@ pub fn decode_server_frame_rejects_deeply_nested_json_test() {
   let nested =
     string.repeat("[", times: 130) <> "0" <> string.repeat("]", times: 130)
   let data =
-    "{\"kind\":\"response\",\"protocol_version\":\"json-rpc-v1\",\"request_id\":1,\"value\":"
+    "{\"kind\":\"response\",\"protocol_version\":\"libero-json-v1\",\"request_id\":1,\"value\":"
     <> nested
     <> "}"
 

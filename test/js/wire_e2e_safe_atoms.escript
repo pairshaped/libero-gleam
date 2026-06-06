@@ -9,7 +9,7 @@
 %%   erl -noshell -pa <ebin_dirs> -eval "$(cat wire_e2e_safe_atoms.escript)" -extra true
 
 EnsureMod = case os:getenv("ATOMS_MODULE") of
-    false -> generated@rpc_atoms;
+    false -> generated@libero_atoms;
     M -> erlang:list_to_atom(M)
 end,
 EnsureMod:ensure(),

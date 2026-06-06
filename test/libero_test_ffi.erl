@@ -94,7 +94,7 @@ encoded_declared_large_binary() ->
     <<131, 109, 16#ff, 16#ff, 16#ff, 16#ff>>.
 
 encoded_request_with_pid() ->
-    erlang:term_to_binary({<<"rpc">>, 123, self()}).
+    erlang:term_to_binary({<<"libero">>, 123, self()}).
 
 encoded_request_with_trailing_bytes() ->
-    <<(erlang:term_to_binary({<<"rpc">>, 123, {ok, 42}}))/binary, 0>>.
+    <<(erlang:term_to_binary({<<"libero">>, 123, {ok, 42}}))/binary, 0>>.

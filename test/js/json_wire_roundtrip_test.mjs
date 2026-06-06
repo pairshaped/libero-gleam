@@ -70,16 +70,16 @@ console.log("\nJSON wire encode_request:");
 
 test("encode_request", "produces valid JSON with correct shape", () => {
   const encoded = encode_request(
-    "rpc",
+    "libero",
     1,
     { type: "t.Test", variant: "V", fields: {} },
     "abc123",
   );
   const parsed = JSON.parse(encoded);
   assert.equal(parsed.kind, "request");
-  assert.equal(parsed.protocol_version, "json-rpc-v1");
+  assert.equal(parsed.protocol_version, "libero-json-v1");
   assert.equal(parsed.contract_hash, "abc123");
-  assert.equal(parsed.module, "rpc");
+  assert.equal(parsed.module, "libero");
   assert.equal(parsed.request_id, 1);
   assert.deepEqual(parsed.message, {
     type: "t.Test",
@@ -89,14 +89,14 @@ test("encode_request", "produces valid JSON with correct shape", () => {
 });
 
 test("encode_request", "handles null message", () => {
-  const encoded = encode_request("rpc", 2, null, "hash");
+  const encoded = encode_request("libero", 2, null, "hash");
   const parsed = JSON.parse(encoded);
   assert.equal(parsed.request_id, 2);
   assert.equal(parsed.message, null);
 });
 
 test("encode_request", "handles array message", () => {
-  const encoded = encode_request("rpc", 3, [1, 2, 3], "hash");
+  const encoded = encode_request("libero", 3, [1, 2, 3], "hash");
   const parsed = JSON.parse(encoded);
   assert.deepEqual(parsed.message, [1, 2, 3]);
 });
@@ -108,7 +108,7 @@ console.log("\nJSON wire decode_server_frame:");
 test("decode_server_frame", "parses response frame", () => {
   const frame = JSON.stringify({
     kind: "response",
-    protocol_version: "json-rpc-v1",
+    protocol_version: "libero-json-v1",
     request_id: 42,
     value: { type: "r.Result", variant: "Ok", fields: ["done"] },
   });
@@ -127,7 +127,7 @@ test("decode_server_frame", "parses response frame", () => {
 test("decode_server_frame", "parses push frame", () => {
   const frame = JSON.stringify({
     kind: "push",
-    protocol_version: "json-rpc-v1",
+    protocol_version: "libero-json-v1",
     module: "my_page",
     value: { type: "m.Msg", variant: "Updated", fields: { id: 1 } },
   });
@@ -146,7 +146,7 @@ test("decode_server_frame", "parses push frame", () => {
 test("decode_server_frame", "parses error frame with request_id", () => {
   const frame = JSON.stringify({
     kind: "error",
-    protocol_version: "json-rpc-v1",
+    protocol_version: "libero-json-v1",
     request_id: 7,
     errors: [
       { path: "name", message: "required" },
@@ -168,7 +168,7 @@ test("decode_server_frame", "parses error frame with request_id", () => {
 test("decode_server_frame", "parses error frame without request_id", () => {
   const frame = JSON.stringify({
     kind: "error",
-    protocol_version: "json-rpc-v1",
+    protocol_version: "libero-json-v1",
     errors: [{ path: "", message: "server error" }],
   });
   const result = decode_server_frame(frame);
@@ -183,7 +183,7 @@ test("decode_server_frame", "parses error frame without request_id", () => {
 test("decode_server_frame", "handles empty errors list", () => {
   const frame = JSON.stringify({
     kind: "error",
-    protocol_version: "json-rpc-v1",
+    protocol_version: "libero-json-v1",
     request_id: null,
     errors: [],
   });
@@ -197,7 +197,7 @@ test("decode_server_frame", "handles empty errors list", () => {
 test("decode_server_frame", "rejects unknown kind", () => {
   const frame = JSON.stringify({
     kind: "unknown_thing",
-    protocol_version: "json-rpc-v1",
+    protocol_version: "libero-json-v1",
   });
   const result = decode_server_frame(frame);
   assert.ok(result instanceof ResultError, "should be ResultError");
@@ -233,7 +233,7 @@ test("decode_server_frame", "rejects missing protocol_version", () => {
 test("decode_server_frame", "rejects unsafe response request_id", () => {
   const frame = JSON.stringify({
     kind: "response",
-    protocol_version: "json-rpc-v1",
+    protocol_version: "libero-json-v1",
     request_id: 4_294_967_296,
     value: {},
   });
@@ -247,7 +247,7 @@ test("decode_server_frame", "rejects unsafe response request_id", () => {
 test("decode_server_frame", "rejects push without module", () => {
   const frame = JSON.stringify({
     kind: "push",
-    protocol_version: "json-rpc-v1",
+    protocol_version: "libero-json-v1",
     value: {},
   });
   const result = decode_server_frame(frame);
@@ -259,7 +259,7 @@ test("decode_server_frame", "rejects push without module", () => {
 test("decode_server_frame", "rejects malformed error list", () => {
   const frame = JSON.stringify({
     kind: "error",
-    protocol_version: "json-rpc-v1",
+    protocol_version: "libero-json-v1",
     request_id: null,
     errors: [{ path: "field", message: 123 }],
   });
@@ -277,7 +277,7 @@ test("decode_server_frame", "rejects oversized JSON input", () => {
 test("decode_server_frame", "rejects deeply nested JSON", () => {
   const nested = "[".repeat(130) + "0" + "]".repeat(130);
   const frame =
-    `{"kind":"response","protocol_version":"json-rpc-v1","request_id":1,"value":${nested}}`;
+    `{"kind":"response","protocol_version":"libero-json-v1","request_id":1,"value":${nested}}`;
   const result = decode_server_frame(frame);
   assertErrorIncludes(result, "nesting depth");
 });

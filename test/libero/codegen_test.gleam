@@ -188,9 +188,9 @@ pub fn import_if_returns_empty_when_predicate_false_test() {
   let assert "" = result
 }
 
-// -- emit_client_msg_variants --
+// -- emit_request_msg_variants --
 
-pub fn emit_client_msg_variants_zero_param_test() {
+pub fn emit_request_msg_variants_zero_param_test() {
   let ep =
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -202,14 +202,14 @@ pub fn emit_client_msg_variants_zero_param_test() {
       msg_type: option.None,
     )
   let lines =
-    codegen.emit_client_msg_variants(
+    codegen.emit_request_msg_variants(
       [ep],
       resolve_alias: field_type.last_segment,
     )
   let assert ["  ServerGetItems"] = lines
 }
 
-pub fn emit_client_msg_variants_with_params_test() {
+pub fn emit_request_msg_variants_with_params_test() {
   let ep =
     scanner.HandlerEndpoint(
       module_path: "server/handler",
@@ -224,7 +224,7 @@ pub fn emit_client_msg_variants_with_params_test() {
       msg_type: option.None,
     )
   let lines =
-    codegen.emit_client_msg_variants(
+    codegen.emit_request_msg_variants(
       [ep],
       resolve_alias: field_type.last_segment,
     )

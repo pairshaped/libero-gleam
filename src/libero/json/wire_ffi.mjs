@@ -1,13 +1,13 @@
 // @ts-check
 //
-// JSON wire format for libero RPC.
+// JSON wire format for libero transport.
 //
 // Wire shape: JSON text (string). WebSocket uses text frames.
 //
 // This is the JS FFI for the JSON wire protocol, mirroring the ETF
 // etf/wire_ffi.mjs but working with JSON text frames instead of ETF binary.
 //
-// IMPORTANT: This module is frame-level only. It wraps/unwraps JSON-RPC-v1
+// IMPORTANT: This module is frame-level only. It wraps/unwraps JSON-transport-v1
 // protocol envelopes. It does NOT perform typed encoding of user values.
 //
 // Callers must pre-encode message payloads through generated typed JSON
@@ -319,7 +319,7 @@ function foundType(value) {
 // ---------- Encode ----------
 
 /**
- * Encode a JSON-RPC-v1 request envelope.
+ * Encode a JSON-transport-v1 request envelope.
  *
  * @param {string} module
  * @param {number} requestId
@@ -330,7 +330,7 @@ function foundType(value) {
 export function encode_request(module, requestId, msg, contractHash) {
   return JSON.stringify({
     kind: "request",
-    protocol_version: "json-rpc-v1",
+    protocol_version: "libero-json-v1",
     contract_hash: contractHash,
     module: module,
     request_id: requestId,
@@ -367,7 +367,7 @@ export function decode_server_frame(data) {
     );
   }
 
-  if (protocolVersion.value !== "json-rpc-v1") {
+  if (protocolVersion.value !== "libero-json-v1") {
     return errorResult(
       "protocol_version",
       "unsupported version: " + protocolVersion.value,
