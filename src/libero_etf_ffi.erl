@@ -2,14 +2,12 @@
 
 -module(libero_etf_ffi).
 -export([encode/1, decode/1, decode_safe/1, decode_typed/2,
-         identity/1, ensure_decoders/0, validate_data_term/1,
+         ensure_decoders/0, validate_data_term/1,
          validate_data_term_fast/1, maybe_validate_data_term/1,
          set_strict_data_terms/1, strict_data_terms_enabled/0,
          set_js_term_depth_limit/1, js_term_depth_limit/0]).
 
 -define(STRICT_DATA_TERMS_KEY, {libero, etf_strict_data_terms}).
-
-identity(X) -> X.
 
 encode(Term) ->
     Term2 = case persistent_term:get({libero, wire_module}, undefined) of

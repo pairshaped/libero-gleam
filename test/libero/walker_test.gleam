@@ -4,7 +4,7 @@ import glance
 import gleam/int
 import gleam/list
 import libero/gen_error
-import libero/scanner
+import libero/source
 import libero/walker.{type DiscoveredType}
 import simplifile
 
@@ -13,11 +13,11 @@ const fixture_root = "build/.test_walker"
 fn walk_all_public_types(
   dir: String,
 ) -> Result(List(DiscoveredType), List(gen_error.GenError)) {
-  let assert Ok(files) = scanner.walk_directory(path: dir)
+  let assert Ok(files) = source.walk_directory(path: dir)
   let seeds =
     list.flat_map(files, fn(file_path) {
-      let module_path = scanner.derive_module_path(file_path:)
-      case scanner.parse_module(file_path:) {
+      let module_path = source.derive_module_path(file_path:)
+      case source.parse_module(file_path:) {
         Ok(parsed) ->
           list.filter_map(parsed.custom_types, fn(ct) {
             let glance_def = ct.definition
@@ -123,7 +123,7 @@ pub type Wrapper {
 ",
     )
 
-  let assert Ok(files) = scanner.walk_directory(path: dir)
+  let assert Ok(files) = source.walk_directory(path: dir)
   let assert Ok(types) =
     walker.walk(seeds: [#("shared/wrapper", "Wrapper")], file_paths: files)
 
@@ -164,7 +164,7 @@ pub fn qualified_atoms_for_colliding_variants_test() {
 ",
     )
 
-  let assert Ok(files) = scanner.walk_directory(path: dir)
+  let assert Ok(files) = source.walk_directory(path: dir)
   let assert Ok(types) =
     walker.walk(
       seeds: [#("shared/a", "Discount"), #("shared/b", "Discount")],

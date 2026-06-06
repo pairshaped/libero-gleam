@@ -3,7 +3,6 @@ import gleam/option
 import gleam/string
 import libero/codegen_decoders
 import libero/field_type
-import libero/scanner
 import libero/walker
 import libero/wire_identity
 
@@ -413,32 +412,12 @@ pub fn float_type_hint_registration_test() {
       ],
     ),
   ]
-  let endpoints = [
-    scanner.HandlerEndpoint(
-      module_path: "server/handler",
-      fn_name: "record_measurements",
-      return_ok: field_type.NilField,
-      return_err: field_type.NilField,
-      params: [
-        #("values", field_type.ListOf(field_type.FloatField)),
-        #(
-          "pair",
-          field_type.TupleOf([field_type.IntField, field_type.FloatField]),
-        ),
-      ],
-      mutates_context: True,
-      msg_type: option.None,
-    ),
-  ]
-
   let js =
     codegen_decoders.generate_decoders_ffi(
       discovered: types,
-      endpoints: endpoints,
       relpath_prefix: "../../../",
       package: "myapp",
       dependency_packages: [],
-      dispatch_module: option.None,
     )
 
   // Float hints now ride on the variant class as `__fieldTypes`. The
@@ -452,22 +431,15 @@ pub fn float_type_hint_registration_test() {
     )
   let assert True =
     string.contains(js, "_m_shared_measurements.Measurements.__wireAtom")
-  // Endpoint-side field hints (for RequestMsg variants) are not yet
-  // wired up under the new scheme; that lands when dispatch codegen
-  // gains its own class-statics emission. Endpoint floats still flow
-  // through the encoder's hint argument when a typed decoder calls
-  // back into the encoder, so user-type fields stay correct.
 }
 
 pub fn decoder_codegen_initializes_constructor_metadata_lazily_test() {
   let js =
     codegen_decoders.generate_decoders_ffi(
       discovered: sample_status_enum(),
-      endpoints: [],
       relpath_prefix: "../../../",
       package: "myapp",
       dependency_packages: [],
-      dispatch_module: option.None,
     )
 
   let assert Ok(#(before_ensure, ensure_and_after)) =
@@ -502,113 +474,23 @@ pub fn decoder_codegen_imports_shared_modules_from_caller_package_test() {
   let js =
     codegen_decoders.generate_decoders_ffi(
       discovered: types,
-      endpoints: [],
       relpath_prefix: "../../../",
       package: "server",
       dependency_packages: ["shared"],
-      dispatch_module: option.None,
     )
 
   let assert True =
     string.contains(js, "from \"../../../shared/shared/collision.mjs\";")
 }
 
-pub fn request_msg_statics_emit_float_hints_test() {
-  let endpoints = [
-    scanner.HandlerEndpoint(
-      module_path: "server/audio",
-      fn_name: "set_volume",
-      return_ok: field_type.NilField,
-      return_err: field_type.StringField,
-      params: [#("volume", field_type.FloatField)],
-      mutates_context: False,
-      msg_type: option.None,
-    ),
-    scanner.HandlerEndpoint(
-      module_path: "server/items",
-      fn_name: "get_items",
-      return_ok: field_type.NilField,
-      return_err: field_type.StringField,
-      params: [#("page", field_type.IntField)],
-      mutates_context: False,
-      msg_type: option.None,
-    ),
-    scanner.HandlerEndpoint(
-      module_path: "server/pricing",
-      fn_name: "update_prices",
-      return_ok: field_type.NilField,
-      return_err: field_type.StringField,
-      params: [
-        #("prices", field_type.ListOf(element: field_type.FloatField)),
-        #("name", field_type.StringField),
-      ],
-      mutates_context: False,
-      msg_type: option.None,
-    ),
-  ]
-
-  let statics =
-    codegen_decoders.emit_request_msg_statics(
-      endpoints,
-      "_m_generated_libero_requests",
-    )
-
-  let assert True =
-    string.contains(
-      statics,
-      "_m_generated_libero_requests.ServerSetVolume.__fieldTypes = [\"float\"];",
-    )
-  let assert False = string.contains(statics, "ServerGetItems")
-  let assert True =
-    string.contains(
-      statics,
-      "_m_generated_libero_requests.ServerUpdatePrices.__fieldTypes = [{ kind: \"list\", element: \"float\" }, null];",
-    )
-}
-
-pub fn generate_decoders_ffi_includes_dispatch_import_test() {
-  let js =
-    codegen_decoders.generate_decoders_ffi(
-      discovered: [],
-      endpoints: [
-        scanner.HandlerEndpoint(
-          module_path: "server/audio",
-          fn_name: "set_volume",
-          return_ok: field_type.NilField,
-          return_err: field_type.StringField,
-          params: [#("volume", field_type.FloatField)],
-          mutates_context: False,
-          msg_type: option.None,
-        ),
-      ],
-      relpath_prefix: "../../../",
-      package: "myapp",
-      dependency_packages: [],
-      dispatch_module: option.Some("generated/libero/requests"),
-    )
-
-  let assert True =
-    string.contains(
-      js,
-      "import * as _m_generated_libero_requests from \"./requests.mjs\";",
-    )
-  let assert True =
-    string.contains(
-      js,
-      "_m_generated_libero_requests.ServerSetVolume.__fieldTypes = [\"float\"];",
-    )
-}
-
 pub fn generate_decoders_ffi_no_dispatch_import_when_none_test() {
   let js =
     codegen_decoders.generate_decoders_ffi(
       discovered: [],
-      endpoints: [],
       relpath_prefix: "../../../",
       package: "myapp",
       dependency_packages: [],
-      dispatch_module: option.None,
     )
 
-  let assert False = string.contains(js, "dispatch")
+  let assert False = string.contains(js, "requests.mjs")
 }

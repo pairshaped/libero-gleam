@@ -95,49 +95,11 @@ pub type Status {
 }
 GLEAM
 
-cat > src/generated/libero/requests.gleam <<'GLEAM'
-import fixture
-import gleam/option.{type Option}
-
-pub type RequestMsg {
-  ServerDrag(
-    items: List(Option(fixture.Article)),
-    selected: #(fixture.Article, Int),
-  )
-}
-GLEAM
-
-cat > src/server_context.gleam <<'GLEAM'
-pub type ServerContext {
-  ServerContext
-}
-GLEAM
-
-cat > src/pages/article.gleam <<'GLEAM'
-import fixture
-import gleam/dict.{type Dict}
-import gleam/option.{type Option}
-import server_context.{type ServerContext}
-
-pub fn server_drag(
-  items items: List(Option(fixture.Article)),
-  selected selected: #(fixture.Article, Int),
-  server_context server_context: ServerContext,
-) -> Result(Dict(String, fixture.Article), String) {
-  let _ = items
-  let _ = server_context
-  let #(article, _) = selected
-  Ok(dict.new() |> dict.insert("selected", article))
-}
-GLEAM
-
 # Generation script that calls libero's codegen API
 cat > src/generate.gleam <<'GLEAM'
 import gleam/io
-import gleam/option.{None}
-import libero/field_type
 import libero/json/contract
-import libero/scanner
+import libero/source
 import libero/walker
 import libero/json/codegen
 import simplifile
@@ -145,7 +107,7 @@ import simplifile
 pub fn main() {
   let assert Ok(cwd) = simplifile.current_directory()
   let src_path = cwd <> "/src"
-  let assert Ok(files) = scanner.walk_directory(src_path)
+  let assert Ok(files) = source.walk_directory(src_path)
   let seeds = [
     #("fixture", "IntFlag"),
     #("fixture", "FloatVal"),
@@ -166,40 +128,9 @@ pub fn main() {
     #("fixture", "Status"),
   ]
   let assert Ok(types) = walker.walk(seeds, files)
-  let endpoints = [
-    scanner.HandlerEndpoint(
-      module_path: "pages/article",
-      fn_name: "drag",
-      return_ok: field_type.DictOf(
-        field_type.StringField,
-        field_type.UserType("fixture", "Article", []),
-      ),
-      return_err: field_type.StringField,
-      params: [
-        #(
-          "items",
-          field_type.ListOf(field_type.OptionOf(
-            field_type.UserType("fixture", "Article", []),
-          )),
-        ),
-        #(
-          "selected",
-          field_type.TupleOf([
-            field_type.UserType("fixture", "Article", []),
-            field_type.IntField,
-          ]),
-        ),
-      ],
-      mutates_context: False,
-      msg_type: None,
-    ),
-  ]
   let assert Ok(source) =
     codegen.generate_transport_codecs_with_push_and_ssr(
       discovered: types,
-      endpoints:,
-      request_msg_module_path: "generated/libero/requests",
-      request_msg_type_name: "RequestMsg",
       push_types: [
         contract.PushContract(
           module: "pages/article",
@@ -235,14 +166,12 @@ gleam check --target javascript
 
 cat > src/codec_smoke.gleam <<'GLEAM'
 import fixture
-import generated/libero/requests
 import gen_json
 import gleam/dict
 import gleam/dynamic/decode
 import gleam/io
 import gleam/json
 import gleam/option.{None, Some}
-import gleam/string
 import libero/frame
 import libero/json/error.{type JsonError, JsonError}
 import libero/json/wire as json_wire
@@ -361,14 +290,6 @@ fn roundtrip_page_msg(value: fixture.PageMsg) -> fixture.PageMsg {
   decoded
 }
 
-fn roundtrip_request_msg(value: requests.RequestMsg) -> requests.RequestMsg {
-  let encoded = gen_json.json_encode_generated_libero_requests__request_msg(value)
-  let assert Ok(raw) = json.parse(json.to_string(encoded), decode.dynamic)
-  let assert Ok(decoded) =
-    gen_json.json_decode_generated_libero_requests__request_msg(raw)
-  decoded
-}
-
 fn roundtrip_status(value: fixture.Status) -> fixture.Status {
   let encoded = gen_json.json_encode_fixture__status(value)
   let assert Ok(raw) = json.parse(json.to_string(encoded), decode.dynamic)
@@ -381,18 +302,6 @@ fn client_context_msg() -> fixture.ClientContextMsg {
     profile: fixture.Wrapper(article()),
     recent: [Some(article()), None],
   )
-}
-
-fn assert_response_helper_uses_typed_json() {
-  let response =
-    dict.new()
-    |> dict.insert("first", article())
-
-  let encoded = gen_json.json_encode_response_drag(Ok(response))
-  let text = json.to_string(encoded)
-  assert string.contains(text, "\"type\":\"gleam/result.Result\"")
-  assert string.contains(text, "\"variant\":\"Ok\"")
-  assert string.contains(text, "\"type\":\"fixture.Article\"")
 }
 
 fn assert_push_helper_uses_typed_json() {
@@ -490,8 +399,6 @@ fn assert_container_roundtrips() {
   assert roundtrip_fallible(fixture.Fallible(Ok(7))) == fixture.Fallible(Ok(7))
   assert roundtrip_fallible(fixture.Fallible(Error("nope"))) == fixture.Fallible(Error("nope"))
   assert roundtrip_page_msg(fixture.Drag(#(3, -4), #(article(), Some(9)))) == fixture.Drag(#(3, -4), #(article(), Some(9)))
-  assert roundtrip_request_msg(requests.ServerDrag([Some(article())], #(article(), 7))) == requests.ServerDrag([Some(article())], #(article(), 7))
-  assert_response_helper_uses_typed_json()
   assert_push_helper_uses_typed_json()
   assert_ssr_helper_uses_typed_json()
   assert_client_context_helper_uses_typed_json()
@@ -555,62 +462,5 @@ gleam run -m codec_smoke
 
 echo "=== Running generated codec smoke tests on JavaScript ==="
 gleam run --target javascript -m codec_smoke
-
-cat > src/generate_json_dispatch.gleam <<'GLEAM'
-import gleam/io
-import gleam/option.{None}
-import libero/codegen_dispatch
-import libero/field_type
-import libero/scanner
-import simplifile
-
-pub fn main() {
-  let endpoints = [
-    scanner.HandlerEndpoint(
-      module_path: "pages/article",
-      fn_name: "drag",
-      return_ok: field_type.DictOf(
-        field_type.StringField,
-        field_type.UserType("fixture", "Article", []),
-      ),
-      return_err: field_type.StringField,
-      params: [
-        #(
-          "items",
-          field_type.ListOf(field_type.OptionOf(
-            field_type.UserType("fixture", "Article", []),
-          )),
-        ),
-        #(
-          "selected",
-          field_type.TupleOf([
-            field_type.UserType("fixture", "Article", []),
-            field_type.IntField,
-          ]),
-        ),
-      ],
-      mutates_context: False,
-      msg_type: None,
-    ),
-  ]
-  let source =
-    codegen_dispatch.generate_json(
-      endpoints:,
-      context_module: "server_context",
-      context_type_name: "ServerContext",
-      wire_module_tag: "libero",
-      request_msg_module: "generated/libero/requests",
-      json_codecs_module: "generated/libero/json_codecs",
-      contract_hash: "test-hash",
-    )
-  let assert Ok(Nil) =
-    simplifile.write("src/generated/libero/json_dispatch.gleam", source)
-  io.println("Generated JSON dispatch")
-}
-GLEAM
-
-echo "=== Typechecking generated JSON dispatch on Erlang ==="
-gleam run -m generate_json_dispatch
-gleam check
 
 echo "PASS: Generated JSON codecs typecheck and run successfully on Erlang and JavaScript"

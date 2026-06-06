@@ -1,22 +1,17 @@
-//// The structured Gleam type representation libero uses for both
-//// shared-type discovery (walker) and handler signature scanning
-//// (scanner). Lifting it out of either module lets both produce and
-//// consume the same shape, and lets codegen pattern-match structurally
-//// instead of re-parsing strings.
+//// The structured Gleam type representation Libero uses for seeded
+//// type discovery and generated codec artifacts.
 
 import gleam/bool
 import gleam/list
 import gleam/string
 
 /// Names of Gleam types that libero treats as builtin: not user-defined,
-/// not requiring atom registration, and not from the shared/ tree. Both
-/// the scanner and the walker consult this list, so they agree on what
-/// counts as a primitive across the codegen pipeline.
+/// not requiring atom registration, and not from the shared/ tree.
 ///
 /// Note: Tuples are not in this list because they are structural types
 /// (`glance.TupleType`), not named types (`glance.NamedType`). They're
-/// handled by direct pattern matching in scanner and walker rather than
-/// through `builtin_field_type`. The two paths converge on `TupleOf`.
+/// handled by direct pattern matching in the walker rather than through
+/// `builtin_field_type`.
 pub const builtin_type_names = [
   "Int", "Float", "String", "Bool", "Nil", "BitArray", "List", "Result",
   "Option", "Dict",
@@ -32,8 +27,7 @@ pub fn is_builtin(name: String) -> Bool {
 /// recognised builtin or the parameter arity doesn't match. The caller
 /// supplies `recurse` to convert each parameter (typically a
 /// `glance.Type`) into a FieldType, keeping this module independent of
-/// glance. Used by scanner and walker so the builtin dispatch lives in
-/// one place.
+/// glance. Used by the walker so builtin dispatch lives in one place.
 pub fn builtin_field_type(
   name name: String,
   parameters parameters: List(a),

@@ -1,9 +1,8 @@
 %% Verifies that atom pre-registration enables binary_to_term([safe])
 %% to decode ETF containing custom enum and tagged-union constructor atoms.
 %%
-%% This test runs before any handler module has loaded those atoms into
-%% the BEAM atom table, confirming that the generated atoms module is
-%% the sole mechanism making [safe] decoding work.
+%% This test confirms that the generated atoms module is the sole mechanism
+%% making [safe] decoding work for seeded custom type atoms.
 %%
 %% Called from wire_e2e_setup.sh:
 %%   erl -noshell -pa <ebin_dirs> -eval "$(cat wire_e2e_safe_atoms.escript)" -extra true
@@ -15,12 +14,12 @@ end,
 EnsureMod:ensure(),
 
 Tests = [
-    %% Custom enum variant (zero-arity): {server_echo_status, active}
+    %% Custom enum variant (zero-arity): {active, active}
     {"tagged tuple with enum variant atom",
-     erlang:term_to_binary({server_echo_status, active})},
-    %% Record-like tuple with custom atom: {server_echo_item, {item, 7, <<"w">>, 1.0, true}}
+     erlang:term_to_binary({active, active})},
+    %% Record-like tuple with custom atom: {item, {item, 7, <<"w">>, 1.0, true}}
     {"tagged tuple with record constructor atom",
-     erlang:term_to_binary({server_echo_item, {item, 7, <<"w">>, 1.0, true}})}
+     erlang:term_to_binary({item, {item, 7, <<"w">>, 1.0, true}})}
 ],
 
 Pass = fun(Label) ->

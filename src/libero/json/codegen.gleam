@@ -27,7 +27,6 @@ import libero/field_type.{
 }
 import libero/json/contract
 import libero/json/error.{type JsonError, JsonError}
-import libero/scanner
 import libero/walker.{type DiscoveredType, type DiscoveredVariant}
 
 const client_context_module = "__ClientContext__"
@@ -159,61 +158,14 @@ fn generate_with_extra(
   )
 }
 
-/// Generate JSON codecs for discovered user types plus the generated transport
-/// `RequestMsg` type built from handler endpoints.
-///
-/// Browser/page code should use this generated `RequestMsg` codec before passing
-/// request messages to `libero/json/wire.encode_request`.
-pub fn generate_transport_codecs(
-  discovered discovered: List(DiscoveredType),
-  endpoints endpoints: List(scanner.HandlerEndpoint),
-  request_msg_module_path request_msg_module_path: String,
-  request_msg_type_name request_msg_type_name: String,
-) -> Result(String, List(JsonError)) {
-  let all_types = case endpoints {
-    [] -> discovered
-    _ ->
-      list.append(discovered, [
-        request_msg_discovered_type(
-          endpoints:,
-          module_path: request_msg_module_path,
-          type_name: request_msg_type_name,
-        ),
-      ])
-  }
-  let response_helpers = emit_endpoint_response_helpers(endpoints)
-  generate_with_extra(
-    discovered: all_types,
-    extra_fields: endpoint_return_fields(endpoints),
-    extra_tail: response_helpers,
-    needs_json_wire: False,
-    needs_frame: False,
-  )
-}
-
 /// Generate JSON codecs and transport wrappers for transport, push, and SSR.
 pub fn generate_transport_codecs_with_push_and_ssr(
   discovered discovered: List(DiscoveredType),
-  endpoints endpoints: List(scanner.HandlerEndpoint),
-  request_msg_module_path request_msg_module_path: String,
-  request_msg_type_name request_msg_type_name: String,
   push_types push_types: List(contract.PushContract),
   ssr_models ssr_models: List(contract.SsrModelContract),
 ) -> Result(String, List(JsonError)) {
-  let all_types = case endpoints {
-    [] -> discovered
-    _ ->
-      list.append(discovered, [
-        request_msg_discovered_type(
-          endpoints:,
-          module_path: request_msg_module_path,
-          type_name: request_msg_type_name,
-        ),
-      ])
-  }
   let transport_helpers =
     [
-      emit_endpoint_response_helpers(endpoints),
       emit_push_helpers(push_types),
       emit_client_context_helpers(push_types),
       emit_ssr_helpers(ssr_models),
@@ -227,8 +179,8 @@ pub fn generate_transport_codecs_with_push_and_ssr(
       }
     }
   generate_with_extra(
-    discovered: all_types,
-    extra_fields: endpoint_return_fields(endpoints),
+    discovered: discovered,
+    extra_fields: [],
     extra_tail: transport_helpers,
     needs_json_wire: !list.is_empty(push_types) || !list.is_empty(ssr_models),
     needs_frame: has_client_context_push(push_types),
@@ -237,38 +189,6 @@ pub fn generate_transport_codecs_with_push_and_ssr(
 
 fn has_client_context_push(push_types: List(contract.PushContract)) -> Bool {
   list.any(push_types, fn(push) { push.module == client_context_module })
-}
-
-fn endpoint_return_fields(
-  endpoints: List(scanner.HandlerEndpoint),
-) -> List(FieldType) {
-  endpoints
-  |> list.flat_map(fn(endpoint) { [endpoint.return_ok, endpoint.return_err] })
-}
-
-fn emit_endpoint_response_helpers(
-  endpoints: List(scanner.HandlerEndpoint),
-) -> String {
-  case endpoints {
-    [] -> ""
-    _ ->
-      endpoints
-      |> list.map(emit_endpoint_response_helper)
-      |> string.join("\n\n")
-      |> fn(src) { "\n\n" <> src }
-  }
-}
-
-fn emit_endpoint_response_helper(endpoint: scanner.HandlerEndpoint) -> String {
-  "pub fn json_encode_response_"
-  <> endpoint.fn_name
-  <> "(value) -> json.Json {\n"
-  <> "  json_encode_gleam_result__result(value, fn(x) { "
-  <> json_encode_expr(endpoint.return_ok, "x")
-  <> " }, fn(x) { "
-  <> json_encode_expr(endpoint.return_err, "x")
-  <> " })\n"
-  <> "}"
 }
 
 fn emit_push_helpers(push_types: List(contract.PushContract)) -> String {
@@ -363,31 +283,6 @@ fn emit_ssr_helpers(ssr_models: List(contract.SsrModelContract)) -> String {
   })
   |> list.unique
   |> string.join("\n\n")
-}
-
-/// Build the generated transport `RequestMsg` type used by JSON request
-/// envelopes. The caller owns where that type lives by passing `module_path`.
-pub fn request_msg_discovered_type(
-  endpoints endpoints: List(scanner.HandlerEndpoint),
-  module_path module_path: String,
-  type_name type_name: String,
-) -> DiscoveredType {
-  walker.DiscoveredType(
-    module_path:,
-    type_name:,
-    type_params: [],
-    variants: list.map(endpoints, fn(endpoint) {
-      let variant_name = codegen.to_pascal_case("server_" <> endpoint.fn_name)
-      walker.DiscoveredVariant(
-        module_path:,
-        variant_name:,
-        atom_name: walker.qualified_atom_name(module_path:, variant_name:),
-        float_field_indices: [],
-        field_labels: list.map(endpoint.params, fn(param) { Some(param.0) }),
-        fields: list.map(endpoint.params, fn(param) { param.1 }),
-      )
-    }),
-  )
 }
 
 fn check_no_mixed_fields(

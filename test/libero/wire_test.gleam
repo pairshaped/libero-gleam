@@ -11,11 +11,6 @@ import libero/error
 import libero/etf/wire
 import libero/frame
 
-pub type TestVariant {
-  TestAtom
-  TestRecord(value: Int)
-}
-
 // ---------- Request envelope decoding (request envelope format: {module, request_id, value}) ----------
 
 pub fn decode_request_with_nil_value_test() {
@@ -101,25 +96,13 @@ pub fn tag_push_prepends_push_frame_tag_test() {
   let assert <<1, 2, 3, 4>> = wire.tag_push(<<2, 3, 4>>)
 }
 
-pub fn variant_tag_extracts_zero_arity_constructor_test() {
-  let assert Ok("test_atom") = wire.variant_tag(coerce(TestAtom))
-}
-
-pub fn variant_tag_extracts_record_constructor_test() {
-  let assert Ok("test_record") = wire.variant_tag(coerce(TestRecord(123)))
-}
-
-pub fn variant_tag_rejects_plain_tuple_test() {
-  let assert Error(Nil) = wire.variant_tag(coerce(#("not_an_atom", 1)))
-}
-
 // ---------- High-level frame API ----------
 
 pub fn encode_response_decode_response_frame_roundtrip_test() {
   let frame = wire.encode_response(request_id: 42, value: "hello")
   let assert Ok(frame.Response(request_id: 42, value:)) =
     wire.decode_response_frame(frame)
-  let decoded: String = wire.coerce(value)
+  let decoded: String = unsafe_coerce(value)
   let assert "hello" = decoded
 }
 
@@ -127,7 +110,7 @@ pub fn encode_response_decode_response_frame_int_test() {
   let frame = wire.encode_response(request_id: 7, value: 99)
   let assert Ok(frame.Response(request_id: 7, value:)) =
     wire.decode_response_frame(frame)
-  let decoded: Int = wire.coerce(value)
+  let decoded: Int = unsafe_coerce(value)
   let assert 99 = decoded
 }
 
@@ -135,7 +118,7 @@ pub fn encode_push_decode_push_frame_roundtrip_test() {
   let frame = wire.encode_push(module: "pages/home", value: "hello push")
   let assert Ok(frame.Push(module: "pages/home", value:)) =
     wire.decode_push_frame(frame)
-  let decoded: String = wire.coerce(value)
+  let decoded: String = unsafe_coerce(value)
   let assert "hello push" = decoded
 }
 
@@ -143,7 +126,7 @@ pub fn encode_push_decode_push_frame_int_test() {
   let frame = wire.encode_push(module: "core/topic", value: 123)
   let assert Ok(frame.Push(module: "core/topic", value:)) =
     wire.decode_push_frame(frame)
-  let decoded: Int = wire.coerce(value)
+  let decoded: Int = unsafe_coerce(value)
   let assert 123 = decoded
 }
 
@@ -171,7 +154,7 @@ pub fn decode_server_frame_response_test() {
   let frame = wire.encode_response(request_id: 42, value: "hello")
   let assert Ok(frame.Response(request_id: 42, value:)) =
     wire.decode_server_frame(frame)
-  let decoded: String = wire.coerce(value)
+  let decoded: String = unsafe_coerce(value)
   let assert "hello" = decoded
 }
 
@@ -179,7 +162,7 @@ pub fn decode_server_frame_push_test() {
   let frame = wire.encode_push(module: "pages/home", value: 99)
   let assert Ok(frame.Push(module: "pages/home", value:)) =
     wire.decode_server_frame(frame)
-  let decoded: Int = wire.coerce(value)
+  let decoded: Int = unsafe_coerce(value)
   let assert 99 = decoded
 }
 
@@ -229,7 +212,7 @@ fn encode_request_envelope(
   ffi_encode(coerce(#(module, request_id, value)))
 }
 
-@external(erlang, "libero_ffi", "encode")
+@external(erlang, "libero_etf_ffi", "encode")
 fn ffi_encode(value: Dynamic) -> BitArray
 
 @external(erlang, "gleam_stdlib", "identity")
@@ -248,7 +231,7 @@ pub fn encode_request_decode_request_roundtrip_string_test() {
   let encoded =
     wire.encode_request(module: "core/messages", request_id: 10, msg: "hello")
   let assert Ok(#("core/messages", 10, msg)) = wire.decode_request(encoded)
-  let decoded: String = wire.coerce(msg)
+  let decoded: String = unsafe_coerce(msg)
   let assert "hello" = decoded
 }
 
@@ -256,7 +239,7 @@ pub fn encode_request_decode_request_roundtrip_int_test() {
   let encoded =
     wire.encode_request(module: "core/messages", request_id: 20, msg: 42)
   let assert Ok(#("core/messages", 20, msg)) = wire.decode_request(encoded)
-  let decoded: Int = wire.coerce(msg)
+  let decoded: Int = unsafe_coerce(msg)
   let assert 42 = decoded
 }
 
@@ -264,7 +247,7 @@ pub fn encode_request_decode_request_roundtrip_tuple_test() {
   let encoded =
     wire.encode_request(module: "my/module", request_id: 30, msg: #("a", 1))
   let assert Ok(#("my/module", 30, msg)) = wire.decode_request(encoded)
-  let decoded: #(String, Int) = wire.coerce(msg)
+  let decoded: #(String, Int) = unsafe_coerce(msg)
   let assert #("a", 1) = decoded
 }
 

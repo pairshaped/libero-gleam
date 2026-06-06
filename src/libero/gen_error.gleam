@@ -14,7 +14,6 @@ pub type GenError {
   ParseFailed(path: String, cause: glance.Error)
   UnresolvedTypeModule(module_path: String, type_name: String)
   TypeNotFound(module_path: String, type_name: String)
-  DuplicateEndpoint(fn_name: String, modules: List(String))
   /// Two distinct canonical type signatures hashed to the same wire
   /// identity. Detected by `wire_identity.check_uniqueness` at codegen
   /// time. Vanishingly rare in practice (truncated SHA-256 birthday
@@ -113,7 +112,7 @@ fn to_string(err: GenError) -> String {
           "Type `" <> type_name <> "` could not be resolved to a file path",
         ],
         hint: Some(
-          "Ensure the module exists in the scanned source tree.\n        Check that `"
+          "Ensure the module exists in the source tree.\n        Check that `"
           <> module_path
           <> "` is reachable from the file_paths\n        passed to walker.walk",
         ),
@@ -125,21 +124,7 @@ fn to_string(err: GenError) -> String {
         path: module_path <> ".gleam",
         body_lines: ["Type `" <> type_name <> "` was not found in this module"],
         hint: Some(
-          "The type may be private (add `pub`) or the module path may be\n        incorrect. Libero scans for custom types, not type aliases.",
-        ),
-      )
-
-    DuplicateEndpoint(fn_name, modules) ->
-      error_box(
-        title: "Duplicate handler endpoint",
-        path: fn_name,
-        body_lines: [
-          "The same function name is exported from multiple handler",
-          "modules:",
-          ..list.map(modules, fn(m) { "  " <> m })
-        ],
-        hint: Some(
-          "Handler function names must be unique across the server source\n        tree, since each one becomes a RequestMsg variant.",
+          "The type may be private (add `pub`) or the module path may be\n        incorrect. Libero walks custom types, not type aliases.",
         ),
       )
 

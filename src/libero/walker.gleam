@@ -10,7 +10,7 @@ import gleam/string
 import libero/field_type.{type FieldType}
 import libero/gen_error.{type GenError, TypeNotFound, UnresolvedTypeModule}
 import libero/glance_type_resolver.{PreserveUnsupported}
-import libero/scanner
+import libero/source
 
 /// A custom type discovered by the walker, grouping all its variants.
 pub type DiscoveredType {
@@ -133,7 +133,7 @@ fn is_stdlib_module_path(path: String) -> Bool {
 }
 
 /// Walk the type graph starting from seeds, discovering all reachable custom types.
-/// Seeds come from scanner output (param/return types of endpoints).
+/// Seeds come from framework-owned contract discovery.
 /// file_paths are the .gleam files to search for type definitions.
 /// BFS traversal order affects discovery order but not correctness:
 /// all reachable types are found regardless of queue order.
@@ -143,7 +143,7 @@ pub fn walk(
 ) -> Result(List(DiscoveredType), List(GenError)) {
   let module_files =
     list.fold(file_paths, dict.new(), fn(acc, file_path) {
-      let module_path = scanner.derive_module_path(file_path:)
+      let module_path = source.derive_module_path(file_path:)
       dict.insert(acc, module_path, file_path)
     })
 
@@ -370,7 +370,7 @@ fn load_ast(
   case dict.get(parsed_cache, module_path) {
     Ok(ast) -> Ok(#(ast, parsed_cache))
     Error(Nil) -> {
-      use ast <- result.map(scanner.parse_module(file_path:))
+      use ast <- result.map(source.parse_module(file_path:))
       #(ast, dict.insert(parsed_cache, module_path, ast))
     }
   }
@@ -550,9 +550,9 @@ fn build_type_resolver(
   imports: List(glance.Definition(glance.Import)),
 ) -> TypeRefResolver {
   TypeRefResolver(
-    unqualified: scanner.build_type_import_map(imports),
-    aliased: scanner.build_alias_resolution_map(imports),
-    original_names: scanner.build_type_alias_originals(imports),
+    unqualified: source.build_type_import_map(imports),
+    aliased: source.build_alias_resolution_map(imports),
+    original_names: source.build_type_alias_originals(imports),
   )
 }
 

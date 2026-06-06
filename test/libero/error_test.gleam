@@ -40,7 +40,7 @@ pub fn internal_error_roundtrips_through_wire_test() {
   )) = decoded
 }
 
-@external(erlang, "libero_ffi", "encode")
+@external(erlang, "libero_etf_ffi", "encode")
 fn ffi_encode(value: Dynamic) -> BitArray
 
 @external(erlang, "gleam_stdlib", "identity")

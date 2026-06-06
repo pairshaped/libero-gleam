@@ -120,7 +120,7 @@ different signatures produce the same hash, codegen fails with a type identity
 collision error.
 
 Duplicate sightings of the same canonical signature are fine. That can happen
-when a shared type is reached through more than one endpoint. A collision only
+when a shared type is reached through more than one framework seed. A collision only
 means two distinct source identities produced the same hash.
 
 The hash is not a security primitive. The safety property comes from generating

@@ -4,14 +4,14 @@ JSON is Libero's readable wire protocol for SDKs, tools, logs, fixtures, and
 clients that should not need an ETF implementation. It uses the same typed
 contract as ETF, but carries type identity as readable JSON fields.
 
-JSON is an RPC protocol. It serializes Libero requests, responses, pushes, and
-SSR flags. It is not a REST resource format.
+JSON serializes Libero request envelopes, responses, pushes, and SSR flags. It
+is not a REST resource format.
 
 The canonical typed value contract is named `typed-json-v1`. Every JSON
 transport path that carries a user value uses this contract:
 
-- RPC request `message`.
-- RPC response `value`.
+- Request `message`.
+- Response `value`.
 - Push `value`.
 - SSR flag payloads.
 - Page message fields.
@@ -47,9 +47,9 @@ Cons:
 ```json
 {
   "kind": "request",
-  "protocol_version": "json-rpc-v1",
+  "protocol_version": "libero-json-v1",
   "contract_hash": "example-contract-hash",
-  "module": "rpc",
+  "module": "public/pages/article",
   "request_id": 1,
   "message": {
     "type": "shared/messages.MsgFromClient",
@@ -66,7 +66,7 @@ Rules:
 - `kind` is `"request"`.
 - `protocol_version` identifies the JSON protocol version.
 - `contract_hash` must match the generated contract artifact.
-- `module` is the logical Libero module tag.
+- `module` is the logical framework module tag.
 - `request_id` identifies the request.
 - `message` is a typed Libero value.
 
@@ -79,7 +79,7 @@ tries to decode the message.
 ```json
 {
   "kind": "response",
-  "protocol_version": "json-rpc-v1",
+  "protocol_version": "libero-json-v1",
   "request_id": 1,
   "value": {
     "type": "gleam/result.Result",
@@ -106,7 +106,7 @@ response value for that handler.
 ```json
 {
   "kind": "error",
-  "protocol_version": "json-rpc-v1",
+  "protocol_version": "libero-json-v1",
   "request_id": 1,
   "errors": [
     {
@@ -125,7 +125,7 @@ callers can show useful diagnostics or logs.
 ```json
 {
   "kind": "push",
-  "protocol_version": "json-rpc-v1",
+  "protocol_version": "libero-json-v1",
   "module": "public/pages/article",
   "value": {
     "type": "public/pages/article.ToClient",
@@ -296,16 +296,15 @@ Tuple support is currently positional. If that changes, the
 
 ## Contract Artifact
 
-The generated `rpc_contract.json` artifact records the JSON RPC protocol and the
-typed value contract:
+The generated `contract.json` artifact records the JSON protocol and the typed
+value contract:
 
 ```json
 {
   "contract_hash": "...",
-  "protocol_version": "json-rpc-v1",
+  "protocol_version": "libero-json-v1",
   "typed_value_contract": "typed-json-v1",
   "libero_version": "6.0.0",
-  "endpoints": [],
   "push_types": [],
   "ssr_models": [],
   "types": []
@@ -313,9 +312,9 @@ typed value contract:
 ```
 
 `contract_hash` is computed from the canonical artifact fields without the hash
-field itself. It covers endpoints, push types, SSR models, reachable user types,
-the JSON protocol version, and the typed value contract name. A request whose
-hash does not match the server contract is rejected before `message` decode.
+field itself. It covers push types, SSR models, reachable user types, the JSON
+protocol version, and the typed value contract name. A request whose hash does
+not match the server contract is rejected before `message` decode.
 
 ## Validation
 

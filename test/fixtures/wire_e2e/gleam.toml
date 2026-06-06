@@ -11,6 +11,7 @@ mist = "~> 6.0"
 lustre = "~> 5.6"
 shared = { path = "../shared" }
 libero = { path = "../../../.." }
+simplifile = ">= 2.0.0 and < 3.0.0"
 
 [tools.libero]
 use_json = false

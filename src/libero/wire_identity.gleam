@@ -182,7 +182,7 @@ pub fn check_wire_safety(
 }
 
 /// Validate a single FieldType for wire safety. Same rules as
-/// check_wire_safety but for standalone fields (endpoint params/returns).
+/// check_wire_safety but for standalone seeded fields.
 pub fn check_field_type_safety(
   field_type ft: FieldType,
   label label: String,

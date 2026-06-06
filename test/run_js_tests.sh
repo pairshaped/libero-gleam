@@ -16,7 +16,6 @@ node test/js/wire_e2e_decode_test.mjs
 node test/js/wire_e2e_decode_typed_test.mjs
 node test/js/wire_e2e_security_config_test.mjs
 node test/js/wire_e2e_encode_test.mjs
-node test/js/wire_e2e_dispatch_test.mjs
 node test/js/typed_decode_pipeline_test.mjs
 node test/js/etf_constructor_decode_test.mjs
 node --import ./test/js/json_wire_loader.mjs test/js/json_wire_roundtrip_test.mjs

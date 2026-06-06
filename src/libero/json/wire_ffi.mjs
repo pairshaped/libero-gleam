@@ -467,15 +467,3 @@ export function decode_flags_typed(flags, _decoderName) {
 
   return new Ok(limited.value);
 }
-
-/**
- * Identity function for type-level coercion in generated transport code.
- * The JS runtime representation is unchanged; this lets generated code
- * bridge between Dynamic/generic and concrete types.
- *
- * @param {any} x
- * @returns {any}
- */
-export function identity(x) {
-  return x;
-}

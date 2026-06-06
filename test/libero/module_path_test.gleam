@@ -1,30 +1,30 @@
 import libero/codegen
-import libero/scanner
+import libero/source
 
 // -- derive_module_path tests --
 
 pub fn derive_module_path_standard_test() {
   let assert "shared/items" =
-    scanner.derive_module_path(
+    source.derive_module_path(
       file_path: "test/fixtures/shared/src/shared/items.gleam",
     )
 }
 
 pub fn derive_module_path_nested_test() {
   let assert "shared/admin/items" =
-    scanner.derive_module_path(
+    source.derive_module_path(
       file_path: "/some/project/shared/src/shared/admin/items.gleam",
     )
 }
 
 pub fn derive_module_path_root_module_test() {
   let assert "shared" =
-    scanner.derive_module_path(file_path: "project/src/shared.gleam")
+    source.derive_module_path(file_path: "project/src/shared.gleam")
 }
 
 pub fn derive_module_path_no_src_segment_test() {
   let assert "some/path/module" =
-    scanner.derive_module_path(file_path: "some/path/module.gleam")
+    source.derive_module_path(file_path: "some/path/module.gleam")
 }
 
 // -- module_to_mjs_path tests --

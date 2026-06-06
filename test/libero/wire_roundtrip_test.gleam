@@ -23,7 +23,7 @@ fn roundtrip(value: a) -> Dynamic {
   rebuilt
 }
 
-@external(erlang, "libero_ffi", "encode")
+@external(erlang, "libero_etf_ffi", "encode")
 fn ffi_encode(value: Dynamic) -> BitArray
 
 @external(erlang, "gleam_stdlib", "identity")

@@ -7,7 +7,7 @@
 %%   erl -noshell -pa <ebin_dirs> -eval "$(cat decode_manifest.erl)" > manifest.json
 %%
 %% User-type values are in wire-shape (hashed atoms) via the generated
-%% wire transformers, matching what the dispatch handler would send.
+%% wire transformers, matching what Rally's generated protocol would send.
 
 generated@libero_atoms:ensure(),
 
@@ -26,7 +26,7 @@ EncDictAndList = fun(V) -> 'generated@libero_wire':encode_shared_types__dict_and
 EncTypesTag = fun(V) -> 'generated@libero_wire':encode_shared_types__tag(V) end,
 EncCollisionTag = fun(V) -> 'generated@libero_wire':encode_shared_collision__tag(V) end,
 
-Encode = fun(Term) -> binary_to_list(base64:encode(libero_ffi:encode(Term))) end,
+Encode = fun(Term) -> binary_to_list(base64:encode(libero_etf_ffi:encode(Term))) end,
 
 Item = {item, 7, <<"wrench">>, 12.5, true},
 Item2 = {item, 8, <<"bolt">>, 1.25, false},

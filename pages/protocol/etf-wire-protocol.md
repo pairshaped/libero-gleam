@@ -2,7 +2,7 @@
 
 ETF is Libero's BEAM-native wire protocol. It uses Erlang's External Term
 Format for bytes on the network, then relies on generated code to preserve the
-typed contract between client and server.
+typed contract between BEAM and JavaScript.
 
 The important idea is that ETF can encode atoms and tuples, but it does not know
 which Gleam module a custom type came from. Libero adds that missing identity in
@@ -10,42 +10,40 @@ generated code before values cross the wire.
 
 ## Pros And Cons
 
-ETF is a good fit when both sides are close to the BEAM or generated Libero
-runtime code.
-
 Pros:
 
 - Compact binary encoding.
-- Native support for BEAM terms such as atoms, tuples, bit arrays, integers, and
-  floats.
+- Native support for BEAM terms such as atoms, tuples, bit arrays, integers,
+  and floats.
 - Preserves the difference between values like `2` and `2.0`.
-- Fast path for Gleam, Erlang, and BEAM-first applications.
+- Fits Rally's generated Gleam and JavaScript runtime path.
 
 Cons:
 
 - Harder to inspect in logs and fixtures.
 - Non-BEAM clients need an ETF implementation.
-- ETF has no module-qualified custom type identity, so Libero must add generated
-  hashed wire tags.
+- ETF has no module-qualified custom type identity, so Libero must add
+  generated hashed wire tags.
 - Safe decoding still needs resource limits for hostile input.
 
-## Request Flow
+## Request Envelope
 
-A request is encoded as a three-item tuple:
+A request envelope is encoded as a three-item tuple:
 
 ```text
-#(module, request_id, message)
+#(module, request_id, payload)
 ```
 
 Where:
 
-- `module` is the logical Libero module tag, usually `"rpc"` for handler calls.
+- `module` is the logical framework module tag.
 - `request_id` is the integer used to match a response to a request.
-- `message` is a generated client message value.
+- `payload` is the framework-owned request value.
 
-Consumers should call `encode_request` rather than assemble this tuple directly.
-The server decodes the request at the boundary, routes it through generated
-dispatch, and calls the matching handler.
+Callers that use Libero's low-level request helpers should call
+`encode_request` and `decode_request` rather than assemble this tuple directly.
+Rally's generated protocol modules own their frame shape and use the generated
+ETF codec module's `encode` and `decode` entrypoints.
 
 ## Server Frames
 
@@ -56,8 +54,9 @@ Server-to-client messages are framed before the ETF payload:
 | Response | tag byte `0`, 32-bit request ID, ETF payload |
 | Push | tag byte `1`, ETF payload |
 
-Consumers should call `decode_server_frame` and pattern match on the decoded
-frame. They should not inspect tag bytes or slice request IDs themselves.
+Callers that use Libero's low-level server-frame helpers should call
+`decode_server_frame` and pattern match on the decoded frame. They should not
+inspect tag bytes or slice request IDs themselves.
 
 ## Custom Type Identity
 
@@ -84,7 +83,7 @@ encode_item({item, Id, Name}) ->
 ```
 
 Generated decoder functions translate the wire shape back into the normal BEAM
-shape before the handler or client code sees it:
+shape before framework code sees it:
 
 ```erlang
 decode_status('a1b2c3d4e5') ->
@@ -98,30 +97,6 @@ The hash is opaque on the wire. The generated code knows which source type the
 hash belongs to, so error messages can still refer to the source-level type.
 
 For the full uniqueness model, see [Wire Type Identity](wire-type-identity.html).
-
-## Why Hashes Are Needed
-
-Readable constructor names are unsafe as global wire tags. These two types must
-remain distinct:
-
-```gleam
-// pages/home.gleam
-pub type State {
-  Loaded(count: Int)
-}
-
-// pages/admin.gleam
-pub type State {
-  Loaded(count: Int)
-}
-```
-
-Both constructors have the same name and the same field shape. The module path
-is part of Libero's identity basis, so they produce different wire hashes.
-
-Libero checks generated hashes for collisions at codegen time. A collision is
-treated as a build error. The hash is not a security primitive; it is a compact
-wire identity with a generated uniqueness check.
 
 ## Built-In Values
 
@@ -142,38 +117,27 @@ reject trailing bytes after the decoded term.
 Safe ETF decoding does not by itself limit input size, nesting depth, or every
 BEAM runtime term class. `libero/etf/wire.set_strict_data_terms(True)` enables
 an extra BEAM validator that rejects pids, refs, ports, and functions after
-decode. It is disabled by default because it still walks payloads before
-generated typed decoding. The configured strict mode uses a fast term-kind
-validator without detailed path construction; the path-building validator is
-kept for diagnostics. On OTP 29 / Gleam 1.17 benchmark payloads, configured
-strict mode was about 1.25-1.56x slower than default ETF request decode, while
-the path-building precheck was about 4.5-7.3x slower. Proper Libero clients do
-not emit those terms. Code that accepts hostile hand-written ETF should also set
-process memory limits and use Libero helpers that validate the decoded shape
-before constructing typed values.
+decode. It is disabled by default because generated typed decoding already walks
+legitimate payloads.
 
 `libero/etf/wire.set_js_term_depth_limit(512)` enables the optional recursive
 term depth cap in the generated JavaScript ETF decoder. `0` disables the cap,
-which is the default. This cap is useful when the JS bundle is trusted but the
-ETF bytes are less trusted than the app server that served that bundle. It is
-not a defense against a compromised server because that server can send
-different JavaScript.
+which is the default.
 
 ## Protocol Helpers
 
-ETF helpers live in `libero/etf/wire`, matching `libero/json/wire`.
-
-The contract-level helper surface is:
+ETF helpers live in `libero/etf/wire`.
 
 | Concept | Helper |
 |---------|--------|
-| Encode an outbound request | `encode_request` |
-| Decode an inbound request | `decode_request` |
+| Encode an outbound request envelope | `encode_request` |
+| Decode an inbound request envelope | `decode_request` |
 | Encode a response frame | `encode_response` |
 | Decode a server frame | `decode_server_frame` |
 | Encode a push frame | `encode_push` |
 | Encode SSR flags | `encode_flags` |
 | Decode SSR flags | `decode_flags_typed` |
 
-ETF may also expose lower-level response and push frame decoders for internal
-use. Consumer code should prefer `decode_server_frame`.
+ETF also exposes lower-level response and push frame decoders for tests and
+internal callers. `decode_server_frame` is the unified helper for callers using
+Libero's low-level frame API.

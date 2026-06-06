@@ -1,7 +1,7 @@
 import gleam/option.{None, Some}
 import gleeunit/should
 import libero/field_type
-import libero/scanner
+import libero/source
 import libero/walker
 import simplifile
 
@@ -45,7 +45,7 @@ pub type Query {
 ",
     )
 
-  let assert Ok(files) = scanner.walk_directory(path: root)
+  let assert Ok(files) = source.walk_directory(path: root)
   let assert Ok(types) =
     walker.walk(seeds: [#("shared/query", "Query")], file_paths: files)
 

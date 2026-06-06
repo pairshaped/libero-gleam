@@ -4,8 +4,8 @@ import glance
 import gleam/option.{None, Some}
 import gleam/string
 import libero/gen_error.{
-  CannotReadDir, CannotReadFile, DictKeyMustBePrimitive, DuplicateEndpoint,
-  ParseFailed, TypeIdentityHashCollision, TypeNotFound, TypeResolutionFailed,
+  CannotReadDir, CannotReadFile, DictKeyMustBePrimitive, ParseFailed,
+  TypeIdentityHashCollision, TypeNotFound, TypeResolutionFailed,
   UnresolvedTypeModule, WireTypeContainsTypeVar,
 }
 import simplifile
@@ -84,12 +84,6 @@ pub fn print_error_type_not_found_test() {
   gen_error.print_error(err)
 }
 
-pub fn print_error_duplicate_endpoint_test() {
-  let err =
-    DuplicateEndpoint(fn_name: "get_items", modules: ["server/a", "server/b"])
-  gen_error.print_error(err)
-}
-
 pub fn print_error_type_identity_hash_collision_test() {
   let err =
     TypeIdentityHashCollision(
@@ -125,27 +119,6 @@ pub fn print_error_type_resolution_failed_test() {
       message: "ambiguous import for Foo",
     )
   gen_error.print_error(err)
-}
-
-// -- error_box covers DuplicateEndpoint multi-module list --
-
-pub fn error_box_duplicate_endpoint_shows_modules_test() {
-  let result =
-    gen_error.error_box(
-      title: "Duplicate handler endpoint",
-      path: "get_items",
-      body_lines: [
-        "The same function name is exported from multiple handler",
-        "modules:",
-        "  server/handler_a",
-        "  server/handler_b",
-      ],
-      hint: Some(
-        "Handler function names must be unique across the server source\n        tree, since each one becomes a RequestMsg variant.",
-      ),
-    )
-  let assert True = string.contains(result, "server/handler_a")
-  let assert True = string.contains(result, "server/handler_b")
 }
 
 // -- error_box with empty body --

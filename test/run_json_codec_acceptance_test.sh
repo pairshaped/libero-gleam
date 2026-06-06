@@ -40,13 +40,13 @@ GLEAM
 cat > src/generate.gleam <<'GLEAM'
 import gleam/io
 import libero/json/codegen
-import libero/scanner
+import libero/source
 import libero/walker
 import simplifile
 
 pub fn main() {
   let assert Ok(cwd) = simplifile.current_directory()
-  let assert Ok(files) = scanner.walk_directory(cwd <> "/src")
+  let assert Ok(files) = source.walk_directory(cwd <> "/src")
   let seeds = [
     #("fixture", "Article"),
     #("fixture", "Wrapper"),

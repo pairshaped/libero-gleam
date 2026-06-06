@@ -6,22 +6,9 @@ import gleam/string
 import gleeunit/should
 import libero/field_type
 import libero/json/contract
-import libero/scanner
 import libero/walker
 
 pub fn contract_artifact_is_deterministic_test() {
-  let endpoints = [
-    scanner.HandlerEndpoint(
-      module_path: "server/api",
-      fn_name: "get_article",
-      params: [#("slug", field_type.StringField)],
-      return_ok: field_type.UserType("shared/article", "Article", []),
-      return_err: field_type.StringField,
-      mutates_context: False,
-      msg_type: None,
-    ),
-  ]
-
   let discovered = [
     walker.DiscoveredType(
       module_path: "shared/article",
@@ -43,8 +30,8 @@ pub fn contract_artifact_is_deterministic_test() {
   let push_types: List(contract.PushContract) = []
   let ssr_models: List(contract.SsrModelContract) = []
 
-  let one = contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
-  let two = contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
+  let one = contract.generate(discovered:, push_types:, ssr_models:)
+  let two = contract.generate(discovered:, push_types:, ssr_models:)
 
   one |> should.equal(two)
 
@@ -56,35 +43,15 @@ pub fn contract_artifact_is_deterministic_test() {
   string.contains(one, "\"push_types\"") |> should.be_true
   string.contains(one, "\"ssr_models\"") |> should.be_true
   string.contains(one, "\"shared/article\"") |> should.be_true
-}
-
-pub fn contract_artifact_includes_endpoints_test() {
-  let endpoints = [
-    scanner.HandlerEndpoint(
-      module_path: "server/api",
-      fn_name: "get_article",
-      params: [#("slug", field_type.StringField)],
-      return_ok: field_type.UserType("shared/article", "Article", []),
-      return_err: field_type.StringField,
-      mutates_context: False,
-      msg_type: None,
-    ),
-  ]
-
-  let discovered: List(walker.DiscoveredType) = []
-  let push_types: List(contract.PushContract) = []
-  let ssr_models: List(contract.SsrModelContract) = []
-
   let artifact =
-    contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
+    contract.generate(discovered: [], push_types: [], ssr_models: [])
   let parsed = json.parse(artifact, decode.dynamic)
 
-  // Don't crash on parse — the artifact must be valid JSON
+  // The artifact must be valid JSON even when no types are discovered.
   let assert Ok(_) = parsed
 }
 
 pub fn contract_hash_distinguishes_same_shaped_custom_type_names_test() {
-  let endpoints: List(scanner.HandlerEndpoint) = []
   let push_types: List(contract.PushContract) = []
   let ssr_models: List(contract.SsrModelContract) = []
   let draft = [
@@ -103,25 +70,14 @@ pub fn contract_hash_distinguishes_same_shaped_custom_type_names_test() {
   ]
 
   let draft_hash =
-    contract.generate_hash(
-      endpoints:,
-      discovered: draft,
-      push_types:,
-      ssr_models:,
-    )
+    contract.generate_hash(discovered: draft, push_types:, ssr_models:)
   let published_hash =
-    contract.generate_hash(
-      endpoints:,
-      discovered: published,
-      push_types:,
-      ssr_models:,
-    )
+    contract.generate_hash(discovered: published, push_types:, ssr_models:)
 
   draft_hash |> should.not_equal(published_hash)
 }
 
 pub fn contract_hash_distinguishes_same_named_custom_type_paths_test() {
-  let endpoints: List(scanner.HandlerEndpoint) = []
   let push_types: List(contract.PushContract) = []
   let ssr_models: List(contract.SsrModelContract) = []
   let public = [
@@ -140,25 +96,14 @@ pub fn contract_hash_distinguishes_same_named_custom_type_paths_test() {
   ]
 
   let public_hash =
-    contract.generate_hash(
-      endpoints:,
-      discovered: public,
-      push_types:,
-      ssr_models:,
-    )
+    contract.generate_hash(discovered: public, push_types:, ssr_models:)
   let private_hash =
-    contract.generate_hash(
-      endpoints:,
-      discovered: private,
-      push_types:,
-      ssr_models:,
-    )
+    contract.generate_hash(discovered: private, push_types:, ssr_models:)
 
   public_hash |> should.not_equal(private_hash)
 }
 
 pub fn contract_artifact_keeps_same_named_types_from_different_paths_test() {
-  let endpoints: List(scanner.HandlerEndpoint) = []
   let push_types: List(contract.PushContract) = []
   let ssr_models: List(contract.SsrModelContract) = []
   let discovered = [
@@ -174,8 +119,7 @@ pub fn contract_artifact_keeps_same_named_types_from_different_paths_test() {
     ),
   ]
 
-  let artifact =
-    contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
+  let artifact = contract.generate(discovered:, push_types:, ssr_models:)
 
   string.contains(artifact, "\"module_path\":\"shared/public\"")
   |> should.be_true
@@ -185,23 +129,6 @@ pub fn contract_artifact_keeps_same_named_types_from_different_paths_test() {
 }
 
 pub fn canonical_typed_json_contract_artifact_snapshot_test() {
-  let endpoints = [
-    scanner.HandlerEndpoint(
-      module_path: "server/api",
-      fn_name: "save_article",
-      params: [
-        #("article", field_type.UserType("shared/article", "Article", [])),
-      ],
-      return_ok: field_type.UserType("shared/article", "Article", []),
-      return_err: field_type.ResultOf(
-        field_type.StringField,
-        field_type.NilField,
-      ),
-      mutates_context: True,
-      msg_type: Some(#("shared/messages", "RequestMsg")),
-    ),
-  ]
-
   let discovered = [
     walker.DiscoveredType(
       module_path: "shared/article",
@@ -240,13 +167,13 @@ pub fn canonical_typed_json_contract_artifact_snapshot_test() {
     ),
     walker.DiscoveredType(
       module_path: "shared/messages",
-      type_name: "RequestMsg",
+      type_name: "ClientEvent",
       type_params: [],
       variants: [
         walker.DiscoveredVariant(
           module_path: "shared/messages",
-          variant_name: "Save",
-          atom_name: "shared_messages__save",
+          variant_name: "Submitted",
+          atom_name: "shared_messages__submitted",
           float_field_indices: [],
           field_labels: [None],
           fields: [
@@ -295,7 +222,7 @@ pub fn canonical_typed_json_contract_artifact_snapshot_test() {
     ),
   ]
 
-  contract.generate(endpoints:, discovered:, push_types:, ssr_models:)
+  contract.generate(discovered:, push_types:, ssr_models:)
   |> birdie.snap(title: "canonical typed JSON contract artifact")
 }
 

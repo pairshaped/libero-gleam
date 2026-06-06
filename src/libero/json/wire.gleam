@@ -193,19 +193,6 @@ pub fn decode_flags_typed(
   decoder(parsed)
 }
 
-// ---------- Coerce ----------
-
-/// Cast between generated message types that have the same runtime shape.
-///
-/// Generated dispatch uses this only for handlers that accept a whole
-/// user-defined message constructor instead of decomposed endpoint params.
-@external(erlang, "libero_etf_ffi", "identity")
-@external(javascript, "./wire_ffi.mjs", "identity")
-pub fn coerce(value: a) -> b {
-  let _ = value
-  panic as "libero/json/wire.coerce: external is missing for this target. This indicates a libero packaging bug; the function should be resolved by the @external attributes."
-}
-
 // ---------- JSON parsing ----------
 
 fn parse_json(data: String) -> Result(Dynamic, List(JsonError)) {

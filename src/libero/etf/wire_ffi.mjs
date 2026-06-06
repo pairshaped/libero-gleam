@@ -181,17 +181,6 @@ function makeError(message, name) {
   return e;
 }
 
-// ---------- Identity helper (for Gleam FFI) ----------
-
-/**
- * @template T
- * @param {T} x
- * @returns {T}
- */
-export function identity(x) {
-  return x;
-}
-
 // ---------- Field type hints ----------
 //
 // JS has no int/float distinction - `2.0 === 2` and

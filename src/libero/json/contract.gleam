@@ -5,7 +5,6 @@ import gleam/list
 import gleam/option
 import gleam/string
 import libero/field_type.{type FieldType}
-import libero/scanner.{type HandlerEndpoint}
 import libero/walker.{type DiscoveredType, type DiscoveredVariant}
 
 pub const typed_value_contract_v1 = "typed-json-v1"
@@ -19,58 +18,44 @@ pub type SsrModelContract {
 }
 
 pub fn generate(
-  endpoints endpoints: List(HandlerEndpoint),
   discovered discovered: List(DiscoveredType),
   push_types push_types: List(PushContract),
   ssr_models ssr_models: List(SsrModelContract),
 ) -> String {
-  let canonical =
-    canonical_contract_json(endpoints:, discovered:, push_types:, ssr_models:)
+  let canonical = canonical_contract_json(discovered:, push_types:, ssr_models:)
   let canonical_text = json.to_string(canonical)
   let contract_hash = compute_contract_hash(canonical_text)
 
   json.object([
     #("contract_hash", json.string(contract_hash)),
-    ..canonical_fields(endpoints:, discovered:, push_types:, ssr_models:)
+    ..canonical_fields(discovered:, push_types:, ssr_models:)
   ])
   |> json.to_string
 }
 
 pub fn generate_hash(
-  endpoints endpoints: List(HandlerEndpoint),
   discovered discovered: List(DiscoveredType),
   push_types push_types: List(PushContract),
   ssr_models ssr_models: List(SsrModelContract),
 ) -> String {
-  canonical_contract_json(endpoints:, discovered:, push_types:, ssr_models:)
+  canonical_contract_json(discovered:, push_types:, ssr_models:)
   |> json.to_string
   |> compute_contract_hash
 }
 
 fn canonical_contract_json(
-  endpoints endpoints: List(HandlerEndpoint),
   discovered discovered: List(DiscoveredType),
   push_types push_types: List(PushContract),
   ssr_models ssr_models: List(SsrModelContract),
 ) -> json.Json {
-  json.object(canonical_fields(
-    endpoints:,
-    discovered:,
-    push_types:,
-    ssr_models:,
-  ))
+  json.object(canonical_fields(discovered:, push_types:, ssr_models:))
 }
 
 fn canonical_fields(
-  endpoints endpoints: List(HandlerEndpoint),
   discovered discovered: List(DiscoveredType),
   push_types push_types: List(PushContract),
   ssr_models ssr_models: List(SsrModelContract),
 ) -> List(#(String, json.Json)) {
-  let sorted_endpoints =
-    endpoints
-    |> list.sort(fn(a, b) { string.compare(a.fn_name, b.fn_name) })
-
   let sorted_types =
     discovered
     |> list.sort(fn(a, b) {
@@ -84,7 +69,6 @@ fn canonical_fields(
     #("protocol_version", json.string("libero-json-v1")),
     #("typed_value_contract", json.string(typed_value_contract_v1)),
     #("libero_version", json.string("6.0.0")),
-    #("endpoints", json.array(sorted_endpoints, of: endpoint_json)),
     #("push_types", json.array(push_types, of: push_contract_json)),
     #("ssr_models", json.array(ssr_models, of: ssr_model_json)),
     #("types", json.array(sorted_types, of: discovered_type_json)),
@@ -97,24 +81,6 @@ fn compute_contract_hash(canonical_text: String) -> String {
   |> crypto.hash(crypto.Sha256, _)
   |> bit_array.base16_encode
   |> string.lowercase
-}
-
-fn endpoint_json(e: HandlerEndpoint) -> json.Json {
-  json.object([
-    #("module_path", json.string(e.module_path)),
-    #("fn_name", json.string(e.fn_name)),
-    #(
-      "params",
-      json.array(e.params, of: fn(p) {
-        json.object([
-          #("label", json.string(p.0)),
-          #("type", field_type_json(p.1)),
-        ])
-      }),
-    ),
-    #("return_ok", field_type_json(e.return_ok)),
-    #("return_err", field_type_json(e.return_err)),
-  ])
 }
 
 fn push_contract_json(push: PushContract) -> json.Json {

@@ -8,8 +8,8 @@
 //    decodeAtom. decode_value_raw still returns raw arrays/strings.
 // 2. Typed decoder prelude (decoders_prelude.mjs): decode_result_of,
 //    decode_option_of, decode_list_of, etc. reconstruct custom types
-//    from raw arrays. These are called by the generated codec_ffi.mjs
-//    for RequestMsg variants, not by the ETF decoder directly.
+//    from raw arrays. These are called by generated decoder modules for
+//    seeded framework protocol values, not by the ETF decoder directly.
 //
 // This test exercises the prelude layer (layer 2), which is still
 // needed for custom type reconstruction. The ETF decoder layer

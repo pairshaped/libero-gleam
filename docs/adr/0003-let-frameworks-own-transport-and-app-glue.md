@@ -14,6 +14,5 @@ Framework consumers can generate `src/generated/libero/**` for codec and
 contract artifacts while generating their app-facing request, result, push,
 hydration, and transport modules elsewhere.
 
-Endpointless framework use is valid. When a framework supplies type seeds
-directly and no Libero request endpoints, generated decoder modules should not
-import a fake request module just to satisfy old standalone generator shape.
+Seed-driven framework use is the supported shape. Generated decoder modules
+should depend only on discovered types and codec runtime support.

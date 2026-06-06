@@ -22,8 +22,7 @@
 //// that any custom-type constructors in the value have been registered
 //// via the generated `decoders.gleam` module (which surfaces
 //// `ensure_decoders` from the FFI). Libero's generator emits that
-//// registration for every type reachable from a handler's params or
-//// return type.
+//// registration for every type reachable from caller-provided seeds.
 
 import gleam/bit_array
 import gleam/dynamic.{type Dynamic}
@@ -106,10 +105,9 @@ pub fn encode(value: a) -> BitArray
 /// flags on client boot. For decoding incoming transport request envelopes
 /// specifically, use `decode_request` instead.
 ///
-/// Any custom types in the decoded value must be reachable from a
-/// handler's params or return type so their constructors are registered
-/// with the JavaScript codec (via the generated `decoders.gleam`
-/// module, which calls `ensure_decoders` on import). On Erlang this
+/// Any custom types in the decoded value must be reachable from the seeds
+/// supplied to Libero so their constructors are registered with the
+/// JavaScript codec via the generated `decoders.gleam` module. On Erlang this
 /// is automatic because atoms are pre-registered by the generated
 /// `libero_atoms` module.
 ///
@@ -187,7 +185,7 @@ fn ffi_decode_typed(
 
 // ---------- Decoder (incoming request envelope) ----------
 
-/// Parse a `{<<"module_name">>, request_id, toserver_value}` tuple from an ETF binary.
+/// Parse a `{<<"module_name">>, request_id, payload}` tuple from an ETF binary.
 /// Returns the module name, request ID, and the raw Dynamic value to be coerced.
 /// Since `binary_to_term` returns real Erlang terms, no rebuild step
 /// is needed - atoms are atoms, tuples are tuples, maps are maps.
@@ -212,7 +210,7 @@ fn ffi_decode_request(
 // ---------- Request envelope encoder ----------
 
 /// Encode a request envelope: `{module_name, request_id, msg}` as ETF binary.
-/// Used by generated request senders to pack a `RequestMsg` value for
+/// Used by framework-generated request senders to pack their payload for
 /// transport to the server.
 ///
 /// Encode an outbound transport request as ETF.
@@ -354,49 +352,4 @@ pub fn decode_flags_typed(
     Error(_) ->
       Error(error.DecodeError(message: "Failed to base64-decode flags"))
   }
-}
-
-// ---------- Variant tag ----------
-
-/// Extract the constructor tag (snake_case atom name) from a Gleam variant
-/// value at runtime. Used by generated server dispatch to recognize
-/// unknown variants before the unwitnessed `coerce` + structural pattern
-/// match would crash with `case_clause`.
-///
-/// Returns `Ok(name)` for atoms (zero-arg variants) and tagged tuples
-/// (n-arg variants where the first element is the constructor atom).
-/// Returns `Error(Nil)` for any other shape.
-///
-/// Server-side only. The JS fallback panics because dispatch never
-/// runs on the JavaScript target.
-pub fn variant_tag(value: dynamic.Dynamic) -> Result(String, Nil) {
-  ffi_variant_tag(value)
-}
-
-// nolint: avoid_panic, discarded_result -- Erlang-only @external; JS fallback is unreachable
-@external(erlang, "libero_etf_wire_ffi", "variant_tag")
-fn ffi_variant_tag(value: dynamic.Dynamic) -> Result(String, Nil) {
-  let _ = value
-  panic as "libero/etf/wire.variant_tag is a server-side function, unreachable on JavaScript target"
-}
-
-// ---------- Coerce ----------
-
-/// Cast a Dynamic value to any type.
-/// Used by generated server dispatch code to coerce the decoded
-/// `RequestMsg` value to its typed form. Safe when client and server are
-/// built from the same source (the generator guarantees the types match).
-///
-/// **Warning: unwitnessed cast.** Same safety model as `decode`. Type
-/// correctness depends on both sides being built from the same source.
-/// A mismatch produces silent data corruption.
-///
-/// This is by design: the generated code is the enforcement point.
-/// Making this internal would break the generated dispatch modules
-/// which live in consumer packages and need pub access.
-@external(erlang, "libero_etf_ffi", "identity")
-@external(javascript, "./wire_ffi.mjs", "identity")
-pub fn coerce(value: a) -> b {
-  let _ = value
-  panic as "libero/etf/wire.coerce: external is missing for this target. This indicates a libero packaging bug; the function should be resolved by the @external attributes."
 }

@@ -6,7 +6,6 @@ import gleeunit/should
 import libero/field_type
 import libero/json/codegen
 import libero/json/contract
-import libero/scanner
 import libero/walker
 
 pub fn generated_encoder_emits_type_and_variant_test() {
@@ -149,88 +148,6 @@ pub fn same_shaped_types_generate_distinct_json_codecs_test() {
   string.contains(source, "shared/forms.Published") |> should.be_true
 }
 
-pub fn transport_codecs_include_generated_request_msg_test() {
-  let types = [
-    walker.DiscoveredType(
-      module_path: "shared/article",
-      type_name: "Article",
-      type_params: [],
-      variants: [
-        walker.DiscoveredVariant(
-          module_path: "shared/article",
-          variant_name: "Article",
-          atom_name: "shared_article__article",
-          float_field_indices: [],
-          field_labels: [Some("title")],
-          fields: [field_type.StringField],
-        ),
-      ],
-    ),
-  ]
-  let endpoints = [
-    scanner.HandlerEndpoint(
-      module_path: "pages/article",
-      fn_name: "send_drag",
-      return_ok: field_type.UserType("shared/article", "Article", []),
-      return_err: field_type.ListOf(
-        field_type.UserType("shared/article", "Article", []),
-      ),
-      params: [
-        #(
-          "items",
-          field_type.ListOf(
-            field_type.OptionOf(
-              field_type.UserType("shared/article", "Article", []),
-            ),
-          ),
-        ),
-        #(
-          "selected",
-          field_type.TupleOf([
-            field_type.UserType("shared/article", "Article", []),
-            field_type.IntField,
-          ]),
-        ),
-      ],
-      mutates_context: False,
-      msg_type: None,
-    ),
-  ]
-
-  let source =
-    assert_generated(codegen.generate_transport_codecs(
-      discovered: types,
-      endpoints:,
-      request_msg_module_path: "generated/libero/requests",
-      request_msg_type_name: "RequestMsg",
-    ))
-
-  string.contains(source, "import generated/libero/requests")
-  |> should.be_true
-  string.contains(
-    source,
-    "pub fn json_encode_generated_libero_requests__request_msg",
-  )
-  |> should.be_true
-  string.contains(source, "generated/libero/requests.RequestMsg")
-  |> should.be_true
-  string.contains(source, "\"ServerSendDrag\"")
-  |> should.be_true
-  string.contains(source, "json_encode_shared_article__article(x)")
-  |> should.be_true
-  string.contains(source, "json_encode_shared_article__article(f1.0)")
-  |> should.be_true
-  string.contains(source, "json_decode_shared_article__article(inner_raw)")
-  |> should.be_true
-  string.contains(source, "pub fn json_encode_response_send_drag")
-  |> should.be_true
-  string.contains(
-    source,
-    "json_encode_gleam_result__result(value, fn(x) { json_encode_shared_article__article(x) }, fn(x) { json.array(x, of: fn(x) { json_encode_shared_article__article(x) }) })",
-  )
-  |> should.be_true
-}
-
 pub fn transport_codecs_include_push_and_ssr_wrappers_test() {
   let types = [
     walker.DiscoveredType(
@@ -254,9 +171,6 @@ pub fn transport_codecs_include_push_and_ssr_wrappers_test() {
     assert_generated(
       codegen.generate_transport_codecs_with_push_and_ssr(
         discovered: types,
-        endpoints: [],
-        request_msg_module_path: "generated/libero/requests",
-        request_msg_type_name: "RequestMsg",
         push_types: [
           contract.PushContract(
             module: "public/pages/article",
