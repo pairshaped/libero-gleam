@@ -95,6 +95,13 @@ When `use_json = true`, Libero generates JSON-specific files instead:
 Libero leaves transport code to your app or framework. WebSocket setup, HTTP
 routes, reconnect behavior, and app-specific routing stay outside the generator.
 
+## Example
+
+[Rally Scoreboard](https://github.com/pairshaped/rally-scoreboard-example) shows Libero used as Rally's
+wire-contract layer. Rally drives Libero type discovery and generated ETF codec
+output under `src/generated/libero/**`, while Rally owns transport, SSR,
+hydration, browser lifecycle, and broadcast delivery.
+
 ## Benchmarks
 
 Transport benchmarks live in [benchmarks/](benchmarks/) and compare the default

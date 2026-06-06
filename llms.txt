@@ -10,6 +10,11 @@ Libero is opinionated: context type is `ServerContext` in the `server_context` m
 
 Libero does not generate client stubs, WebSocket clients, routers, SSR, scaffolded apps, or framework transport. Frameworks such as Rally own those layers. Rally may use Libero for scanner, walker, dispatch, atoms, and ETF primitives, but Rally should generate its own client `ClientMsg` mirror and transport API.
 
+Canonical framework example: [Rally Scoreboard](https://github.com/pairshaped/rally-scoreboard-example)
+uses Libero as Rally's wire-contract layer. Rally drives Libero type discovery
+and generated ETF codec output under `src/generated/libero/**`, while Rally
+owns transport, SSR, hydration, browser lifecycle, and broadcast delivery.
+
 ## CLI
 
 ```sh
