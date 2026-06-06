@@ -13,10 +13,10 @@ seeded types, generates the codec artifacts, and exposes ETF and JSON wire
 helpers that agree on type identity. It does not scan handlers, generate
 dispatch modules, write app transport, or own request/result/push API design.
 
-That boundary is deliberate. Rally owns pages, loaders, actions, request
-correlation, WebSocket lifecycle, SSR, hydration, and broadcast delivery. Libero
-owns the shared type graph and the protocol-facing pieces that must stay in
-lockstep.
+That boundary is deliberate. For example, Rally owns pages, loaders, actions,
+request correlation, WebSocket lifecycle, SSR, hydration, and broadcast
+delivery. Libero owns the shared type graph and the protocol-facing pieces that
+must stay in lockstep.
 
 ## What Libero Generates
 
