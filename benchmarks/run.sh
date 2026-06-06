@@ -229,9 +229,9 @@ awk -F, '
   echo
   echo "Raw CSV files:"
   echo
-  echo "- [results.csv](results.csv)"
-  echo "- [beam.csv](beam.csv)"
-  echo "- [js.csv](js.csv)"
+  echo "- [results.csv](https://github.com/pairshaped/libero-gleam/blob/master/benchmarks/results.csv)"
+  echo "- [beam.csv](https://github.com/pairshaped/libero-gleam/blob/master/benchmarks/beam.csv)"
+  echo "- [js.csv](https://github.com/pairshaped/libero-gleam/blob/master/benchmarks/js.csv)"
 } > "$REPORT_DIR/report.md"
 
 echo "Wrote $REPORT_DIR/report.md"

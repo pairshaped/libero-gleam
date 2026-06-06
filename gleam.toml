@@ -27,6 +27,16 @@ title = "Wire Type Identity"
 path = "protocol/wire-type-identity.html"
 source = "./pages/protocol/wire-type-identity.md"
 
+[[documentation.pages]]
+title = "Benchmarks"
+path = "benchmarks/index.html"
+source = "./benchmarks/README.md"
+
+[[documentation.pages]]
+title = "Benchmark Report"
+path = "benchmarks/report.html"
+source = "./benchmarks/report.md"
+
 target = "erlang"
 
 [dependencies]

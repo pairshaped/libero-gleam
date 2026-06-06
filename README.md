@@ -135,7 +135,7 @@ the same contract hashes, but payloads are larger and generated validators do
 more shape checking at the boundary.
 
 For measured performance guidance, see the
-[benchmark README](benchmarks/README.md).
+[benchmark README](https://github.com/pairshaped/libero-gleam/blob/master/benchmarks/README.md).
 
 ## ETF Safety
 
@@ -165,6 +165,7 @@ uses Libero to generate the shared codec and contract artifacts under
 - [ETF wire protocol](https://github.com/pairshaped/libero-gleam/blob/master/pages/protocol/etf-wire-protocol.md)
 - [JSON wire protocol](https://github.com/pairshaped/libero-gleam/blob/master/pages/protocol/json-wire-protocol.md)
 - [Wire type identity](https://github.com/pairshaped/libero-gleam/blob/master/pages/protocol/wire-type-identity.md)
+- [Benchmarks](https://github.com/pairshaped/libero-gleam/blob/master/benchmarks/README.md)
 - [llms.txt](https://raw.githubusercontent.com/pairshaped/libero-gleam/master/llms.txt)
 
 ## License

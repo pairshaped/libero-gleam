@@ -167,6 +167,6 @@ Decodes the Type Matrix response payload on JavaScript. 2500 iterations per code
 
 Raw CSV files:
 
-- [results.csv](results.csv)
-- [beam.csv](beam.csv)
-- [js.csv](js.csv)
+- [results.csv](https://github.com/pairshaped/libero-gleam/blob/master/benchmarks/results.csv)
+- [beam.csv](https://github.com/pairshaped/libero-gleam/blob/master/benchmarks/beam.csv)
+- [js.csv](https://github.com/pairshaped/libero-gleam/blob/master/benchmarks/js.csv)
