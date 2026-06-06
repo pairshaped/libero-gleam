@@ -1,6 +1,6 @@
 # Libero Context
 
-Libero is Rally's typed wire-contract layer for Gleam (6.0.0). Rally docs are
+Libero is Rally's typed wire-contract layer for Gleam (7.0.0). Rally docs are
 published at https://rally.hexdocs.pm/. Libero is a library,
 not a standalone generator. Framework code supplies type seeds, Libero walks the
 reachable custom type graph, then returns generated source strings for ETF,

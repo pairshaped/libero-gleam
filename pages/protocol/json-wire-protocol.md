@@ -304,7 +304,7 @@ value contract:
   "contract_hash": "...",
   "protocol_version": "libero-json-v1",
   "typed_value_contract": "typed-json-v1",
-  "libero_version": "6.0.0",
+  "libero_version": "7.0.0",
   "push_types": [],
   "ssr_models": [],
   "types": []

@@ -68,7 +68,7 @@ fn canonical_fields(
   [
     #("protocol_version", json.string("libero-json-v1")),
     #("typed_value_contract", json.string(typed_value_contract_v1)),
-    #("libero_version", json.string("6.0.0")),
+    #("libero_version", json.string("7.0.0")),
     #("push_types", json.array(push_types, of: push_contract_json)),
     #("ssr_models", json.array(ssr_models, of: ssr_model_json)),
     #("types", json.array(sorted_types, of: discovered_type_json)),
