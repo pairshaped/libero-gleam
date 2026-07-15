@@ -5,6 +5,8 @@
 [![Package Version](https://img.shields.io/hexpm/v/libero)](https://hex.pm/packages/libero)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://libero.hexdocs.pm/)
 
+**Disclaimer: This library was developed with help from code assistance agents. Code-assisted pull requests are welcome, so long as they aren't objectively dumb.**
+
 Libero is [Rally](https://rally.hexdocs.pm/)'s typed wire-contract layer
 for Gleam.
 
